@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import httpx
@@ -6,11 +7,14 @@ import respx
 
 from oligopoly.llm import (
     BASE_URL,
+    PROMPT_SLACK_TOKENS,
     Budget,
     BudgetExceeded,
+    Endpoint,
     OpenRouterClient,
     PermanentError,
     RetriesExhausted,
+    estimate_cost,
     with_cache_control,
 )
 
@@ -186,3 +190,145 @@ async def test_cache_upto_in_payload(mock, make):
     await make().chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10, cache_upto=0)
     sent = json.loads(route.calls[0].request.content)
     assert sent["messages"][0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+
+
+# ---------------------------------------------------------------- review regressions
+
+
+def post(c, **kw):
+    return c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", **{"max_tokens": 10, **kw})
+
+
+async def test_cancel_charges_reservation_and_logs(mock, make, tmp_path):
+    started = asyncio.Event()
+
+    async def hang(request):
+        started.set()
+        await asyncio.sleep(60)
+
+    mock.post(CHAT).mock(side_effect=hang)
+    c = make()
+    task = asyncio.create_task(post(c))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    [rec] = lines(tmp_path)
+    assert rec["error"] == "cancelled" and rec["charged_usd"] == rec["reserved_usd"] > 0
+    assert not c.budget.in_flight and c.budget.spent == pytest.approx(rec["reserved_usd"])
+
+
+async def test_unexpected_error_charged_logged_reraised(mock, make, tmp_path):
+    mock.post(CHAT).mock(side_effect=RuntimeError("boom"))
+    c = make()
+    with pytest.raises(RuntimeError):
+        await post(c)
+    [rec] = lines(tmp_path)
+    assert rec["error"] == "RuntimeError: boom" and rec["charged_usd"] == rec["reserved_usd"]
+    assert not c.budget.in_flight
+
+
+async def test_unsent_request_released(mock, make, tmp_path):
+    mock.post(CHAT).mock(side_effect=[httpx.ConnectError("refused"), httpx.Response(200, json=completion(cost=0))])
+    c = make()
+    await post(c)
+    assert lines(tmp_path)[0]["charged_usd"] == 0.0 and c.budget.spent == 0.0 and not c.budget.in_flight
+
+
+def test_crashed_in_flight_charged_on_restart(tmp_path):
+    b = Budget(1.0, tmp_path / "budget.json")
+    b.reserve(0.25)
+    b.settle(b.reserve(0.1), 0.05)
+    assert json.loads((tmp_path / "budget.json").read_text())["in_flight"]  # the 0.25 is persisted
+    b2 = Budget(1.0, tmp_path / "budget.json")  # the process died with 0.25 in flight
+    assert b2.spent == pytest.approx(0.30) and b2.recovered_usd == pytest.approx(0.25) and not b2.in_flight
+    assert not json.loads((tmp_path / "budget.json").read_text())["in_flight"]
+    OpenRouterClient(tmp_path / "calls.jsonl", b2, api_key="k")
+    assert lines(tmp_path)[0]["event"] == "budget_recovered_in_flight"
+
+
+def test_budget_cap_counts_reservations():
+    b = Budget(1.0)
+    b.reserve(0.6)
+    with pytest.raises(BudgetExceeded):
+        b.reserve(0.5)
+    b.settle(b.reserve(0.4), 2.0)  # an actual cost above the reservation is charged in full
+    assert b.spent == 2.0
+    with pytest.raises(BudgetExceeded):
+        b.reserve(0.0)
+
+
+async def test_max_tokens_required(mock, make):
+    with pytest.raises(ValueError, match="max_tokens"):
+        await make().chat(MSGS, model=MODEL, provider="deepinfra/fp8")
+
+
+def test_estimate_is_byte_bound():
+    ep = Endpoint.from_api(endpoint("x", "X", prompt="0.000001", completion="0.000002"))
+    msgs = [{"role": "user", "content": "€" * 100}]  # 300 UTF-8 bytes
+    n_bytes = len(json.dumps(msgs, ensure_ascii=False).encode())
+    assert n_bytes > 300
+    assert estimate_cost(ep, msgs, 50) == pytest.approx((n_bytes + PROMPT_SLACK_TOKENS) * 1e-6 + 50 * 2e-6)
+    with pytest.raises(PermanentError):
+        estimate_cost(Endpoint.from_api(endpoint("x", "X", prompt="-1")), msgs, 50)
+
+
+async def test_unknown_pricing_fails_closed(make, tmp_path):
+    body = {"data": {"endpoints": [{**endpoint("deepinfra/fp8", "DeepInfra"), "pricing": {"prompt": "0.000001"}}]}}
+    with respx.mock(assert_all_called=False) as r:
+        r.get(ENDPOINTS).mock(return_value=httpx.Response(200, json=body))
+        route = r.post(CHAT).mock(return_value=httpx.Response(200, json=completion()))
+        with pytest.raises(PermanentError, match="pricing"):
+            await post(make())
+    assert route.call_count == 0 and "pricing" in lines(tmp_path)[0]["error"]
+
+
+async def test_reserve_inside_semaphore(mock, make):
+    release = asyncio.Event()
+
+    async def slow(request):
+        await release.wait()
+        return httpx.Response(200, json=completion(cost=0))
+
+    mock.post(CHAT).mock(side_effect=slow)
+    c = make(max_concurrency=1)
+    tasks = [asyncio.create_task(post(c)) for _ in range(3)]
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert len(c.budget.in_flight) == 1  # calls waiting for the semaphore hold no reservation
+    release.set()
+    await asyncio.gather(*tasks)
+
+
+async def test_timeouts(mock, make, tmp_path):
+    seen = []
+
+    def reply(request):
+        seen.append(request.extensions["timeout"]["read"])
+        if len(seen) == 1:
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, json=completion())
+
+    mock.post(CHAT).mock(side_effect=reply)
+    c = make()
+    await post(c, timeout_s=5)
+    await post(c)
+    assert seen == [5, 5, 900]
+    recs = lines(tmp_path)
+    assert recs[0]["charged_usd"] == recs[0]["reserved_usd"]  # a timed-out request may have been billed
+    assert [r["timeout_retry"] for r in recs] == [False, True, False]
+
+
+async def test_malformed_200_retried(mock, make, tmp_path):
+    mock.post(CHAT).mock(side_effect=[httpx.Response(200, json=[1, 2]), httpx.Response(200, json={"id": "x"}),
+                                      httpx.Response(200, text="not json"), httpx.Response(200, json=completion())])
+    r = await post(make())
+    assert r.attempts == 4
+    assert all("malformed" in x["error"] and x["retryable"] for x in lines(tmp_path)[:3])
+
+
+async def test_unknown_provider_tag_logged(mock, make, tmp_path):
+    with pytest.raises(PermanentError):
+        await make().chat(MSGS, model=MODEL, provider="nope", max_tokens=10, tag={"firm": "A"})
+    [rec] = lines(tmp_path)
+    assert "nope" in rec["error"] and rec["tag"] == {"firm": "A"} and rec["retryable"] is False
