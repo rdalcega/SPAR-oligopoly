@@ -719,6 +719,18 @@ class OpenRouterClient:
         with self.log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
+    async def _post(self, payload: dict[str, Any], timeout: float) -> httpx.Response:
+        """POST one attempt under an absolute deadline of `timeout` s for the whole request, body included.
+        httpx's float timeout bounds each read, so a trickling or keep-alive response could otherwise hold the
+        reservation indefinitely. Hitting the deadline raises httpx.ReadTimeout, handled like any read timeout
+        (charged its reservation, logged, retried with `timeout_retry`)."""
+        try:
+            async with asyncio.timeout(timeout):
+                return await self._http.post(f"{self.base_url}/chat/completions", json=payload,
+                                             headers=self._headers, timeout=timeout)
+        except TimeoutError as e:
+            raise httpx.ReadTimeout(f"absolute deadline of {timeout} s exceeded for the whole request") from e
+
     def _backoff(self, attempt: int, retry_after: str | None) -> float:
         delay = random.uniform(0, min(self.backoff_max_s, self.backoff_base_s * 2 ** (attempt - 1)))
         try:
@@ -916,8 +928,7 @@ class OpenRouterClient:
                 t0 = time.monotonic()
                 try:
                     try:
-                        resp = await self._http.post(f"{self.base_url}/chat/completions", json=payload,
-                                                     headers=self._headers, timeout=timeout)
+                        resp = await self._post(payload, timeout)
                     except BaseException as e:  # incl. CancelledError: settle and log (no awaits) first
                         charged = 0.0 if isinstance(e, NOT_SENT) else estimate
                         charge_reason = "not_sent" if isinstance(e, NOT_SENT) else "sent_no_response"

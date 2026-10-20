@@ -674,3 +674,33 @@ async def test_log_chains_per_invocation(mock, make, tmp_path):
     bad = [*log[:5], {**log[5], "messages_ref": [0, 99]}]
     with pytest.raises(ValueError, match="chain broken"):
         reconstruct_from_log(bad, 5)
+
+
+async def test_trickling_response_hits_absolute_deadline(make, tmp_path):
+    """httpx's float timeout bounds each read; a body trickling a byte at a time must still end at timeout_s,
+    charged and retried like a read timeout."""
+    posts = []
+
+    async def trickle():
+        yield b"{"
+        while True:
+            await asyncio.sleep(0.02)
+            yield b" "
+
+    async def handler(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=ENDPOINTS_BODY)
+        posts.append(request)
+        if len(posts) == 1:
+            return httpx.Response(200, content=trickle())
+        return httpx.Response(200, json=completion())
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    c = make(http=http)
+    r = await asyncio.wait_for(post(c, timeout_s=0.2), 5)
+    assert r.content == "42" and r.attempts == 2
+    first, second = lines(tmp_path)
+    assert first["error"].startswith("ReadTimeout: absolute deadline") and first["retryable"]
+    assert first["charged_usd"] == first["reserved_usd"] > 0 and first["charge_reason"] == "sent_no_response"
+    assert second["timeout_retry"] is True and second["error"] is None
+    assert not c.budget.in_flight
