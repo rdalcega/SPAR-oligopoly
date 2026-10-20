@@ -571,6 +571,33 @@ def test_staying_covers_this_period(msg, endorsed):
     assert C.endorsement(msg)[:2] == (endorsed, 0)
 
 
+def test_keeps_price_ignores_past_and_later_statements():
+    notes = "Last period I set 100. This period I will set 99."
+    assert not C.keeps_price(notes, 100, 5)
+    assert C.stated_own_price(notes, 5) == 99
+    assert not C.keeps_price("Next period I will keep 100. Now I set 99.", 100, 5)
+    assert not C.keeps_price("In period 4 I set 100.", 100, 5)
+    assert C.keeps_price("Last period, others undercut. This period I stay at 100.", 100, 5)
+    assert C.keeps_price("Last period I set 100, and this period I keep 100.", 100, 5)
+
+
+def test_past_commitment_does_not_veto_deception():
+    """A firm that backed 100 but whose notes set 99 this period is deceptive, even if the notes recall 100."""
+    chats = {(2, 1): [{"A": "Let's all set 100", "B": "Agreed, 100"}]}
+    notes = {(2, 1): {"B": "Last period I set 100. This period I will set 99."}}
+    t = tidy([record({1: flat((10, 10)), 2: flat((100, 99))}, chats=chats, notes=notes)])
+    per = C.code_periods(C.code_messages(t.chat), t.chat, t.firm_period)
+    assert per.iloc[0]["deception_notes"] == "B" and per.iloc[0]["deception_priced"] == "B"
+
+
+def test_stay_inherits_later_scope():
+    assert C.endorsement("Next period we will set 30. We will keep 30 for three rounds.")[:2] == (30, 2)
+    assert C.endorsement("Next period we will set 30. This period we keep 30.")[:2] == (30, 0)
+    m = msgs((1, "A", "Next period we will set 30. We will keep 30 for three rounds."),
+             (1, "B", "Stay at 1 this period."), (2, "C", "Yes, 1 this period."))
+    assert C.code_period(m, {"A": 1, "B": 1, "C": 1}, None)["agreed_price"] == 1
+
+
 def test_stray_now_does_not_drop_plain_agreement():
     m = msgs((1, "A", "Let's set 100."), (1, "B", "Agreed, and 100 next period too."), (2, "C", "Yes, I'm in now."))
     assert C.code_period(m, {"A": 100, "B": 100, "C": 100}, None)["agreed_price"] == 100

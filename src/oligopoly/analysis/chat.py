@@ -57,7 +57,7 @@ Per Talk period (`code_period`):
                 `notes.deviation_plan`: history, other firms' prices, differences, contingent and punishment plans
                 don't count; nor does a lower stated price with punishment wording in its sentence or the one
                 before, e.g. an agreed 0-price punishment; nor a lower price or vague plan in notes that also say
-                in the first person the firm keeps P, `keeps_price`, nor a vague plan when the stated price is P);
+                in the first person the firm keeps P this period, `keeps_price`, nor a vague plan when the stated price is P);
                 `deception_priced` additionally requires that it then posted below P
 """
 
@@ -69,6 +69,7 @@ from collections import Counter
 import pandas as pd
 
 from .load import KEY_COLS
+from . import notes as _notes
 from .notes import deviation_plan, stated_own_price, stated_own_price_context  # noqa: F401 (re-exported)
 
 I = re.I
@@ -212,15 +213,33 @@ _KEEP_AUX = (r"(?:'ll|’ll|\s+will|\s+shall|\s+am|\s+are|\s+going|\s+to|\s+must
              r"\s+still|\s+again|\s+each|\s+all)*")
 
 
-def keeps_price(notes: str | None, price: int) -> bool:
-    """Whether the notes state in the first person that the firm keeps or sets `price` ("I stay at the agreed
-    collusive price of 11", "I will keep 1 ECU", "myself have agreed to set price 24", "By staying at 24 we"), in
-    a sentence that names no lower price and no deviation ("I will set 10 instead of 11" does not keep 11)."""
+def _other_time(sent: str, a: int, b: int, period: int | None) -> bool:
+    """Whether the statement at [a, b) of a notes sentence is about the past or a later period, not this one:
+    its clause (with a short lead-in such as "Last period,") has a past or later cue, or names another period,
+    and no this-period cue ("Last period I set 100", "Next period I will keep 100")."""
+    lo, hi = _notes._clause_bounds(sent, a, b)
+    prev = max((m.end() for m in _notes._CLAUSE.finditer(sent, 0, max(lo - 1, 0))), default=0)
+    if lo and len(sent[prev:lo].split()) <= 4:  # "Last period, I set 100"
+        lo = prev
+    span = sent[lo:hi]
+    this_ref, other_ref = _notes._period_refs(span, period)
+    if _notes.THIS_PERIOD.search(span) or this_ref:
+        return False
+    return bool(_notes.PAST.search(span) or _notes.LATER.search(span) or other_ref)
+
+
+def keeps_price(notes: str | None, price: int, period: int | None = None) -> bool:
+    """Whether the notes state in the first person that the firm keeps or sets `price` this period ("I stay at the
+    agreed collusive price of 11", "I will keep 1 ECU", "myself have agreed to set price 24", "By staying at 24
+    we"), in a sentence that names no lower price and no deviation ("I will set 10 instead of 11" does not keep
+    11). Statements about the past or a later period don't count ("Last period I set 100. This period I will set
+    99." does not keep 100)."""
     rx = re.compile(rf"(?:\b(?:I|we|myself){_KEEP_AUX}|\bby)\s+(?:stay|keep|remain|stick|set|choose|maintain|hold|post|"
                     rf"go with)\w*\b(?:\s+(?:at|to|with|on|the|my|our|price|agreed|collusive|cooperative|of))*\s*"
                     rf"(?<![\d.,])\b{price}\b(?![\d,.]\d|\s*(?:ECU\s+)?(?:profit|periods?|rounds?|units?|%))", I)
     for sent in SENT.split((notes or "").replace("’", "'")):
-        if rx.search(sent) and not CONDITIONAL.search(sent) and not DEVIATE.search(sent) \
+        if any(not _other_time(sent, m.start(), m.end(), period) for m in rx.finditer(sent)) \
+                and not CONDITIONAL.search(sent) and not DEVIATE.search(sent) \
                 and not re.search(r"\binstead\b", sent, I) and all(v >= price for v in prices_in(sent)):
             return True
     return False
@@ -282,7 +301,8 @@ def _clauses(sentence: str) -> list[str]:
 def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | None]:
     """(endorsed price, its time tier, this-period punishment price, this-period solo bid) of a message.
 
-    Tier 0: the clause names this period ("set 1 this period") or staying at a price ("keep at 10"); 1: no time
+    Tier 0: the clause names this period ("set 1 this period") or staying at a price ("keep at 10", unless it
+    continues a later period named earlier: "Next period we set 30. We keep 30 for three rounds" is tier 2); 1: no time
     cue; 2: the next period; 3: later ("then", "after a few rounds"). The lowest tier wins, the last clause within it.
     A clause that states this period's price as a punishment ("keep 1 this period to finish the punishment") or as
     a bid to win the market alone ("I'll set 24 this period to capture the whole market") is not an endorsement:
@@ -316,8 +336,10 @@ def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | No
             # for the next 3 periods" is about the coalition)
             now = bool(THIS_PERIOD.search(c)) or (bool(THIS_NOW.search(c)) and later == 1 and floor == 1)
             tier = 0 if now else max(floor, later)
+            inherited = floor > 1  # a later time named earlier ("Next period we set 30. We keep 30 for 3 rounds")
             floor = 1 if now else max(floor, tier)  # "Next period, we go to 30. Let's all raise to 30"
-            if STAY.search(c) and not STAY_LATER.search(c):  # "let's stay at 1 ... let's move to 2": about now
+            # "let's stay at 1 ... let's move to 2": about now, unless it continues a plan for a later period
+            if STAY.search(c) and not STAY_LATER.search(c) and not inherited:
                 tier = 0
             ps = prices_in(c)
             if punish:
@@ -473,7 +495,7 @@ def code_periods(chat_msgs: pd.DataFrame, chat: pd.DataFrame, fp: pd.DataFrame) 
                         continue
                     nt = notes.get(f, "")  # price-decision notes, written after the chat
                     stated, context = stated_own_price_context(nt, t)
-                    keeps = keeps_price(nt, v)  # "I stay at the agreed price of 11": a lower price is a rival's
+                    keeps = keeps_price(nt, v, t)  # "I stay at the agreed price of 11": a lower price is a rival's
                     lower = stated is not None and stated < v and not has_unnegated(OWN_PUNISH, context) and not keeps
                     # a vague plan ("I'll keep 1 to capture the market") is no deviation when the stated price is P
                     if lower or (deviation_plan(nt, t) and (stated is None or stated < v) and not keeps):
