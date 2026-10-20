@@ -135,6 +135,14 @@ def steps(calls: list[dict[str, Any]]) -> dict[str, int]:
     return out
 
 
+def cells_to_project(cfg: ModelConfig, ns: list[int], orderings: list[str]) -> tuple[list[tuple[int, str]],
+                                                                                   list[tuple[int, str]]]:
+    """(cells to project, cells the model excludes) in the order given; excluded cells are not run, so they
+    are left out of the projection, as `oligopoly.run` leaves them out of a run."""
+    pairs = [(n, o) for n in ns for o in orderings]
+    return [c for c in pairs if not cfg.excludes(*c)], [c for c in pairs if cfg.excludes(*c)]
+
+
 async def replay_cell(cfg: ModelConfig, sample: Sample, n: int, ordering: str, exp: ExperimentConfig,
                       i: int) -> list[dict[str, Any]]:
     client = CostReplay(sample, cfg.bytes_per_token_min, derive_seed("cost", cfg.name, n, ordering, i),
@@ -186,28 +194,30 @@ async def main(argv: list[str] | None = None) -> int:
            f"{'$/cell bound':>12} {'h/mkt p50':>9} {'h/mkt p90':>9}")
     print(hdr)
     tot = defaultdict(float)
-    for n in a.n:
-        for o in a.orderings:
-            reps = [await replay_cell(cfg, sample, n, o, exp, i) for i in range(a.replays)]
-            r = defaultdict(float)
-            for i, calls in enumerate(reps):
-                usd, _, _ = price_calls(calls, st, pricing, False, derive_seed("out", n, o, i))
-                usd_b, _, _ = price_calls(calls, st, pricing, True, derive_seed("out", n, o, i))
-                sp = steps(calls)
-                r["calls"] += len(calls)
-                r["steps"] += sp["chat"] + sp["price"]
-                r["peak"] = max(r["peak"], max(c["bytes"] for c in calls) * st.tokens_per_byte)
-                r["usd"] += usd
-                r["usd_b"] += usd_b
-                r["h50"] += (sp["chat"] * lat["chat"][0] + sp["price"] * lat["price"][0]) / 3600
-                r["h90"] += (sp["chat"] * lat["chat"][1] + sp["price"] * lat["price"][1]) / 3600
-            m = {k: (v if k == "peak" else v / a.replays) for k, v in r.items()}
-            k = a.markets_per_cell
-            print(f"{n:>3} {o:<6} {m['calls']:>9,.0f} {m['steps']:>6,.0f} {m['peak']:>9,.0f} {m['usd']:>8.3f} "
-                  f"{m['usd'] * k:>8.2f} {m['usd_b'] * k:>12.2f} {m['h50']:>9.2f} {m['h90']:>9.2f}", flush=True)
-            for key in ("calls", "usd", "usd_b", "h50", "h90"):
-                tot[key] += m[key] * k
-            tot["markets"] += k
+    todo, excluded = cells_to_project(cfg, a.n, a.orderings)
+    for n, o in todo:
+        reps = [await replay_cell(cfg, sample, n, o, exp, i) for i in range(a.replays)]
+        r = defaultdict(float)
+        for i, calls in enumerate(reps):
+            usd, _, _ = price_calls(calls, st, pricing, False, derive_seed("out", n, o, i))
+            usd_b, _, _ = price_calls(calls, st, pricing, True, derive_seed("out", n, o, i))
+            sp = steps(calls)
+            r["calls"] += len(calls)
+            r["steps"] += sp["chat"] + sp["price"]
+            r["peak"] = max(r["peak"], max(c["bytes"] for c in calls) * st.tokens_per_byte)
+            r["usd"] += usd
+            r["usd_b"] += usd_b
+            r["h50"] += (sp["chat"] * lat["chat"][0] + sp["price"] * lat["price"][0]) / 3600
+            r["h90"] += (sp["chat"] * lat["chat"][1] + sp["price"] * lat["price"][1]) / 3600
+        m = {k: (v if k == "peak" else v / a.replays) for k, v in r.items()}
+        k = a.markets_per_cell
+        print(f"{n:>3} {o:<6} {m['calls']:>9,.0f} {m['steps']:>6,.0f} {m['peak']:>9,.0f} {m['usd']:>8.3f} "
+              f"{m['usd'] * k:>8.2f} {m['usd_b'] * k:>12.2f} {m['h50']:>9.2f} {m['h90']:>9.2f}", flush=True)
+        for key in ("calls", "usd", "usd_b", "h50", "h90"):
+            tot[key] += m[key] * k
+        tot["markets"] += k
+    if excluded:
+        print(f"excluded (exclude_cells, not run, not projected): {', '.join(f'{o} n={n}' for n, o in excluded)}")
     print(f"\nTOTAL {tot['markets']:.0f} markets: {tot['calls']:,.0f} calls, ${tot['usd']:.2f} "
           f"(${tot['usd_b']:.2f} with the conservative token bound); market-hours {tot['h50']:.0f} (p50) / "
           f"{tot['h90']:.0f} (p90), i.e. wall-clock / concurrent markets")

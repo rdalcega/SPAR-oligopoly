@@ -38,3 +38,12 @@ def test_steps_count_rounds_prices_and_reasks():
          {"step": (1, 1, "chat2"), "attempt": 2}, {"step": (1, 1, "price"), "attempt": 0},
          {"step": (1, 2, "price"), "attempt": 1}]
     assert pc.steps(c) == {"chat": 1 + 3, "price": 1 + 2}
+
+
+def test_excluded_cells_not_projected():
+    from oligopoly.config import ModelConfig
+
+    cfg = ModelConfig("m", "acme/m", "p", exclude_cells=(("NT-T", 8), ("T-NT", 8)))
+    todo, excluded = pc.cells_to_project(cfg, [4, 8], ["NT-T", "T-NT", "NT-NT"])
+    assert todo == [(4, "NT-T"), (4, "T-NT"), (4, "NT-NT"), (8, "NT-NT")]
+    assert excluded == [(8, "NT-T"), (8, "T-NT")]
