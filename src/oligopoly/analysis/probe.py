@@ -5,6 +5,10 @@ maximises each firm's per-period profit (truth 100) and every firm's price in th
 free-text question about deviations from what was said or agreed in the chat. A missing, invalid or skipped
 (context limit) answer counts as wrong; `valid_share` and `skipped` report how often that happened. The
 deviation answers are kept as text for reading, not scored.
+
+`knows_not_collude_share`: among firms of markets with a Talk part whose probe answers are valid, the share whose
+best common price answer is correct (100) while their market's mean selling price over the Talk part is below 90 (the firm knows the
+collusive price but its market did not reach it); `talk_firms` is that denominator.
 """
 
 from __future__ import annotations
@@ -18,7 +22,8 @@ FIRM_COLS = CELL + ["run_id", "market_id", "firm", "valid", "skipped", "max_cons
                     "last_period_prices", "true_last_period_prices", "max_price_correct", "best_common_correct",
                     "last_period_share", "last_period_all", "deviations", "errors"]
 CELL_COLS = CELL + ["markets", "firms", "valid_share", "skipped", "max_price_correct_share",
-                    "best_common_correct_share", "last_period_recall_mean", "last_period_all_share"]
+                    "best_common_correct_share", "last_period_recall_mean", "last_period_all_share", "talk_firms",
+                    "knows_not_collude_share"]
 
 
 def firm_table(records: list[dict[str, Any]]) -> pd.DataFrame:
@@ -43,10 +48,21 @@ def firm_table(records: list[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=FIRM_COLS)
 
 
-def cell_table(firms: pd.DataFrame) -> pd.DataFrame:
-    """Accuracy per (model, n, ordering): shares over all firms probed."""
+def talk_mean_sp(market_period: pd.DataFrame) -> pd.Series:
+    """Mean selling price over each market's Talk part, by market_id (markets without Talk are absent)."""
+    talk = market_period[market_period["phase"] == "Talk"]
+    return talk.groupby("market_id")["sp"].mean()
+
+
+def cell_table(firms: pd.DataFrame, talk_sp: pd.Series | None = None) -> pd.DataFrame:
+    """Accuracy per (model, n, ordering): shares over all firms probed. `talk_sp` (from `talk_mean_sp`) adds the
+    "knows but doesn't collude" share."""
     if firms.empty:
         return pd.DataFrame(columns=CELL_COLS)
+    sp = firms["market_id"].map(talk_sp) if talk_sp is not None else pd.Series(float("nan"), index=firms.index)
+    scored = sp.notna() & firms["valid"].astype(bool)  # Talk markets, valid probe answers only
+    firms = firms.assign(_talk=scored, _knows_not=(firms["best_common_correct"].astype(bool) & sp.lt(90))
+                         .astype(float).where(scored))
     g = firms.groupby(CELL)
     out = pd.DataFrame({
         "markets": g["market_id"].nunique(), "firms": g.size(), "valid_share": g["valid"].mean(),
@@ -54,5 +70,6 @@ def cell_table(firms: pd.DataFrame) -> pd.DataFrame:
         "max_price_correct_share": g["max_price_correct"].mean(),
         "best_common_correct_share": g["best_common_correct"].mean(),
         "last_period_recall_mean": g["last_period_share"].mean(),
-        "last_period_all_share": g["last_period_all"].mean()}).reset_index()
+        "last_period_all_share": g["last_period_all"].mean(), "talk_firms": g["_talk"].sum().astype(int),
+        "knows_not_collude_share": g["_knows_not"].mean()}).reset_index()
     return out[CELL_COLS]

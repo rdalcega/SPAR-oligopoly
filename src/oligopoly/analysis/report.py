@@ -122,14 +122,15 @@ def build(run_ids: list[str], runs_root: str | Path,
     ts = measures.timeseries(t.market_period)
     ns = sorted(t.markets["n"].unique())
     probe_firms = probe_mod.firm_table(recs)
-    probe_cells = probe_mod.cell_table(probe_firms)
+    probe_cells = probe_mod.cell_table(probe_firms, probe_mod.talk_mean_sp(t.market_period))
+    mis_cells = mistakes.cell_rates(ff, fc)
 
     tables = {
         "firm_period": ff, "market_period": t.market_period, "markets": mt, "cells": cells,
         "extensions": cells[~cells["in_paper"]], "table2": t2, "markov_transitions": mk_long,
         "strategy_market_part": strat_m, "strategy_cells": strat, "tests": tests, "hysteresis": hyst,
         "human_comparison": comp, "chat_messages": msgs, "chat_turns": fc, "chat_periods": periods,
-        "chat_cells": chat_cells, "mistakes_by_model": mis, "timeseries": ts,
+        "chat_cells": chat_cells, "mistakes_by_model": mis, "mistakes_cells": mis_cells, "timeseries": ts,
         "excluded_cells": pd.DataFrame(excluded_rows, columns=["model", "ordering", "n", "markets_dropped"]),
         "probe_answers": probe_firms, "probe_cells": probe_cells,
     }
@@ -147,6 +148,7 @@ def build(run_ids: list[str], runs_root: str | Path,
         "cells": records(cells), "human_comparison": records(comp), "extensions": records(tables["extensions"]),
         "table2": records(t2), "markov": mk_summ, "strategy": records(strat), "tests": records(tests),
         "hysteresis": records(hyst), "chat": records(chat_cells), "mistakes": records(mis),
+        "mistakes_cells": records(mis_cells),  # format slips (re-asks) apart from strategic mistakes
         "timeseries": records(ts),
         "probe": records(probe_cells),  # deviation answers are in probe_answers.csv, for reading
         "caveats": {"human_data": list(b.CAVEATS), "analysis": LIMITATIONS},
