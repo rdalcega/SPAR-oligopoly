@@ -39,6 +39,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import traceback
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -196,6 +197,8 @@ class Decision:
     value: int | str | None = None  # price, message text, or None (pass)
     notes: str | None = None
     fallback: bool = False
+    notes_truncated: bool = False  # notes over the cap: `notes` is the capped text the firm carries
+    notes_full: str | None = None  # the notes as written, when truncated
     errors: list[str] = field(default_factory=list)  # one per invalid attempt
     warnings: list[str] = field(default_factory=list)  # coercions, truncations, missing notes
     attempts: list[dict[str, Any]] = field(default_factory=list)
@@ -207,6 +210,7 @@ class Decision:
     def to_dict(self) -> dict[str, Any]:
         return {"value": self.value, "notes": self.notes, "valid": not self.fallback, "fallback": self.fallback,
                 "reasks": self.reasks, "errors": self.errors, "warnings": self.warnings,
+                **({"notes_truncated": True, "notes_full": self.notes_full} if self.notes_truncated else {}),
                 "attempts": self.attempts}
 
 
@@ -220,6 +224,23 @@ def pick_error(eg: BaseExceptionGroup) -> BaseException:
 
 
 PROBE_MAX_REASKS = 1  # post-game probe: one re-ask at most, then recorded as invalid
+TRUNCATED = " [truncated]"
+
+
+def cap_notes(text: str, max_words: int, max_chars: int) -> tuple[str, bool]:
+    """`text` cut to at most `max_words` words and `max_chars` characters (the marker included): at the end of
+    the last whole word that fits, followed by TRUNCATED. Returns (text, whether it was cut). A first word too
+    long to fit is cut inside the word."""
+    words = list(re.finditer(r"\S+", text))
+    if len(words) <= max_words and len(text) <= max_chars:
+        return text, False
+    room = max_chars - len(TRUNCATED)
+    end = 0
+    for i, w in enumerate(words):
+        if i >= max_words or w.end() > room:
+            break
+        end = w.end()
+    return (text[:end] if end else text[:room]) + TRUNCATED, True
 
 
 def best_common_price(letters: list[str]) -> int:
@@ -360,12 +381,17 @@ class Market:
                 "provider_mismatch": r.provider_mismatch, "error": p.error, "warnings": p.warnings,
                 "usage": asdict(r.usage), "cost_usd": r.cost_usd, "context": ctx,
                 **({"content": r.content} if p.error else {})})
-            if p.ok:  # the firm's transcript keeps the value actually used, and its notes as returned
+            if p.ok:  # the firm's transcript keeps the value actually used, and its notes as returned (capped)
                 notes = {"notes": p.obj["notes"]} if "notes" in p.obj else {}
-                firm.answer(json.dumps({**notes, kind: p.value}, ensure_ascii=False))
-                if p.notes is not None:  # the latest notes replace the memory; an answer without notes keeps it
-                    firm.notes = p.notes
                 d.value, d.notes, d.warnings = p.value, p.notes, p.warnings
+                if p.notes is not None:
+                    capped, cut = cap_notes(p.notes, self.exp.notes_max_words, self.exp.notes_max_chars)
+                    if cut:  # the firm sees only the capped notes, in its memory and in its windowed answer
+                        notes, d.notes, d.notes_truncated, d.notes_full = {"notes": capped}, capped, True, p.notes
+                        d.warnings = [*p.warnings, f"notes truncated to {self.exp.notes_max_words} words / "
+                                                   f"{self.exp.notes_max_chars} characters ({len(p.notes)} chars)"]
+                    firm.notes = capped  # the latest notes replace the memory; an answer without notes keeps it
+                firm.answer(json.dumps({**notes, kind: p.value}, ensure_ascii=False))
                 return d
             d.errors.append(p.error)
             bad = strip_reasoning(r.content or "")
@@ -613,6 +639,7 @@ class Market:
                          "price_fallbacks": sum(p["decisions"][L]["fallback"] for p in self.periods),
                          "chat_fallbacks": sum(r["decisions"][L]["fallback"] for p in self.periods for r in p["chat"]),
                          "reasks": sum(d["reasks"] for d in decs),
+                         "notes_truncated": sum(bool(d.get("notes_truncated")) for d in decs),
                          "invalid_attempts": sum(len(d["errors"]) for d in decs)}
         return {
             "spec": self.spec.to_dict(),

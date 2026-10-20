@@ -1154,6 +1154,47 @@ async def test_window_sizes(tmp_path, window, ordering):
             assert ctx["window"][0] == 0
 
 
+def test_cap_notes():
+    cap = engine.cap_notes
+    assert cap("a b c", 3, 100) == ("a b c", False)
+    assert cap("a b c d", 3, 100) == ("a b c [truncated]", True)
+    text, cut = cap("word " * 300, 200, 1400)  # 200 words would fit in 1,400 chars here; the word cap binds
+    assert cut and text == "word " * 199 + "word [truncated]"
+    text, cut = cap("abcdefghij " * 150, 200, 1400)  # the character cap binds, at a word boundary
+    assert cut and len(text) <= 1400 and text.endswith("abcdefghij [truncated]") and len(text.split()) == 126 + 1
+    text, cut = cap("x" * 2000, 200, 1400)  # one giant word: cut inside it
+    assert cut and len(text) == 1400 and text.endswith("x [truncated]")
+    assert cap("  spaced   out  ", 2, 100) == ("  spaced   out  ", False)
+    with pytest.raises(ConfigError):
+        ExperimentConfig(notes_max_words=0)
+
+
+async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
+    """Notes over 200 words / 1,400 characters are cut at a word boundary and marked; the firm sees only the cut
+    version (memory and its windowed answer); the record counts truncations and keeps the full text."""
+    long = " ".join(f"w{i}" for i in range(400))
+
+    def answer(tag):
+        if tag["phase"] == "price":
+            return json.dumps({"notes": long if tag["firm"] == "A" else "short-B", "price": 100})
+        return '{"notes": "n", "message": null}'
+
+    exp = ExperimentConfig(part_lengths=(2, 1), post_game_probe=False)
+    rec, client, _ = await play(spec(2, "NT-NT"), tmp_path, exp=exp, client=Scripted(answer))
+    check_contexts(rec, client, exp)
+    capped, _ = engine.cap_notes(long, 200, 1400)
+    assert capped.endswith(" [truncated]") and len(capped) <= 1400 and len(capped.split()) <= 201
+    d = rec["periods"][0]["decisions"]["A"]
+    assert d["notes"] == capped and d["notes_truncated"] and d["notes_full"] == long
+    assert any("notes truncated" in w for w in d["warnings"])
+    assert "notes_truncated" not in rec["periods"][0]["decisions"]["B"]
+    assert rec["totals"]["A"]["notes_truncated"] == 3 and rec["totals"]["B"]["notes_truncated"] == 0
+    blob = json.dumps([c["messages"] for c in client.calls if c["tag"]["firm"] == "A"], ensure_ascii=False)
+    assert long not in blob and f"Your notes (written by you at your last decision): {capped}" in blob
+    a_answers = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
+    assert a_answers[0] == {"notes": capped, "price": 100}
+
+
 def test_reconstruct_merged_and_legacy_contexts():
     """Requests merge same-role messages (roles alternate); a context without `merged` (records from before the
     merge) is rebuilt unmerged, so older records still verify."""

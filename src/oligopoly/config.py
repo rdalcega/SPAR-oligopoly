@@ -112,11 +112,16 @@ class ExperimentConfig:
     # completed periods each request shows verbatim; older play survives only in the firm's own notes
     # (DECISIONS.md §6 item 3, 2026-10-20)
     memory_window: int = 3
+    # hard cap on the notes a firm carries as memory and in its windowed answers (DECISIONS.md engine details
+    # 12): longer notes are cut at a word boundary and marked " [truncated]"; the instructions ask for ~150 words
+    notes_max_words: int = 200
+    notes_max_chars: int = 1400
 
     def __post_init__(self) -> None:
-        w = self.memory_window
-        if isinstance(w, bool) or not isinstance(w, int) or w < 1:
-            raise ConfigError(f"memory_window must be an integer >= 1, got {w!r}")
+        for name, low in (("memory_window", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
+            w = getattr(self, name)
+            if isinstance(w, bool) or not isinstance(w, int) or w < low:
+                raise ConfigError(f"{name} must be an integer >= {low}, got {w!r}")
 
     @property
     def pilot(self) -> bool:

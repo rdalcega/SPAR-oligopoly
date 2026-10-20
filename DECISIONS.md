@@ -256,6 +256,14 @@ sampling rule and reading notes saved alongside the analysis.
     size is bounded, so the context guard and `scripts/project_context.py` see a peak that no longer grows with
     the part lengths.
 
+12. **Notes cap (2026-10-20, review).** The notes a firm carries are hard-capped so memory stays bounded:
+    over 200 words or 1,400 characters (`notes_max_words`, `notes_max_chars` in `config/experiment.toml`, part
+    of the fingerprint), they are cut after the last whole word that fits and " [truncated]" is appended (the
+    total stays within 1,400 characters). The firm sees only the capped notes, both in its memory block and in
+    its own windowed answers. The decision records the capped `notes`, `notes_truncated: true`, the full text
+    in `notes_full` and a warning; `totals[firm].notes_truncated` counts them. The instructions are unchanged
+    (they already ask for about 150 words at most), so the cap is not announced; it is a backstop.
+
 ### Post-game comprehension probe (2026-10-20)
 
 Approved by the PI (Rodrigo Delgado). After a market's final period, once the final results and the

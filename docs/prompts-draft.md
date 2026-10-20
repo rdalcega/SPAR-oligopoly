@@ -43,6 +43,10 @@ and period t so far. Older play survives only in the firm's own notes. The post-
 more period after the last: it sees the last 3 periods of Part 2, the final results and the memory block.
 Native reasoning is never fed back.
 
+Notes longer than 200 words or 1,400 characters are cut at a word boundary and marked " [truncated]" before
+they are carried (memory block and the firm's own windowed answers); the instructions still ask for about 150
+words at most and do not mention the cap (DECISIONS.md engine details 12).
+
 As sent, consecutive messages of the same role are merged into one, joined by a blank line (2026-10-20), so
 roles alternate system, user, assistant, user, …: items 2 and 3 and the window's opening user turn form one
 user message. The prompt-cache breakpoint goes on the system message only.
