@@ -593,6 +593,7 @@ def test_past_commitment_does_not_veto_deception():
 def test_stay_inherits_later_scope():
     assert C.endorsement("Next period we will set 30. We will keep 30 for three rounds.")[:2] == (30, 2)
     assert C.endorsement("Next period we will set 30. This period we keep 30.")[:2] == (30, 0)
+    assert C.endorsement("Next period we will set 30. We keep 1 now.")[:2] == (1, 0)  # "now" returns to the present
     m = msgs((1, "A", "Next period we will set 30. We will keep 30 for three rounds."),
              (1, "B", "Stay at 1 this period."), (2, "C", "Yes, 1 this period."))
     assert C.code_period(m, {"A": 1, "B": 1, "C": 1}, None)["agreed_price"] == 1

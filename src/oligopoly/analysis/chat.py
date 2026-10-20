@@ -333,8 +333,10 @@ def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | No
                 punish = has_unnegated(PUNISH_RULE, c)
             later = 3 if AFTER.search(c) else 2 if NEXT.search(c) else 1
             # "now" alone names this period only outside talk of a later one ("Ready to set 10 now" after "10
-            # for the next 3 periods" is about the coalition)
-            now = bool(THIS_PERIOD.search(c)) or (bool(THIS_NOW.search(c)) and later == 1 and floor == 1)
+            # for the next 3 periods" is about the coalition), except in a staying statement, where it returns to
+            # the present ("Next period we will set 30. We keep 1 now.")
+            now = bool(THIS_PERIOD.search(c)) or (bool(THIS_NOW.search(c)) and later == 1
+                                                  and (floor == 1 or bool(STAY.search(c))))
             tier = 0 if now else max(floor, later)
             inherited = floor > 1  # a later time named earlier ("Next period we set 30. We keep 30 for 3 rounds")
             floor = 1 if now else max(floor, tier)  # "Next period, we go to 30. Let's all raise to 30"
