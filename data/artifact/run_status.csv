@@ -1,4 +1,4 @@
-model,cells_planned,cells_complete,human_cells_planned,human_cells_complete,markets_planned,markets_complete,cost_usd,cap_usd
-gpt-oss-20b,15,15,6,6,90,90,15.25,25.0
-qwen3-14b,15,6,6,6,90,36,18.07,39.0
-pilots and probes,,,,,,,7.73,
+model,cells_planned,cells_complete,human_cells_planned,human_cells_complete,markets_planned,markets_complete,cost_usd,cap_usd,cells_incomplete
+gpt-oss-20b,15,15,6,6,90,90,15.25,25.0,none
+qwen3-14b,15,10,6,6,90,62,39.0,39.0,n6 T-NT 1/6; n8 T-NT 0/6; n10 NT-T 0/6; n10 T-NT 0/6; n10 NT-NT 1/6
+pilots and probes,,,,,,,7.73,,

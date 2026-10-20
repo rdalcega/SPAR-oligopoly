@@ -42,6 +42,10 @@
 .lx .lx-pill { border: 1px solid var(--color-border-line); border-radius: 999px; padding: 0 var(--cds-pad-sm); }
 .lx .lx-pill.lx-ok { color: var(--color-ok); border-color: currentColor; }
 .lx .lx-pill.lx-part { color: var(--color-warn); border-color: currentColor; }
+.lx .lx-findcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); align-items: start; }
+.lx .lx-findcol { display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
+.lx .lx-findcol > .lx-findings { grid-template-columns: 1fr; }
+.lx .lx-findcol > h4 { margin: 0; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); display: flex; align-items: center; }
 .lx .lx-theme { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
 .lx .lx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--cds-gap-md); }
 .lx .lx-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
@@ -60,12 +64,15 @@
     <p class="lx-lede">In the main design (NoTalk then Talk), opening chat raised the mean selling price by
       <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=gpt-oss-20b">—</b> points for gpt-oss and
       <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=qwen3-14b">—</b> for Qwen, against
-      <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=humans">—</b> for the human groups of Fonseca and Normann (average over market sizes two to eight). Firms know full collusion pays best, yet rarely coordinate on it.</p>
+      <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=humans">—</b> for the human groups of Fonseca and Normann (average over market sizes two to eight). Both models fall far short of human collusion with talk, in different ways.
+      gpt-oss breaks more of its chat agreements (<b class="dash-skeleton" data-source="chat_totals" data-field="broken_pct" data-where="model=gpt-oss-20b">—</b>% of agreement periods), keeps deferring promised joint raises, and in several markets announces undercuts that start price wars.
+      Qwen3-14B keeps nearly all of its agreements (<b class="dash-skeleton" data-source="chat_totals" data-field="kept_pct" data-where="model=qwen3-14b">—</b>% kept), but they sit at low prices anchored on the last NoTalk price, with proposals of higher prices voted down as risky.
+      Firms of both models know full collusion pays best, yet rarely coordinate on it.</p>
     <div class="lx-chips">
       <span class="lx-chip">Models <b class="dash-skeleton" data-source="status" data-field="models" data-row="0">—</b></span>
       <span class="lx-chip">Markets complete <b class="dash-skeleton" data-source="status" data-field="markets_complete" data-row="0">—</b> of <b class="dash-skeleton" data-source="status" data-field="markets_planned" data-row="0">—</b></span>
       <span class="lx-chip">Spent $<b class="dash-skeleton" data-source="status" data-field="cost_usd" data-row="0">—</b> incl. pilots</span>
-      <span class="lx-chip lx-warn">Qwen extension pending: <b class="dash-skeleton" data-source="run_status" data-field="cells_complete" data-where="model=qwen3-14b">—</b> of <b class="dash-skeleton" data-source="run_status" data-field="cells_planned" data-where="model=qwen3-14b">—</b> cells</span>
+      <span class="lx-chip lx-warn">Qwen incomplete (cost cap reached): <b class="dash-skeleton" data-source="run_status" data-field="cells_complete" data-where="model=qwen3-14b">—</b> of <b class="dash-skeleton" data-source="run_status" data-field="cells_planned" data-where="model=qwen3-14b">—</b> cells</span>
     </div>
     <nav aria-label="Sections">
       <a href="#main">Main design vs humans</a><a href="#order">Order and hysteresis</a><a href="#paths">Price paths</a><a href="#talk">Talk phase</a><a href="#mistakes">Mistakes vs strategy</a><a href="#checks">Design checks</a><a href="#next">Options for next</a>
@@ -131,7 +138,7 @@
   <section id="talk">
     <div>
       <h2>Talk phase: what firms say and do</h2>
-      <p class="lx-muted">Findings from reading the transcripts, each checked by an independent GPT verifier. Where the verifier corrected a claim, the claim is restated to match the correction; refuted claims are dropped.</p>
+      <p class="lx-muted">Findings from reading the transcripts, each checked by an independent GPT verifier. Where the verifier corrected a claim, the claim is restated to match the correction; refuted claims are dropped. gpt-oss findings cover its human-comparable cells and extensions; Qwen3-14B findings cover only its 36 human-comparable markets (two to eight firms NoTalk then Talk, and the four-firm controls). With all models shown, the two models sit side by side under each heading; the model filter applies to every findings section on the page.</p>
     </div>
     <div class="lx-controls"><label>Model <select id="find-model" aria-label="Findings model"><option value="">All models</option></select></label>
       <span class="lx-muted" id="find-count"></span></div>
@@ -206,11 +213,11 @@
         <h3>Run status and cost</h3>
         <div class="lx-tablebox">
           <table id="status-table" data-source="run_status" data-row-key="model">
-            <thead><tr><th data-field="model">Run</th><th data-field="cells_complete" class="lx-num">Cells done</th><th data-field="cells_planned" class="lx-num">Planned</th><th data-field="human_cells_complete" class="lx-num">Human-comparable done</th><th data-field="markets_complete" class="lx-num">Markets done</th><th data-field="cost_usd" class="lx-num">Spent $</th><th data-field="cap_usd" class="lx-num">Cap $</th></tr></thead>
+            <thead><tr><th data-field="model">Run</th><th data-field="cells_complete" class="lx-num">Cells done</th><th data-field="cells_planned" class="lx-num">Planned</th><th data-field="human_cells_complete" class="lx-num">Human-comparable done</th><th data-field="markets_complete" class="lx-num">Markets done</th><th data-field="cost_usd" class="lx-num">Spent $</th><th data-field="cap_usd" class="lx-num">Cap $</th><th data-field="cells_incomplete">Incomplete cells (markets done)</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <p class="lx-muted">Qwen is still running its extension cells (other market sizes and control orderings); this page will be rebuilt when they finish.</p>
+        <p class="lx-muted">Qwen's sweep stopped at its cost cap. Cells with fewer than six finished markets are left out of every chart and table above, not imputed; the unfinished markets are checkpointed.</p>
       </div>
     </div>
     <div class="lx-card" id="caveats">
@@ -222,7 +229,7 @@
         <li><b>Memory.</b> Firms see full detail of only the last three periods plus their own notes (a deliberate design choice). Probe answers about deviations test that memory.</li>
         <li><b>Extensions.</b> Ten-firm markets and the control orderings at sizes other than four are extensions with no human counterpart; keep them apart from the human comparison.</li>
         <li><b>Automated chat counts</b> are a rule-based screen; lean on the verified findings for interpretation.</li>
-        <li><b>Qwen pending.</b> Qwen findings from transcript reading are not in yet; they will be added as rows to the same findings cards.</li>
+        <li><b>Qwen incomplete.</b> Qwen's sweep hit its cost cap. Its partial cells (listed under run status) are left out rather than imputed, and its transcript findings cover only the 36 human-comparable markets.</li>
       </ul>
     </div>
   </section>
@@ -232,6 +239,7 @@
     <div class="lx-card">
       <ul>
         <li><b>Full-history arm for gpt-oss.</b> The memory pilot hints that longer recall may help gpt-oss collude; a full-length arm at a few market sizes would test it (Qwen cannot, its context is too short).</li>
+        <li><b>Finish Qwen's remaining cells.</b> The unfinished Qwen3-14B markets (eight-firm Talk first, all ten-firm cells, and the rest of six-firm Talk first) are checkpointed and can resume where they stopped, for an estimated fifteen to twenty dollars more; the API key needs topping up first.</li>
         <li><b>More markets per cell.</b> Six markets per cell match the human sample but leave wide intervals, especially in duopolies where outcomes vary most.</li>
         <li><b>Structured outputs.</b> Constrained decoding would remove most format slips; it changes how the model generates, so it would be a new arm, not a fix.</li>
         <li><b>Cheaper gpt-oss provider.</b> Switching to a provider with prompt caching (darkbloom, eight-bit weights) would roughly halve the cost, but it changes the provider and quantisation: a design change to record and hold fixed, not a drop-in swap.</li>
@@ -260,6 +268,16 @@
       cells.filter((r) => r.ordering === 'NT-T' && r.measure === 'gain_p2_all' && Number(r.n) <= 8)
         .forEach((r) => { (by[r.model] = by[r.model] || []).push(Number(r.mean)); });
       return Object.entries(by).map(([model, v]) => ({ model, gain: Math.round(10 * v.reduce((a, b) => a + b, 0) / v.length) / 10, sizes: v.length }));
+    },
+  });
+  dash.calc('chat_totals', {
+    inputs: ['chat'],
+    title: 'Chat agreements kept and broken',
+    description: 'Per model, total agreement periods from the chat screen and the shares kept and broken.',
+    fn: (chat) => {
+      const by = {};
+      chat.forEach((r) => { const t = by[r.model] = by[r.model] || { agreements: 0, kept: 0, broken: 0 }; t.agreements += Number(r.agreements); t.kept += Number(r.kept); t.broken += Number(r.broken); });
+      return Object.entries(by).map(([model, t]) => ({ model, ...t, kept_pct: Math.round(100 * t.kept / t.agreements), broken_pct: Math.round(100 * t.broken / t.agreements) }));
     },
   });
   dash.calc('status', {
@@ -490,8 +508,24 @@
     const rs = rows.filter((r) => !state.findModel || r.model === state.findModel);
     document.getElementById('find-count').textContent = rs.length + ' findings shown';
     const themes = { prices: 'find-prices', hysteresis: 'find-hysteresis', agreements: 'find-agreements', breaches: 'find-breaches', threats: 'find-threats', deception: 'find-deception', coordination: 'find-coordination', mistakes: 'find-mistakes', method: 'find-mistakes', other: 'find-prices' };
-    Object.values(themes).forEach((id) => document.getElementById(id).replaceChildren());
-    rs.forEach((r) => document.getElementById(themes[r.theme] || 'find-prices').appendChild(findingCard(r)));
+    const shown = state.findModel ? [state.findModel] : models;
+    [...new Set(Object.values(themes))].forEach((id) => {
+      const box = document.getElementById(id);
+      box.replaceChildren();
+      const mine = rs.filter((r) => (themes[r.theme] || 'find-prices') === id);
+      box.className = shown.length > 1 ? 'lx-findcols' : 'lx-findings';
+      if (shown.length <= 1) { mine.forEach((r) => box.appendChild(findingCard(r))); return; }
+      shown.forEach((m) => {
+        const col = document.createElement('div'); col.className = 'lx-findcol';
+        const h = document.createElement('h4'); const sw = document.createElement('span'); sw.className = 'lx-sw'; sw.style.background = modelColor(m);
+        const these = mine.filter((r) => r.model === m);
+        h.append(sw, `${MODELS[m] || m} (${these.length})`);
+        const list = document.createElement('div'); list.className = 'lx-findings';
+        these.forEach((r) => list.appendChild(findingCard(r)));
+        if (!these.length) { const e = document.createElement('p'); e.className = 'lx-muted'; e.textContent = 'No findings under this heading.'; list.appendChild(e); }
+        col.append(h, list); box.appendChild(col);
+      });
+    });
   }
 
   function fillTable(table, rows, key, fmt = {}) {

@@ -8,6 +8,8 @@ Re-run after the analysis is regenerated (e.g. when Qwen3-14B's remaining cells 
 
     uv run python scripts/build_artifact_data.py
 
+Per-cell datasets keep only cells with all six markets complete; run_status lists the partial cells (not imputed).
+
 Outputs (all small): cells.csv, timeseries.csv, probe.csv, chat.csv, mistakes.csv, mistakes_model.csv,
 findings.json, ab_memory.csv, run_status.csv, screen_checks.csv, build_meta.json.
 """
@@ -78,6 +80,24 @@ def analysis(model, name):
     return read_csv(os.path.join(DATA, "analysis", SWEEPS[model], name))
 
 
+_COUNTS = {}
+
+
+def market_counts(model):
+    """Completed markets per (n, ordering), from the analysis's markets.csv."""
+    if model not in _COUNTS:
+        per = defaultdict(int)
+        for r in analysis(model, "markets.csv"):
+            per[(int(r["n"]), r["ordering"])] += 1
+        _COUNTS[model] = per
+    return _COUNTS[model]
+
+
+def complete(model, r):
+    """Per-cell datasets keep only cells with all markets done; partial cells are reported in run_status."""
+    return market_counts(model).get((int(r["n"]), r["ordering"]), 0) >= MARKETS_PER_CELL
+
+
 # ---------------------------------------------------------------- cells (+ human benchmarks)
 
 def build_cells():
@@ -85,6 +105,8 @@ def build_cells():
     human = {}
     for model in SWEEPS:
         for r in analysis(model, "cells.csv"):
+            if not complete(model, r):
+                continue
             if r["measure"] not in CELL_MEASURES:
                 continue
             n, o = int(r["n"]), r["ordering"]
@@ -121,6 +143,8 @@ def build_timeseries():
     rows = []
     for model in SWEEPS:
         for r in analysis(model, "timeseries.csv"):
+            if not complete(model, r):
+                continue
             rows.append(dict(series=cid(model, r["n"], r["ordering"]), model=model, n=int(r["n"]),
                              ordering=r["ordering"], gperiod=int(r["gperiod"]), part=int(r["part"]),
                              period=int(r["period"]), mean=rnd(r["mean"], 1), q25=rnd(r["q25"], 1),
@@ -135,10 +159,14 @@ def build_probe():
     sp = {}
     for model in SWEEPS:
         for r in analysis(model, "cells.csv"):
+            if not complete(model, r):
+                continue
             sp[(model, int(r["n"]), r["ordering"], r["measure"])] = rnd(r["mean"], 1)
     rows = []
     for model in SWEEPS:
         for r in analysis(model, "probe_cells.csv"):
+            if not complete(model, r):
+                continue
             n, o = int(r["n"]), r["ordering"]
             talk = {"NT-T": sp.get((model, n, o, "sp_p2_all")), "T-NT": sp.get((model, n, o, "sp_p1_all"))}.get(o)
             rows.append(dict(cell_id=cid(model, n, o), model=model, n=n, ordering=o, firms=int(float(r["firms"])),
@@ -157,6 +185,8 @@ def build_chat():
     rows = []
     for model in SWEEPS:
         for r in analysis(model, "chat_cells.csv"):
+            if not complete(model, r):
+                continue
             n, o = int(r["n"]), r["ordering"]
             ag, kept = int(float(r["agreements"])), int(float(r["kept"]))
             rows.append(dict(cell_id=cid(model, n, o), model=model, n=n, ordering=o, talk_part=int(r["part"]),
@@ -183,6 +213,8 @@ def build_mistakes():
             zero[k][1] += 1
             zero[k][0] += r["price"] == "0"
         for r in analysis(model, "mistakes_cells.csv"):
+            if not complete(model, r):
+                continue
             n, o = int(r["n"]), r["ordering"]
             z, tot = zero.get((n, o), [0, 0])
             rows.append(dict(cell_id=cid(model, n, o), model=model, n=n, ordering=o,
@@ -309,6 +341,8 @@ def build_run_status():
         for r in markets:
             per[(int(r["n"]), r["ordering"])] += 1
         complete = {k for k, v in per.items() if v >= MARKETS_PER_CELL}
+        partial = "; ".join(f"n{n} {o} {per.get((n, o), 0)}/{MARKETS_PER_CELL}" for n in N_VALUES for o in ORDERINGS
+                            if (n, o) not in complete)
         b = os.path.join(DATA, "runs", sweep, "budget.json")
         cap = None
         try:
@@ -319,14 +353,15 @@ def build_run_status():
         rows.append(dict(model=model, cells_planned=len(N_VALUES) * len(ORDERINGS), cells_complete=len(complete),
                          human_cells_planned=len(HUMAN_CELLS), human_cells_complete=len(complete & HUMAN_CELLS),
                          markets_planned=len(N_VALUES) * len(ORDERINGS) * MARKETS_PER_CELL,
-                         markets_complete=len(markets), cost_usd=round(spent(b), 2), cap_usd=cap))
+                         markets_complete=len(markets), cost_usd=round(spent(b), 2), cap_usd=cap,
+                         cells_incomplete=partial or "none"))
     pilot = sum(spent(p) for p in glob.glob(os.path.join(DATA, "runs", "*", "budget.json"))
                 if not os.path.basename(os.path.dirname(p)).startswith("sweep-"))
     pilot += sum(spent(p) for p in glob.glob(os.path.join(DATA, "probes", "*budget*.json")))
     rows.append(dict(model="pilots and probes", cost_usd=round(pilot, 2)))
     write_csv("run_status.csv", rows, ["model", "cells_planned", "cells_complete", "human_cells_planned",
                                        "human_cells_complete", "markets_planned", "markets_complete", "cost_usd",
-                                       "cap_usd"])
+                                       "cap_usd", "cells_incomplete"])
 
 
 def build_screen_checks():
