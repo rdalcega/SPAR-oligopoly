@@ -40,8 +40,13 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   tokens, thinking cannot be disabled or shortened, and ~18% of probe calls truncated with empty answers.
 - **2026-10-20: Qwen3-14B added** (8 models), to strengthen the small end. Pinned to DeepInfra fp8 (seed
   supported), Qwen3 thinking-mode sampling (T 0.6, top_p 0.95, top_k 20). Its context is 40,960 tokens
-  (input + output), which may not hold full Talk histories at larger n; how to handle that is decided after
-  the pilot measures history sizes.
+  (input + output), which may not hold full Talk histories at larger n.
+- **2026-10-20: context-limit exclusions** (decided by Rodrigo). Where a model's context limit is a problem or
+  nearly one, that model skips the cell; no history truncation or summarising. Rule, for every model: a model
+  runs a cell only if the cell's projected peak prompt (measured from pilots) plus the model's `max_tokens` is
+  at most 80% of its pinned endpoint's context length. Excluded cells are listed in `config/models.toml`
+  and reported as missing, not imputed. A runtime guard also stops any market whose prompt would overflow and
+  records it as a failure.
 - **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
   supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
 
