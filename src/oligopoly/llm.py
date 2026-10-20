@@ -26,7 +26,7 @@ import random
 import re
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +57,10 @@ class RetriesExhausted(OpenRouterError):
 
 class BudgetExceeded(OpenRouterError):
     """The call would exceed, or the run has reached, the USD cap."""
+
+
+class BudgetUnusable(BudgetExceeded):
+    """The budget file could not be written, so no further spending can be accounted for (fail closed)."""
 
 
 class ContextOverflow(OpenRouterError):
@@ -173,12 +177,19 @@ class Budget:
 
     Admission (`admit`, used by the client): a reservation that would fit the cap given what is spent but not
     alongside the outstanding reservations waits until settlements make room, instead of failing a call that
-    the remaining money covers. It raises BudgetExceeded only on true exhaustion (`spent + amount > cap`) or
-    when nothing is in flight to wait for. The cap stays strict: spent + reserved never exceeds it.
+    the remaining money covers. It raises BudgetExceeded on true exhaustion (`spent + amount > cap`), when
+    nothing is in flight to wait for, or after waiting `max_wait_s` in all (a backstop against a reservation
+    that is never settled). The cap stays strict: spent + reserved never exceeds it.
+
+    Fail closed: if the budget file cannot be written, the budget is marked unusable (`broken`), every waiting
+    `admit` is woken, and every later reservation raises BudgetUnusable (a BudgetExceeded, so runners stop
+    scheduling). `settle` itself never raises: it is called from cancellation and error handlers.
     This recovery is safe only because one process at a time uses a run's budget file: `oligopoly.run` holds
     an exclusive lock on the run directory (`lock_run_dir`) before loading it, so any `in_flight` entries
     found on load were left by a process that has exited.
     """
+
+    DEFAULT_MAX_WAIT_S = 600.0
 
     def __init__(self, cap_usd: float, path: str | Path | None = None):
         self.cap = float(cap_usd)
@@ -186,6 +197,7 @@ class Budget:
         self.spent = 0.0
         self.recovered_usd = 0.0
         self.in_flight: dict[str, float] = {}
+        self.broken: str | None = None  # why the budget can no longer be used (persistence failed)
         self._settled: asyncio.Event | None = None  # set (and replaced) on every settle, waking waiting admits
         if self.path and self.path.exists():
             d = json.loads(self.path.read_text())
@@ -202,8 +214,13 @@ class Budget:
     def remaining(self) -> float:
         return self.cap - self.spent - self.reserved
 
+    def _check_usable(self) -> None:
+        if self.broken:
+            raise BudgetUnusable(f"budget unusable: {self.broken}")
+
     def reserve(self, amount: float) -> str:
         """Reserve `amount` USD; returns the reservation id to settle."""
+        self._check_usable()
         if self.spent >= self.cap:
             raise BudgetExceeded(f"cap ${self.cap:.4f} reached (spent ${self.spent:.4f})")
         if self.spent + self.reserved + amount > self.cap:
@@ -212,14 +229,25 @@ class Budget:
             )
         rid = uuid.uuid4().hex
         self.in_flight[rid] = amount
-        self._persist()
+        try:
+            self._persist()
+        except Exception as e:  # the reservation was not recorded on disk: drop it and fail closed
+            del self.in_flight[rid]
+            self._break(e)
+            raise BudgetUnusable(f"budget unusable: {self.broken}") from e
         return rid
 
-    async def admit(self, amount: float) -> str:
+    async def admit(self, amount: float, max_wait_s: float | None = None,
+                    on_wait: Callable[[], None] | None = None) -> str:
         """Reserve `amount` USD, waiting while it fits what is left after `spent` but not alongside the other
-        outstanding reservations. Raises BudgetExceeded when `spent + amount > cap` (true exhaustion) or when
-        it does not fit and nothing is in flight."""
+        outstanding reservations. `on_wait` is called once, when the first wait starts. Raises
+        BudgetExceeded when `spent + amount > cap` (true exhaustion), when it does not fit and nothing is in
+        flight, or when the waits total `max_wait_s` (default DEFAULT_MAX_WAIT_S); BudgetUnusable once the
+        budget is broken."""
+        limit = self.DEFAULT_MAX_WAIT_S if max_wait_s is None else max_wait_s
+        deadline: float | None = None
         while True:
+            self._check_usable()
             if self.spent >= self.cap or self.spent + amount > self.cap:
                 raise BudgetExceeded(f"cap ${self.cap:.4f} exhausted: spent ${self.spent:.4f}, reservation "
                                      f"${amount:.6f}")
@@ -227,15 +255,39 @@ class Budget:
                 return self.reserve(amount)
             if not self.in_flight:  # unreachable while reserved == 0, kept as a guard against waiting forever
                 raise BudgetExceeded(f"reservation ${amount:.6f} exceeds remaining ${self.remaining:.6f}")
+            now = time.monotonic()
+            if deadline is None:
+                deadline = now + limit
+                if on_wait is not None:
+                    on_wait()
+            if now >= deadline:
+                raise BudgetExceeded(f"waited {limit:.0f} s for budget room (reservation ${amount:.6f}, "
+                                     f"spent ${self.spent:.4f}, reserved ${self.reserved:.4f})")
             if self._settled is None:
                 self._settled = asyncio.Event()
-            await self._settled.wait()
+            try:
+                await asyncio.wait_for(self._settled.wait(), deadline - now)
+            except TimeoutError:
+                pass  # re-checked above: raises unless a settlement made room meanwhile
 
     def settle(self, rid: str, actual: float) -> None:
-        """Release reservation `rid` and charge `actual` USD. Never awaits; wakes any waiting `admit`."""
-        del self.in_flight[rid]
-        self.spent += max(0.0, actual)
-        self._persist()
+        """Release reservation `rid` and charge `actual` USD (an unknown `rid` is ignored). Never awaits and
+        never raises; always wakes any waiting `admit`. If the budget file cannot be written the budget is
+        marked unusable."""
+        try:
+            if self.in_flight.pop(rid, None) is not None:
+                self.spent += max(0.0, actual)
+                self._persist()
+        except Exception as e:
+            self._break(e)
+        finally:
+            self._wake()
+
+    def _break(self, e: BaseException) -> None:
+        self.broken = self.broken or f"could not persist the budget to {self.path}: {type(e).__name__}: {e}"
+        self._wake()
+
+    def _wake(self) -> None:
         if self._settled is not None:
             self._settled.set()
             self._settled = None
@@ -316,15 +368,79 @@ def with_cache_control(messages: Sequence[dict[str, Any]], upto: int | Sequence[
     return out
 
 
+def _strip_cache_control(messages: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Undo `with_cache_control` on plain-text messages: a content list of one text block becomes its text."""
+    out = []
+    for m in messages:
+        c = m.get("content")
+        if isinstance(c, list):
+            c = [{k: v for k, v in b.items() if k != "cache_control"} if isinstance(b, dict) else b for b in c]
+            if len(c) == 1 and isinstance(c[0], dict) and set(c[0]) == {"type", "text"} and c[0]["type"] == "text":
+                c = c[0]["text"]
+        out.append({**m, "content": c})
+    return out
+
+
+def _histories(market_json: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Firm histories of a market record or failure record (`histories`) or of a checkpoint
+    (`firms[firm]["messages"]`)."""
+    if "histories" in market_json:
+        return market_json["histories"]
+    return {L: f["messages"] for L, f in (market_json.get("firms") or {}).items()}
+
+
 def reconstruct_request(market_json: dict[str, Any], firm: str, n_messages: int,
                         cache_upto: int | Sequence[int] | None = None) -> list[dict[str, Any]]:
-    """The messages of a logged request of `firm`, rebuilt from its market record (or failure record or
-    checkpoint): every request is a prefix of the firm's final history. Pass the log line's `n_messages` and
-    `cache_upto`; `messages_sha256(result)` then equals the line's `messages_sha256`."""
-    hist = market_json["histories"][firm]
+    """The messages of a logged request of `firm`, rebuilt from its market record, failure record or checkpoint,
+    assuming the request is a prefix of the firm's final history. Pass the log line's `n_messages` and
+    `cache_upto`, then check `messages_sha256(result)` against the line's `messages_sha256`: the assumption
+    fails for calls made in a period that a process died in and a later invocation replayed differently.
+    `reconstruct_from_log` rebuilds any logged request from the log itself."""
+    hist = _histories(market_json)[firm]
     if not 0 < n_messages <= len(hist):
         raise ValueError(f"firm {firm}: n_messages {n_messages} outside 1..{len(hist)}")
     msgs = [dict(m) for m in hist[:n_messages]]
+    return with_cache_control(msgs, cache_upto) if cache_upto is not None else msgs
+
+
+def _firm_key(line: dict[str, Any]) -> tuple[Any, ...] | None:
+    tag = line.get("tag") or {}
+    return (line.get("invocation"), tag.get("run_id"), tag["market"], tag["firm"]) \
+        if "market" in tag and "firm" in tag else None
+
+
+def reconstruct_from_log(lines: Sequence[dict[str, Any]], index: int) -> list[dict[str, Any]]:
+    """The messages sent (cache_control included) by the request logged at `lines[index]`, where `lines` are
+    a calls.jsonl's records in file order. A line with `request` carries them in full. A compact line
+    (`messages_from`, `messages_new`) extends the latest preceding request line of the same firm, market, run
+    and `invocation` (process), which is how the client logged it; the chain is followed back to a full line.
+    Raises ValueError if the chain is broken. Check the result with `messages_sha256`."""
+    line = lines[index]
+    if "request" in line:
+        return list(line["request"]["messages"])
+    if "messages_new" not in line:
+        raise ValueError(f"line {index} carries no request")
+    key = _firm_key(line)
+    if key is None or key[0] is None:
+        raise ValueError(f"line {index}: compact line without firm tag or invocation id")
+    chain = [line]
+    for j in range(index - 1, -1, -1):
+        prev = lines[j]
+        if "event" in prev or _firm_key(prev) != key:
+            continue
+        if "request" in prev:
+            msgs = _strip_cache_control(prev["request"]["messages"])
+            break
+        if "messages_new" in prev:
+            chain.append(prev)
+    else:
+        raise ValueError(f"line {index}: no earlier full request of {key}")
+    for c in reversed(chain):
+        if c["messages_from"] != len(msgs):
+            raise ValueError(f"line {index}: chain broken (messages_from {c['messages_from']} after {len(msgs)} "
+                             f"messages)")
+        msgs = msgs + [dict(m) for m in c["messages_new"]]
+    cache_upto = line.get("cache_upto")
     return with_cache_control(msgs, cache_upto) if cache_upto is not None else msgs
 
 
@@ -422,6 +538,17 @@ def _retry_after_s(value: str | None) -> float | None:
     return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
+def _cost_value(raw: Any) -> float | None:
+    """`usage.cost` as a finite non-negative float; None if absent or not a usable number."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) and v >= 0 else None
+
+
 def _error_retryable(err: Any) -> bool:
     code = err.get("code") if isinstance(err, dict) else None
     return not isinstance(code, int) or code in RETRYABLE_STATUS
@@ -439,20 +566,23 @@ class OpenRouterClient:
     """Async OpenRouter client. Every attempt (failed or not, including budget refusals and cancellations)
     is appended as one JSON line to `log_path`. Use as an async context manager or call `aclose()`.
 
-    Log size: each line has `messages_sha256` (of the messages sent, cache_control included), `n_messages` and
-    `prompt_bytes` (UTF-8 bytes of the message contents). The full `request` payload is logged only for the
-    first request of each (run_id, market, firm) in a client's life, for a request that does not extend that
-    firm's previous logged one, and for failed attempts other than rate-limited ones. Other lines carry
-    `messages_from`, `messages_new` (the messages appended since the firm's previous logged request, without
-    cache_control) and `request_params` (the payload minus messages). Requests are prefixes of each firm's
-    final history, so `reconstruct_request` rebuilds any of them from the market record. Calls without
-    market and firm in `tag` always log the full request.
+    Log size: each line has `invocation` (one id per client, i.e. per runner process), `messages_sha256` (of the
+    messages sent, cache_control included), `n_messages` and `prompt_bytes` (UTF-8 bytes of the message
+    contents). The full `request` payload is logged for the first request of each (run_id, market, firm) in a
+    client's life (so in each process invocation), for a request that does not extend that firm's previous
+    logged one, and for failed attempts other than rate-limited ones. Other lines carry `messages_from`,
+    `messages_new` (the messages appended since the firm's previous logged request in this invocation, without
+    cache_control) and `request_params` (the payload minus messages); `reconstruct_from_log` chains them from
+    the latest preceding full line of the same firm and invocation. Calls without market and firm in `tag`
+    always log the full request.
 
     Billing of failed attempts: an attempt that may have reached the provider (timeouts, dropped
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
     been sent is charged nothing. A response without `usage.cost` is charged nothing if it is an error
     (non-200 status, or a 200 whose body is an error object with no choices: OpenRouter does not bill these)
-    and its full reservation otherwise; the log's `charge_reason` says which rule applied. A retry after a timeout may be billed twice (the timed-out generation can
+    and its full reservation otherwise, as is one whose `usage.cost` is not a usable number
+    (`cost_raw` logs it); any other unexpected failure after the reservation charges it in full too, so no
+    reservation is ever left unsettled. The log's `charge_reason` says which rule applied. A retry after a timeout may be billed twice (the timed-out generation can
     still complete upstream), so it is logged with `timeout_retry: true`.
 
     Retry policies: rate limits (HTTP 429/529, or an error saying rate limited / overloaded) are retried
@@ -478,6 +608,7 @@ class OpenRouterClient:
         rate_limit_backoff_max_s: float = 120.0,
         rate_limit_max_wait_s: float = 1800.0,
         max_attempts: int = 60,
+        budget_max_wait_s: float = Budget.DEFAULT_MAX_WAIT_S,
         base_url: str = BASE_URL,
         http: httpx.AsyncClient | None = None,
     ):
@@ -497,15 +628,19 @@ class OpenRouterClient:
         self.rate_limit_backoff_max_s = rate_limit_backoff_max_s
         self.rate_limit_max_wait_s = rate_limit_max_wait_s
         self.max_attempts = max_attempts
+        self.budget_max_wait_s = budget_max_wait_s
         self.base_url = base_url
         self._http = http or httpx.AsyncClient(timeout=timeout_s)
         self._sem = asyncio.Semaphore(max_concurrency)
         self._endpoints: dict[str, list[Endpoint]] = {}
         self._ep_lock = asyncio.Lock()
-        # (run_id, market, firm) -> (n_messages, sha256) of the messages last logged for that firm
-        self._logged_prefix: dict[tuple[Any, ...], tuple[int, str]] = {}
+        # one id per client (= per process invocation of the runner), in every log line
+        self.invocation_id = uuid.uuid4().hex
+        self._ids = {"invocation": self.invocation_id}
+        # (run_id, market, firm) -> (n_messages, sha256 of the first and of the last message) last logged
+        self._logged_prefix: dict[tuple[Any, ...], tuple[int, str, str]] = {}
         if budget.recovered_usd:
-            self._log({"ts": _now(), "event": "budget_recovered_in_flight", "charged_usd": budget.recovered_usd,
+            self._log({"ts": _now(), "event": "budget_recovered_in_flight", **self._ids, "charged_usd": budget.recovered_usd,
                        "budget_spent_usd": budget.spent,
                        "note": "reservations left in flight by an earlier process, charged in full"})
 
@@ -623,6 +758,7 @@ class OpenRouterClient:
         payload.update(extra_body or {})
         timeout = self.timeout_s if timeout_s is None else timeout_s
         base = {
+            **self._ids,
             "tag": tag or {},
             "model_requested": model,
             "provider_requested": provider,
@@ -644,14 +780,17 @@ class OpenRouterClient:
         request_params = {k: v for k, v in payload.items() if k != "messages"}
 
         def req(full: bool) -> dict[str, Any]:
-            """The request part of a log line: the full payload if `full`, for a firm's first logged request,
-            or when this request does not extend the firm's previous logged one; otherwise only the messages
-            appended since then (without cache_control; `cache_upto` says where breakpoints went)."""
+            """The request part of a log line: the full payload if `full`, for a firm's first logged request in
+            this client, or when this request does not extend the firm's previous logged one; otherwise only the
+            messages appended since then (without cache_control; `cache_upto` says where breakpoints went).
+            The prefix check compares the previous length and the hashes of the first and last messages of the
+            prefix (O(1) in the history length; firm histories are append-only)."""
             raw = list(messages)
             prev = self._logged_prefix.get(firm_key) if firm_key else None
-            if firm_key:
-                self._logged_prefix[firm_key] = (len(raw), _sha256(raw))
-            if full or prev is None or prev[0] > len(raw) or _sha256(raw[:prev[0]]) != prev[1]:
+            if firm_key and raw:
+                self._logged_prefix[firm_key] = (len(raw), _sha256(raw[0]), _sha256(raw[-1]))
+            if (full or prev is None or not 0 < prev[0] <= len(raw) or _sha256(raw[0]) != prev[1]
+                    or _sha256(raw[prev[0] - 1]) != prev[2]):
                 return {"request": payload}
             return {"messages_from": prev[0], "messages_new": raw[prev[0]:], "request_params": request_params}
         try:
@@ -701,7 +840,7 @@ class OpenRouterClient:
             rl_retries += 1
             wait = min(self._rate_limit_backoff(rl_retries, retry_after), remaining)
             rl_waited += wait
-            self._log({"ts": _now(), "event": "rate_limit_wait", "tag": base["tag"], "model_requested": model,
+            self._log({"ts": _now(), "event": "rate_limit_wait", **self._ids, "tag": base["tag"], "model_requested": model,
                        "provider_requested": provider, "attempt": attempt, "rate_limit_retry": rl_retries,
                        "wait_s": round(wait, 3), "waited_total_s": round(rl_waited, 3),
                        "max_wait_s": self.rate_limit_max_wait_s, "retry_after": retry_after, "error": last_error})
@@ -713,55 +852,70 @@ class OpenRouterClient:
             timeout_retry = False
             resp: httpx.Response | None = None
             async with self._sem:
+                def on_wait() -> None:
+                    self._log({"ts": _now(), "event": "budget_wait", **self._ids, "tag": base["tag"],
+                               "attempt": attempt, "reservation_usd": estimate, "budget_spent_usd": self.budget.spent,
+                               "budget_reserved_usd": self.budget.reserved, "cap_usd": self.budget.cap})
                 try:
-                    if self.budget.spent + self.budget.reserved + estimate > self.budget.cap \
-                            and self.budget.spent + estimate <= self.budget.cap:
-                        self._log({"ts": _now(), "event": "budget_wait", "tag": base["tag"], "attempt": attempt,
-                                   "reservation_usd": estimate, "budget_spent_usd": self.budget.spent,
-                                   "budget_reserved_usd": self.budget.reserved, "cap_usd": self.budget.cap})
-                    rid = await self.budget.admit(estimate)
+                    rid = await self.budget.admit(estimate, self.budget_max_wait_s, on_wait)
                 except BudgetExceeded as e:
-                    self._log({**rec, **req(True), "error": f"BudgetExceeded: {e}", "retryable": False,
+                    self._log({**rec, **req(True), "error": f"{type(e).__name__}: {e}", "retryable": False,
+                               "budget_spent_usd": self.budget.spent})
+                    raise
+                except asyncio.CancelledError:  # cancelled while waiting for budget room: nothing reserved or sent
+                    self._log({**rec, **req(True), "error": "cancelled while waiting for budget room",
+                               "retryable": False, "charged_usd": 0.0, "charge_reason": "not_sent",
                                "budget_spent_usd": self.budget.spent})
                     raise
                 rec["reserved_usd"] = estimate
                 t0 = time.monotonic()
                 try:
-                    resp = await self._http.post(f"{self.base_url}/chat/completions", json=payload,
-                                                 headers=self._headers, timeout=timeout)
-                except BaseException as e:  # incl. CancelledError: settle and log (no awaits) before anything else
-                    charged = 0.0 if isinstance(e, NOT_SENT) else estimate
-                    charge_reason = "not_sent" if isinstance(e, NOT_SENT) else "sent_no_response"
-                    self.budget.settle(rid, charged)
-                    transport = isinstance(e, httpx.TransportError)
-                    last_error = "cancelled" if isinstance(e, asyncio.CancelledError) else f"{type(e).__name__}: {e}"
-                    self._log({**rec, **req(True), "latency_s": time.monotonic() - t0, "error": last_error,
-                               "retryable": transport, "charged_usd": charged, "charge_reason": charge_reason,
-                               "budget_spent_usd": self.budget.spent})
-                    if not transport:
-                        raise
-                    timeout_retry = isinstance(e, httpx.TimeoutException) and not isinstance(e, NOT_SENT)
-                else:
                     try:
-                        body = resp.json()
-                    except ValueError:
-                        body = None
-                    usage_raw = body.get("usage") if isinstance(body, dict) else None
-                    cost = usage_raw.get("cost") if isinstance(usage_raw, dict) else None
-                    # unknown cost: a 200 carrying a generation may have been billed, so it keeps its
-                    # reservation; error responses (non-200, or a 200 whose body is only an error object)
-                    # are not billed by OpenRouter
-                    error_body = (isinstance(body, dict) and bool(body.get("error"))
-                                  and not isinstance(body.get("choices"), list))
-                    if cost is not None:
-                        charged, charge_reason = float(cost), "usage_cost"
-                    elif resp.status_code != 200:
-                        charged, charge_reason = 0.0, "error_status"
-                    elif error_body:
-                        charged, charge_reason = 0.0, "error_body"
+                        resp = await self._http.post(f"{self.base_url}/chat/completions", json=payload,
+                                                     headers=self._headers, timeout=timeout)
+                    except BaseException as e:  # incl. CancelledError: settle and log (no awaits) first
+                        charged = 0.0 if isinstance(e, NOT_SENT) else estimate
+                        charge_reason = "not_sent" if isinstance(e, NOT_SENT) else "sent_no_response"
+                        self.budget.settle(rid, charged)
+                        transport = isinstance(e, httpx.TransportError)
+                        last_error = "cancelled" if isinstance(e, asyncio.CancelledError) else f"{type(e).__name__}: {e}"
+                        self._log({**rec, **req(True), "latency_s": time.monotonic() - t0, "error": last_error,
+                                   "retryable": transport, "charged_usd": charged, "charge_reason": charge_reason,
+                                   "budget_spent_usd": self.budget.spent})
+                        if not transport:
+                            raise
+                        timeout_retry = isinstance(e, httpx.TimeoutException) and not isinstance(e, NOT_SENT)
                     else:
-                        charged, charge_reason = estimate, "cost_unknown_reservation"
-                    self.budget.settle(rid, charged)
+                        try:
+                            body = resp.json()
+                        except ValueError:
+                            body = None
+                        usage_raw = body.get("usage") if isinstance(body, dict) else None
+                        cost_raw = usage_raw.get("cost") if isinstance(usage_raw, dict) else None
+                        cost = _cost_value(cost_raw)
+                        # unknown or invalid cost: a 200 carrying a generation may have been billed, so it keeps
+                        # its reservation; error responses (non-200, or a 200 whose body is only an error
+                        # object) are not billed by OpenRouter
+                        error_body = (isinstance(body, dict) and bool(body.get("error"))
+                                      and not isinstance(body.get("choices"), list))
+                        if cost is not None:
+                            charged, charge_reason = cost, "usage_cost"
+                        elif cost_raw is not None:
+                            charged, charge_reason = estimate, "cost_invalid_reservation"
+                            rec["cost_raw"] = cost_raw
+                        elif resp.status_code != 200:
+                            charged, charge_reason = 0.0, "error_status"
+                        elif error_body:
+                            charged, charge_reason = 0.0, "error_body"
+                        else:
+                            charged, charge_reason = estimate, "cost_unknown_reservation"
+                        self.budget.settle(rid, charged)
+                finally:  # any unexpected failure above: the request may have been billed, charge it in full
+                    if rid in self.budget.in_flight:
+                        self.budget.settle(rid, estimate)
+                        self._log({**rec, **req(True), "error": "unsettled reservation charged in full after an "
+                                   "unexpected error", "charged_usd": estimate,
+                                   "charge_reason": "unexpected_error", "budget_spent_usd": self.budget.spent})
             if resp is None:
                 await retry_wait(False)
                 continue
@@ -817,6 +971,6 @@ class OpenRouterClient:
                 reasoning_details=message.get("reasoning_details"), finish_reason=choice.get("finish_reason"),
                 native_finish_reason=choice.get("native_finish_reason"), provider=served, model=model_served,
                 generation_id=body.get("id"), usage=Usage.from_api(usage_raw),
-                cost_usd=float(cost) if cost is not None else None, latency_s=latency, attempts=attempt,
+                cost_usd=cost, latency_s=latency, attempts=attempt,
                 seed_possibly_ignored=flag, provider_mismatch=mismatch, raw=body,
             )

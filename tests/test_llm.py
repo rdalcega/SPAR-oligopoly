@@ -494,3 +494,159 @@ async def test_near_cap_concurrent_calls_wait_instead_of_failing(mock, make, tmp
     assert all(r.content == "42" for r in results) and not c.budget.in_flight
     assert max(peak) <= c.budget.cap
     assert any(x.get("event") == "budget_wait" for x in lines(tmp_path, events=True))
+
+
+# ---------------------------------------------------------------- budget fail-closed, admission bound, log chains
+
+
+def near_cap_client(make, **kw):
+    """A client whose cap fits one reservation at a time (so a second concurrent call waits in admit)."""
+    est = estimate_cost(Endpoint.from_api(endpoint("deepinfra/fp8", "DeepInfra")), MSGS, 10)
+    return make(cap=1.5 * est, **kw), est
+
+
+def two_firm_market(client):
+    from oligopoly import engine
+    from oligopoly.config import ExperimentConfig, ModelConfig
+
+    return engine.Market(engine.MarketSpec("t", ModelConfig("m", MODEL, "deepinfra/fp8"), 2, "NT-NT", 0, 1),
+                         client, ExperimentConfig())
+
+
+async def test_malformed_cost_settles_and_waiter_proceeds(mock, make, tmp_path):
+    """usage.cost that is not a number is charged the full reservation (it may have been billed); the
+    reservation is always settled, so a call waiting for budget room is not left hanging."""
+    body = completion()
+    body["usage"]["cost"] = "invalid"
+
+    async def slow(request):
+        await asyncio.sleep(0.01)
+        return httpx.Response(200, json=body)
+
+    mock.post(CHAT).mock(side_effect=slow)
+    c, est = near_cap_client(make)  # B waits for A; A is charged its reservation, so B no longer fits
+    with pytest.raises(BudgetExceeded, match="exhausted"):
+        await asyncio.wait_for(two_firm_market(c).gather({"A": post(c), "B": post(c)}), 5)
+    assert any(x.get("event") == "budget_wait" for x in lines(tmp_path, events=True))
+    ok, refused = lines(tmp_path)
+    assert ok["charge_reason"] == "cost_invalid_reservation" and ok["cost_raw"] == "invalid"
+    assert ok["charged_usd"] == ok["reserved_usd"] and ok["cost_usd"] is None and ok["error"] is None
+    assert "exhausted" in refused["error"]
+    assert not c.budget.in_flight and c.budget.spent == pytest.approx(est)
+    c.budget.cap = 3 * est  # with room, the same response is accepted with cost_usd None
+    assert (await post(c)).cost_usd is None
+
+
+async def test_settle_persist_failure_fails_closed(mock, make, tmp_path):
+    """If the budget file cannot be written when a call settles, the budget is marked unusable, waiters are
+    woken and fail closed (BudgetUnusable is a BudgetExceeded, so the runner stops), and Market.gather exits."""
+    from oligopoly.llm import BudgetUnusable
+
+    release = asyncio.Event()
+
+    async def slow(request):
+        await release.wait()
+        return httpx.Response(200, json=completion(cost=0.0))
+
+    mock.post(CHAT).mock(side_effect=slow)
+    c, _ = near_cap_client(make)
+    task = asyncio.create_task(two_firm_market(c).gather({"A": post(c), "B": post(c)}))
+    for _ in range(10):
+        await asyncio.sleep(0)
+    assert len(c.budget.in_flight) == 1  # B waits for room
+
+    def disk_full():
+        raise OSError("disk full")
+
+    c.budget._persist = disk_full
+    release.set()
+    with pytest.raises(BudgetUnusable):
+        await asyncio.wait_for(task, 5)
+    assert c.budget.broken and "disk full" in c.budget.broken and not c.budget.in_flight
+    with pytest.raises(BudgetExceeded):
+        await post(c)
+
+
+def test_reserve_persist_failure_drops_reservation(tmp_path):
+    from oligopoly.llm import BudgetUnusable
+
+    b = Budget(1.0, tmp_path / "budget.json")
+
+    def disk_full():
+        raise OSError("disk full")
+
+    b._persist = disk_full
+    with pytest.raises(BudgetUnusable):
+        b.reserve(0.1)
+    assert not b.in_flight and b.broken
+    b.settle("unknown", 1.0)  # never raises
+    assert b.spent == 0.0
+
+
+async def test_admit_wait_is_bounded_and_reports_wait_once():
+    b = Budget(1.0)
+    b.reserve(0.6)  # never settled
+    waits = []
+    with pytest.raises(BudgetExceeded, match="waited"):
+        await asyncio.wait_for(b.admit(0.5, max_wait_s=0.05, on_wait=lambda: waits.append(1)), 5)
+    assert waits == [1] and len(b.in_flight) == 1
+    assert await b.admit(0.3, on_wait=lambda: waits.append(2)) and waits == [1]  # fits: no wait reported
+
+
+async def test_cancel_while_waiting_for_budget_is_logged(mock, make, tmp_path):
+    release = asyncio.Event()
+
+    async def slow(request):
+        await release.wait()
+        return httpx.Response(200, json=completion(cost=0.0))
+
+    mock.post(CHAT).mock(side_effect=slow)
+    c, _ = near_cap_client(make)
+    first = asyncio.create_task(post(c, tag={"market": "m", "firm": "A"}))
+    second = asyncio.create_task(post(c, tag={"market": "m", "firm": "B"}))
+    for _ in range(10):
+        await asyncio.sleep(0)
+    second.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await second
+    release.set()
+    await first
+    recs = lines(tmp_path, events=True)
+    assert [x["event"] for x in recs if "event" in x] == ["budget_wait"]
+    [cancelled] = [x for x in recs if x.get("tag", {}).get("firm") == "B" and "event" not in x]
+    assert cancelled["error"] == "cancelled while waiting for budget room" and cancelled["charged_usd"] == 0.0
+    assert "request" in cancelled and not c.budget.in_flight
+
+
+async def test_log_chains_per_invocation(mock, make, tmp_path):
+    """Compact lines chain from the latest full line of the same firm and invocation: a second process whose
+    history diverges from what the first process logged (a mid-period resume) still reconstructs exactly."""
+    from oligopoly.llm import messages_sha256, reconstruct_from_log, reconstruct_request
+
+    mock.post(CHAT).mock(return_value=httpx.Response(200, json=completion(cost=0.0)))
+    tag = {"run_id": "r", "market": "m", "firm": "A"}
+    sysm = {"role": "system", "content": "rules"}
+    u = [{"role": "user", "content": f"q{i}"} for i in range(4)]
+    a = [{"role": "assistant", "content": f"a{i}"} for i in range(4)]
+
+    async def send(client, msgs):
+        await client.chat(msgs, model=MODEL, provider="deepinfra/fp8", max_tokens=10, tag=tag, cache_upto=-1)
+
+    dead = make()
+    await send(dead, [sysm, u[0]])
+    await send(dead, [sysm, u[0], a[0], u[1]])
+    await send(dead, [sysm, u[0], a[0], u[1], a[1], u[2]])  # the process dies; the resume replays after u[1]
+    alive = make()
+    final = [sysm, u[0], a[0], u[1], a[2], u[3]]
+    await send(alive, final[:4])
+    await send(alive, final)
+    await send(alive, final[:3] + [{"role": "user", "content": "other"}])  # rewrites the prefix: logged in full
+    log = lines(tmp_path)
+    assert len({x["invocation"] for x in log}) == 2
+    assert ["request" in x for x in log] == [True, False, False, True, False, True]
+    for i, x in enumerate(log):
+        assert messages_sha256(reconstruct_from_log(log, i)) == x["messages_sha256"]
+    # the record-based rebuild reads checkpoints too, but cannot rebuild the dead process's diverged call
+    ck = {"firms": {"A": {"messages": final, "pending": []}}}
+    assert messages_sha256(reconstruct_request(ck, "A", 6, -1)) == log[4]["messages_sha256"]
+    assert messages_sha256(reconstruct_request(ck, "A", 6, -1)) != log[2]["messages_sha256"]
