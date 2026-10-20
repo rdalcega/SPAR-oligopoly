@@ -8,6 +8,11 @@ tagged with the global period it belongs to), but each request is built fresh by
 3. the verbatim turns of the last `window` completed periods (counted across the part boundary) and of the
    current period so far, ending with the new prompt.
 
+Consecutive messages of the same role (Part 2's instructions, the memory block and the window's opening user
+turn) are merged into one message, joined by a blank line, so the request's roles alternate system, user,
+assistant, user, ... as strict chat templates require. The context record says so (`merged`), and
+`llm.reconstruct_request` rebuilds the merged messages; records from before the merge have no `merged` key.
+
 Periods are numbered globally: Part 1 period t is t, Part 2 period t is (Part 1 length) + t, and the post-game
 probe is (total periods) + 1. A period's turns start with the user message that opens it, which carries the
 results of the period before. So a call in period g sees the turns of periods g - window .. g: the results of
@@ -26,16 +31,29 @@ from typing import Any
 Message = dict[str, Any]
 
 
-def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[Message]) -> list[Message]:
+def merge_roles(messages: Sequence[Message]) -> list[Message]:
+    """Merge each run of consecutive same-role messages into one, joining their contents with a blank line."""
+    out: list[Message] = []
+    for m in messages:
+        if out and out[-1]["role"] == m["role"]:
+            out[-1] = {"role": m["role"], "content": out[-1]["content"] + "\n\n" + m["content"]}
+        else:
+            out.append({"role": m["role"], "content": m["content"]})
+    return out
+
+
+def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[Message],
+                     merge: bool = True) -> list[Message]:
     """The messages of one request: instructions, memory block, then the windowed turns (role and content
-    only)."""
+    only), with consecutive same-role messages merged (`merge`; False rebuilds requests made before the
+    merge)."""
     if not instructions:
         raise ValueError("a request needs the Part 1 instructions")
     out: list[Message] = [{"role": "system", "content": instructions[0]}]
     out += [{"role": "user", "content": text} for text in instructions[1:]]
     out.append({"role": "user", "content": memory})
     out += [{"role": m["role"], "content": m["content"]} for m in turns]
-    return out
+    return merge_roles(out) if merge else out
 
 
 def window_start(transcript: Sequence[Message], period: int, window: int) -> int:
@@ -70,7 +88,8 @@ class Firm:
 
     def ask(self, prompt: str, period: int, memory: str) -> tuple[list[Message], dict[str, Any]]:
         """Append a user message (queued text + prompt) in global period `period`; return the request's messages
-        and its context record (number of instruction messages, memory text, transcript window [lo, hi))."""
+        and its context record (number of instruction messages, memory text, transcript window [lo, hi), and
+        `merged`: same-role messages merged)."""
         if self.transcript and self.transcript[-1]["role"] == "user":
             raise RuntimeError("two user turns in a row")
         if self.transcript and period < self.transcript[-1]["period"]:
@@ -78,7 +97,7 @@ class Firm:
         self.transcript.append({"role": "user", "content": "\n\n".join([*self.pending, prompt]), "period": period})
         self.pending.clear()
         lo, hi = window_start(self.transcript, period, self.window), len(self.transcript)
-        ctx = {"instructions": len(self.instructions), "memory": memory, "window": [lo, hi]}
+        ctx = {"instructions": len(self.instructions), "memory": memory, "window": [lo, hi], "merged": True}
         return context_messages(self.instructions, memory, self.transcript[lo:hi]), ctx
 
     def answer(self, content: str) -> None:

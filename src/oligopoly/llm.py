@@ -402,7 +402,8 @@ def reconstruct_request(market_json: dict[str, Any], firm: str, context: dict[st
                         cache_upto: int | Sequence[int] | None = None) -> list[dict[str, Any]]:
     """The messages of a request of `firm`, rebuilt from its market record, failure record or checkpoint and the
     attempt's `context` (from the record's decisions: the number of instruction messages, the memory text and
-    the transcript window [lo, hi)). Pass the log line's `cache_upto` to get the messages as sent (check
+    the transcript window [lo, hi); `merged` if same-role messages were merged, absent in older records). Pass
+    the log line's `cache_upto` to get the messages as sent (check
     `messages_sha256(result)` against the line's `messages_sha256`), or none to compare with the context's own
     `messages_sha256` (of the messages without cache_control). A call made in a period that a process died in
     and a later invocation replayed differently is not in the final record; `reconstruct_from_log` rebuilds any
@@ -413,7 +414,8 @@ def reconstruct_request(market_json: dict[str, Any], firm: str, context: dict[st
     k, (lo, hi) = context["instructions"], context["window"]
     if not 1 <= k <= len(instructions) or not 0 <= lo < hi <= len(transcript):
         raise ValueError(f"firm {firm}: context {k} instructions, window [{lo}, {hi}) does not fit the record")
-    msgs = context_messages(instructions[:k], context["memory"], transcript[lo:hi])
+    msgs = context_messages(instructions[:k], context["memory"], transcript[lo:hi],
+                            merge=bool(context.get("merged")))
     return with_cache_control(msgs, cache_upto) if cache_upto is not None else msgs
 
 

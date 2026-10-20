@@ -225,6 +225,7 @@ sampling rule and reading notes saved alongside the analysis.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
     **2026-10-20:** with the rolling window (item 11) only the instructions are a stable prefix, so breakpoints
     go on the instruction messages only (Part 1's, and Part 2's once shown), never on the newest message.
+    **2026-10-20, with same-role merging (item 11):** on the system message (Part 1's instructions) only.
 11. **Rolling window, exact definition (2026-10-20, implements §6 item 3's rolling window with W =
     `memory_window` = 3 in `config/experiment.toml`).** Periods are numbered globally across parts (Part 2
     period t is Part 1's length + t; the post-game probe is the total + 1). Each firm keeps a full transcript:
@@ -241,7 +242,12 @@ sampling rule and reading notes saved alongside the analysis.
     firm's latest valid answer (chat or price) that had a `notes` field; an answer without notes, an invalid
     answer or a fallback leaves it unchanged; an empty string replaces it. Within one decision (first ask and
     re-asks) the memory block is fixed. Part 2 instructions are a user message (as they were in the pilots,
-    rather than a second system message, which some chat templates reject). The record keeps every firm's
+    rather than a second system message, which some chat templates reject).
+    **2026-10-20 (review):** as sent, consecutive same-role messages are merged into one, joined by a blank
+    line, so roles strictly alternate system, user, assistant, user, … (some chat templates reject two user
+    messages in a row): (2), (3) and the window's opening user turn become one user message. The context
+    record carries `merged: true`; `messages_sha256` and the log are of the merged messages, and
+    `reconstruct_request` rebuilds them (older records, without the key, unmerged). The record keeps every firm's
     `instructions` and full `transcripts`, and each attempt's `context` (instruction count, memory text,
     transcript window [lo, hi), messages_sha256), from which `llm.reconstruct_request` rebuilds the request;
     `calls.jsonl` logs the first request of each firm per process in full and later ones as `messages_ref`

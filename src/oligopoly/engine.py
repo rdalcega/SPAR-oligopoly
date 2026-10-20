@@ -16,7 +16,8 @@ memory block (latest private notes and own cumulative profit) and the verbatim t
 `memory_window` completed periods plus the current one (see `firm.py` for the exact window). The record keeps
 every firm's full transcript (`transcripts`, all turns) and instructions, and each attempt's `context` (number of
 instruction messages, memory text, transcript window, messages_sha256), so `llm.reconstruct_request` rebuilds
-every request. Prompt-cache breakpoints go on the instruction messages only.
+every request. Consecutive same-role messages are merged (roles alternate); the prompt-cache breakpoint goes on
+the system message (Part 1's instructions) only.
 
 Checkpoints: `run_market` writes `markets/<key>.ckpt.json` atomically when the market starts and after every
 completed period (part boundaries included): the firms' instructions, transcripts, notes and queued text, the
@@ -240,8 +241,8 @@ def score_probe(answers: dict[str, Any] | None, truth: dict[str, Any]) -> dict[s
 
 
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
-CHECKPOINT_VERSION = 3  # 2: `probe` (post-game probe result, None until done); 3: windowed context (firm
-# instructions, transcript and notes instead of an append-only history)
+CHECKPOINT_VERSION = 4  # 2: `probe` (post-game probe result, None until done); 3: windowed context (firm
+# instructions, transcript and notes instead of an append-only history); 4: same-role messages merged
 # ChatResult fields kept for a call made in a period that did not complete (enough for decide and _account)
 RESULT_FIELDS = ("content", "finish_reason", "native_finish_reason", "provider", "model", "generation_id",
                  "cost_usd", "latency_s", "attempts", "seed_possibly_ignored", "provider_mismatch")
@@ -294,10 +295,11 @@ class Market:
     def ask(self, L: str, prompt: str, g: int, mem: str) -> tuple[list[dict[str, Any]], dict[str, Any],
                                                                   list[int] | None]:
         """Firm L's request for `prompt` in global period g: messages, context record and cache breakpoints (on
-        the instruction messages, the only stable prefix)."""
+        the system message, Part 1's instructions: the only stable prefix once same-role messages are merged).
+        `messages_sha256` is of the messages as merged (what is sent, without cache_control)."""
         messages, ctx = self.firms[L].ask(prompt, g, mem)
         ctx["messages_sha256"] = messages_sha256(messages)
-        cache = list(range(ctx["instructions"])) if self.spec.model.cache_control else None
+        cache = [0] if self.spec.model.cache_control else None
         return messages, ctx, cache
 
     def call_seed(self, firm: str, part: int, period: int, phase: str, attempt: int) -> int:

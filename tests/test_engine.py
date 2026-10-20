@@ -77,27 +77,32 @@ def check_contexts(rec, client, exp):
                 g = tag["period"] if tag["part"] == 1 else L1 + tag["period"]
                 if tag["phase"] == "probe":
                     g = sum(exp.part_lengths) + 1
-                assert messages_sha256(msgs) == ctx["messages_sha256"]
+                assert messages_sha256(msgs) == ctx["messages_sha256"] and ctx["merged"] is True
                 assert reconstruct_request(rec, L, ctx) == msgs
+                # roles alternate strictly: system, user, assistant, user, ..., user
+                assert [m["role"] for m in msgs] == ["system"] + ["user", "assistant"] * ((len(msgs) - 2) // 2) + [
+                    "user"]
                 # instructions always present; Part 2's only from Part 2 on
                 k = 2 if g > L1 else 1
                 assert ctx["instructions"] == k and msgs[0] == {"role": "system", "content": instr[0]}
-                if k == 2:
-                    assert msgs[1] == {"role": "user", "content": instr[1]}
                 # memory = the latest notes written before this decision, and the firm's own profit so far
                 part = 1 if g <= L1 else 2
                 mem = memory_text(exp.notes, notes, part, profit[part - 1], sum(profit) if part == 2 else None)
-                assert msgs[k] == {"role": "user", "content": mem} and ctx["memory"] == mem
+                assert ctx["memory"] == mem
                 # the window: every turn of periods g - W .. g, verbatim, ending with this request's prompt
                 lo, hi = ctx["window"]
                 assert [m["period"] for m in tr[lo:hi]] == sorted(m["period"] for m in tr[lo:hi])
                 assert all(g - W <= m["period"] <= g for m in tr[lo:hi])
                 assert lo == 0 or tr[lo - 1]["period"] < g - W
                 assert hi == len(tr) or tr[hi]["role"] == "assistant"
-                assert msgs[k + 1:] == [{"role": m["role"], "content": m["content"]} for m in tr[lo:hi]]
+                assert tr[lo]["role"] == "user"
+                # Part 2's instructions, the memory block and the window's opening turn form one user message
+                opening = [*instr[1:k], mem, tr[lo]["content"]]
+                assert msgs[1] == {"role": "user", "content": "\n\n".join(opening)}
+                assert msgs[2:] == [{"role": m["role"], "content": m["content"]} for m in tr[lo + 1:hi]]
                 assert msgs[-1]["role"] == "user" and tr[hi - 1]["period"] == g
                 # results visible: those of the W windowed periods and the most recent; none older than g - W - 1
-                text = "\n".join(m["content"] for m in msgs[k + 1:])
+                text = "\n".join(m["content"] for m in tr[lo:hi])
                 for q in range(max(1, g - W - 1), g):
                     assert results_label(q, exp) in text, (L, g, q)
                 for q in range(1, g - W - 1):
@@ -373,11 +378,16 @@ async def test_market_with_openrouter_client(tmp_path):
     b = bodies[0]
     assert b["provider"] == {"order": ["deepinfra/fp8"], "allow_fallbacks": False, "require_parameters": True}
     assert b["top_k"] == 20 and b["temperature"] == 0.6 and isinstance(b["seed"], int)
-    # cache breakpoints only on the instructions (the stable prefix), not on the newest message
-    assert "cache_control" in b["messages"][0]["content"][-1] and isinstance(b["messages"][-1]["content"], str)
-    assert all(isinstance(m["content"], str) for m in b["messages"][1:])
-    p2 = next(x for x in bodies if len(x["messages"]) > 2 and "Part 1 is over." in str(x["messages"][1]["content"]))
-    assert "cache_control" in p2["messages"][1]["content"][-1]
+    # the cache breakpoint only on the system message (the stable prefix), not on the newest message
+    for x in bodies:
+        assert "cache_control" in x["messages"][0]["content"][-1]
+        assert all(isinstance(m["content"], str) for m in x["messages"][1:])
+        assert [m["role"] for m in x["messages"]][:2] == ["system", "user"]
+        assert all(a["role"] != c["role"] for a, c in zip(x["messages"], x["messages"][1:]))  # roles alternate
+    # Part 2: its instructions, the memory block and the opening turn are one user message
+    p2 = next(x for x in bodies if x["messages"][1]["content"].startswith("Part 1 is over."))
+    assert "\n\nYour notes" in p2["messages"][1]["content"] or "\n\nYou have not written" in p2["messages"][1][
+        "content"]
     assert rec["usage"]["calls"] == len(bodies) == 2 * (2 + 1 + 1)  # 2 firms x (2 NoTalk + 1 chat + 1 price)
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
 
@@ -431,7 +441,7 @@ async def test_compact_call_log_reconstructs_requests(tmp_path):
         assert messages_sha256(msgs) == line["messages_sha256"] and messages_sha256(plain) == ctx["messages_sha256"]
         assert reconstruct_from_log(log, i) == msgs
         assert line["prompt_bytes"] == sum(len(m["content"].encode()) for m in plain)
-        assert line["cache_upto"] == list(range(ctx["instructions"]))
+        assert line["cache_upto"] == [0]
         full = L not in seen or (line["error"] is not None and not line.get("rate_limited"))
         assert ("request" in line) == full, line["tag"]
         if full:
@@ -1144,6 +1154,21 @@ async def test_window_sizes(tmp_path, window, ordering):
             assert ctx["window"][0] == 0
 
 
+def test_reconstruct_merged_and_legacy_contexts():
+    """Requests merge same-role messages (roles alternate); a context without `merged` (records from before the
+    merge) is rebuilt unmerged, so older records still verify."""
+    from oligopoly.llm import reconstruct_request
+
+    rec = {"instructions": {"A": ["P1", "P2"]}, "transcripts": {"A": [
+        {"role": "user", "content": "u1", "period": 1}, {"role": "assistant", "content": "a1", "period": 1},
+        {"role": "user", "content": "u2", "period": 2}]}}
+    ctx = {"instructions": 2, "memory": "mem", "window": [0, 3]}
+    assert reconstruct_request(rec, "A", {**ctx, "merged": True}) == [
+        {"role": "system", "content": "P1"}, {"role": "user", "content": "P2\n\nmem\n\nu1"},
+        {"role": "assistant", "content": "a1"}, {"role": "user", "content": "u2"}]
+    assert [m["content"] for m in reconstruct_request(rec, "A", ctx)] == ["P1", "P2", "mem", "u1", "a1", "u2"]
+
+
 async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
     """Chat messages and results older than the window never reach a request; the notes do."""
     def answer(tag):
@@ -1170,8 +1195,8 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
         if g > 1 and t["phase"] != "probe":
             prev = f"P{1 if g - 1 <= 8 else 2}T{g - 1 if g - 1 <= 8 else g - 9}"
             # memory = this firm's latest notes (the previous period's price notes, or this period's chat notes)
-            assert f"Your notes (written by you at your last decision): memo-{t['firm']}-" in c["messages"][
-                2 if g > 8 else 1]["content"]
+            assert f"Your notes (written by you at your last decision): memo-{t['firm']}-" in c["messages"][1][
+                "content"]
             assert f"memo-{t['firm']}-{prev}" in text
             assert f"memo-{'B' if t['firm'] == 'A' else 'A'}-" not in text
     assert max(sizes[len(sizes) // 2:]) < 1.5 * max(sizes[:len(sizes) // 2])  # does not grow with the market
@@ -1194,8 +1219,8 @@ async def test_answer_without_notes_keeps_memory(tmp_path):
     # Part 2 period 1, after the chat: A's empty notes replaced its memory; B's chat answer had none
     p2 = {c["tag"]["firm"]: c for c in client.calls if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"])
           == (2, 1, "price")}
-    assert p2["A"]["messages"][2]["content"].startswith("Your notes (written by you at your last decision): \n")
-    assert p2["B"]["messages"][2]["content"].startswith("Your notes (written by you at your last decision): odd-B-1-3")
+    assert "\n\nYour notes (written by you at your last decision): \n" in p2["A"]["messages"][1]["content"]
+    assert "\n\nYour notes (written by you at your last decision): odd-B-1-3" in p2["B"]["messages"][1]["content"]
 
 
 # ---------------------------------------------------------------- structured outputs

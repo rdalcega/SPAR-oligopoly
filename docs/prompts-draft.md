@@ -41,7 +41,11 @@ A period's turns start with the user message that opens it, which carries the re
 t−3, t−2 and t−1 (t−1 being the most recent), the chat messages and the firm's answers of t−3, t−2 and t−1,
 and period t so far. Older play survives only in the firm's own notes. The post-game probe is treated as one
 more period after the last: it sees the last 3 periods of Part 2, the final results and the memory block.
-Native reasoning is never fed back. Prompt-cache breakpoints go on the instruction messages only.
+Native reasoning is never fed back.
+
+As sent, consecutive messages of the same role are merged into one, joined by a blank line (2026-10-20), so
+roles alternate system, user, assistant, user, …: items 2 and 3 and the window's opening user turn form one
+user message. The prompt-cache breakpoint goes on the system message only.
 
 Sample memory block (Part 2):
 
