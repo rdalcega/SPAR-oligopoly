@@ -208,7 +208,7 @@ async def test_atomic_write(tmp_path, monkeypatch):
     def boom(*a, **k):
         raise OSError("disk full")
 
-    monkeypatch.setattr(engine.json, "dump", boom)
+    monkeypatch.setattr(engine.os, "fsync", boom)  # fails after the temporary file was written
     with pytest.raises(OSError):
         engine.write_json_atomic(path, {"a": 2})
     assert json.loads(path.read_text()) == {"a": 1}
@@ -472,6 +472,53 @@ async def test_gather_prefers_budget_exceeded():
     nested = ExceptionGroup("g", [RetriesExhausted("a"), ExceptionGroup("h", [ValueError(), BudgetExceeded("b")])])
     assert isinstance(engine.pick_error(nested), BudgetExceeded)
     assert isinstance(engine.pick_error(ExceptionGroup("g", [ValueError(), KeyError()])), ValueError)
+
+
+async def test_gather_cancels_siblings_on_context_overflow():
+    """A ContextOverflow market is not retried under the same settings, so the other firms' calls in flight
+    are cancelled instead of run to the end (other errors still let them finish)."""
+    from oligopoly.llm import ContextOverflow
+
+    async def overflow():
+        await asyncio.sleep(0.01)
+        raise ContextOverflow("too long")
+
+    cancelled = []
+
+    async def slow_sibling():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+
+    m = engine.Market(spec(), MockClient(), SHORT)
+    with pytest.raises(ContextOverflow):
+        await asyncio.wait_for(m.gather({"A": overflow(), "B": slow_sibling(), "C": slow_sibling()}), 2)
+    assert cancelled == [True, True]
+
+
+async def test_checkpoint_serialised_once_and_written_in_thread(tmp_path, monkeypatch):
+    threaded = []
+    real = asyncio.to_thread
+
+    async def spy(fn, *a, **k):
+        threaded.append(fn.__name__)
+        return await real(fn, *a, **k)
+
+    monkeypatch.setattr(engine.asyncio, "to_thread", spy)
+
+    def no_loads(*a, **k):
+        raise AssertionError("checkpoint re-parsed")
+
+    s = spec()
+    m = engine.Market(s, MockClient(), SHORT, checkpoint=engine.checkpoint_path(tmp_path, s))
+    monkeypatch.setattr(engine.json, "loads", no_loads)
+    await m.save_checkpoint()
+    monkeypatch.undo()
+    assert threaded == ["write_text_atomic"]
+    assert engine.checkpoint_path(tmp_path, s).read_text() == m._boundary
+    assert json.loads(m._boundary)["periods_completed"] == 0
 
 
 async def test_setup_error_writes_failure(tmp_path, monkeypatch):

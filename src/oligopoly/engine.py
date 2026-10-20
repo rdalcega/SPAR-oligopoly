@@ -25,6 +25,7 @@ import json
 import os
 import random
 import traceback
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -140,18 +141,24 @@ def is_market_record_file(path: Path) -> bool:
     return path.name.endswith(".json") and not path.name.endswith((".failed.json", ".ckpt.json"))
 
 
-def write_json_atomic(path: Path, obj: Any) -> None:
-    """Write to a temporary file in the same directory, fsync, then rename over `path`."""
+def write_text_atomic(path: Path, text: str) -> None:
+    """Write to a uniquely named temporary file in the same directory, fsync, then rename over `path`
+    (concurrent writers of one path never share a temporary file; the last rename wins)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:12]}.tmp")
     try:
         with tmp.open("w", encoding="utf-8") as f:
-            json.dump(obj, f, ensure_ascii=False, indent=1)
+            f.write(text)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def write_json_atomic(path: Path, obj: Any) -> None:
+    """`obj` as indented JSON, written atomically (see write_text_atomic)."""
+    write_text_atomic(path, json.dumps(obj, ensure_ascii=False, indent=1))
 
 
 @dataclass
@@ -293,11 +300,20 @@ class Market:
     async def gather(self, coros: dict[str, Any]) -> dict[str, Decision]:
         """Run the firms' decisions concurrently. A failure does not cancel the other firms' calls: they run to
         the end (their requests may already be billed, and their results are kept for a resume), then one error
-        is re-raised as is (BudgetExceeded in preference, so the runner stops scheduling markets). If this
-        coroutine itself is cancelled, the decisions are cancelled with it."""
+        is re-raised as is (BudgetExceeded in preference, so the runner stops scheduling markets). The exception
+        is ContextOverflow: such a market is not retried under the same settings, so the other firms' calls in
+        flight are cancelled at once rather than paid for. If this coroutine itself is cancelled, the
+        decisions are cancelled with it."""
         tasks = {L: asyncio.ensure_future(c) for L, c in coros.items()}
         try:
-            await asyncio.wait(tasks.values())
+            pending = set(tasks.values())
+            while pending:
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_EXCEPTION)
+                if any(not t.cancelled() and isinstance(t.exception(), ContextOverflow) for t in done):
+                    for t in pending:
+                        t.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    break
         except BaseException:
             for t in tasks.values():
                 t.cancel()
@@ -371,13 +387,13 @@ class Market:
                 firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
                                                      chat_spec=self.chat_spec if self.talk[0] else None,
                                                      notes=self.exp.notes))
-            self.save_checkpoint()
+            await self.save_checkpoint()
         schedule = [(part, t) for part in (1, 2) for t in range(1, self.exp.part_lengths[part - 1] + 1)]
         if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:
             raise RuntimeError("completed periods do not match the schedule")
         for part, t in schedule[len(self.periods):]:
             await self.period(part, t)
-            self.save_checkpoint()
+            await self.save_checkpoint()
         for firm in self.firms.values():
             firm.flush()
 
@@ -393,13 +409,15 @@ class Market:
                 "periods": self.periods, "profit": self.profit, "prev_price": self.prev_price, "usage": self.usage,
                 "resumed_from_period": self.resumed_from, "partial_calls": {}}
 
-    def save_checkpoint(self) -> None:
-        """At a period boundary: write the checkpoint and forget the finished period's call results."""
+    async def save_checkpoint(self) -> None:
+        """At a period boundary: write the checkpoint and forget the finished period's call results. The
+        snapshot is serialised once, here (so later play cannot change it), and written atomically in a
+        worker thread."""
         self.partial_calls, self.replay = {}, {}
         if self.checkpoint is None:
             return
         self._boundary = json.dumps(self.snapshot(), ensure_ascii=False)
-        write_json_atomic(self.checkpoint, json.loads(self._boundary))
+        await asyncio.to_thread(write_text_atomic, self.checkpoint, self._boundary)
 
     def save_failure_checkpoint(self) -> None:
         """After a failure: the last boundary checkpoint plus the results of the calls already made (or still
@@ -408,7 +426,7 @@ class Market:
             return
         ck = json.loads(self._boundary)
         ck["partial_calls"] = {**self.replay, **self.partial_calls}
-        write_json_atomic(self.checkpoint, ck)
+        write_text_atomic(self.checkpoint, json.dumps(ck, ensure_ascii=False))
 
     def restore(self, ck: dict[str, Any]) -> str | None:
         """Load checkpoint `ck` into this fresh market. Returns why it does not match (nothing is changed
