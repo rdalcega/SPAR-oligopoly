@@ -38,6 +38,10 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   (3.5, 3.6, 3.8).
 - **2026-10-20: LFM-2.5-24B-A2B dropped** (7 models remain). Its only provider (Liquid) caps output at 8,192
   tokens, thinking cannot be disabled or shortened, and ~18% of probe calls truncated with empty answers.
+- **2026-10-20: Qwen3-14B added** (8 models), to strengthen the small end. Pinned to DeepInfra fp8 (seed
+  supported), Qwen3 thinking-mode sampling (T 0.6, top_p 0.95, top_k 20). Its context is 40,960 tokens
+  (input + output), which may not hold full Talk histories at larger n; how to handle that is decided after
+  the pilot measures history sizes.
 - **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
   supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
 
