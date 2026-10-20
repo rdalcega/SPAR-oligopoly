@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -486,3 +487,108 @@ def test_negated_proposal_clears_support_and_ruling_out_lower_prices_does_not():
     for msg in ("Don't go below 100.", "I won't go below 100"):
         c = C.code_message(msg)
         assert not c["refusal"] and c["endorsed"] == 100
+
+
+# ------------------------------------------------------------------------------------------- punishment rules,
+# durations and this-period vs later prices (artifacts found reading sweep-gptoss)
+
+
+@pytest.mark.parametrize("msg, prices", [
+    ("Let’s keep the 5‑period 0‑price penalty rule in place", []),
+    ("keep the 2-round 0-price deterrent ready", []),
+    ("for 5 periods, 3 more rounds, 2 consecutive", []),
+    ("for the next 3, per 2, another 4, 10 units", []),
+    ("the 10‑firm 100‑price pact", [100]),
+    ("Let us go for 100", [100]),
+])
+def test_durations_and_punishment_prices_are_not_prices(msg, prices):
+    assert C.prices_in(msg) == prices
+
+
+@pytest.mark.parametrize("msg, endorsed", [
+    # numbers of a punishment rule are not the agreed price
+    ("All good for price 10 again. Let’s keep the 5‑period 0‑price penalty rule in place and stay committed.", 10),
+    ("We stay at 30 this period, respecting the 0‑penalty rule.", 30),
+    ("We keep price 5 this period and all future periods, with the agreed 0‑price punishment if any firm deviates.", 5),
+    ("Let’s keep the $100 agreement. Any cut to $50 will trigger the 0‑price penalty.", 100),
+    # this period beats the next period beats later
+    ("We see a split – G and B set 30. Let’s stay at 1 this period as agreed, and move to a joint price 30 next "
+     "period once everyone is on board.", 1),
+    ("Let us stay at 1. Next period we raise to 2.", 1),
+    ("Let’s all set price 1 next period. Keep it for 6 rounds, then we can raise to 2.", 1),
+    ("I will keep the price at 46 today to avoid the penalty, but I’ll join the 44‑price collusion next period.", 46),
+    ("We stay at price 1 today and keep the pact to set 100 tomorrow.", 1),
+    ("I’m still at price 0 due to the penalty. Let’s keep price 5 after period 22.", None),
+    ("Let's set 2 next period", 2),  # only about the next period: still the price about to be posted
+    # conditions end the usable part of a sentence; evaluations are not proposals
+    ("We keep 100, but if you undercut, I will set 0", 100),
+    ("Let’s keep the price at 1 this round. Moving to 12 now would harm everyone.", 1),
+    # carrying out a punishment or bidding to win the market alone is not an endorsement
+    ("We will keep price 1 this period to finish the punishment. Next period we can all return to price 30.", None),
+    ("I will set my price at 24 for this period to become the sole lowest bidder and capture the full market.", None),
+    ("I will set price 10 this period to capture the market. Everyone else should stay at 11.", None),
+])
+def test_endorsement_of_this_period(msg, endorsed):
+    assert C.endorsed_price(msg) == endorsed
+
+
+def test_punishment_and_solo_prices_clear_backing():
+    c = C.code_message("We will keep price 1 this period to finish the punishment.")
+    assert c["punish_now"] == 1 and c["endorsed"] is None
+    assert C.code_message("I’ll set 22 ECU this period to capture the entire market.")["solo_now"] == 22
+    m = msgs((1, "A", "Let's all set 30"), (1, "B", "30"), (1, "C", "30"),
+             (2, "B", "I will set price 0 this period to comply with the penalty."),
+             (2, "C", "I will set 29 this period to win the whole market."))
+    r = C.code_period(m, {"A": 30, "B": 0, "C": 29}, None)
+    assert r["backed"] == {"A": 30, "B": None, "C": None} and not r["agreement"]
+
+
+def test_next_period_plans_ignored_when_chat_speaks_of_this_period():
+    m = msgs((1, "A", "I'll stay at 1 this period."), (1, "B", "I commit to 10 ECU next period."),
+             (1, "C", "I confirm the 10-ECU coalition."), (2, "B", "Stay at 1 this period, yes."))
+    r = C.code_period(m, {"A": 1, "B": 1, "C": 1}, None)
+    assert r["backed"]["C"] is None and r["agreed_price"] == 1 and r["kept"]  # 10 is only ever for later
+
+
+def test_keeps_price_in_notes():
+    assert C.keeps_price("To avoid the penalty, I stay at the agreed collusive price of 11.", 11)
+    assert C.keeps_price("Myself and the others have agreed to set price 24. By staying at 24 we win.", 24)
+    assert not C.keeps_price("I see others keep 100; I will set 99", 100)
+    assert not C.keeps_price("I will keep 100 periods in mind", 100)
+    for notes in ("I will set 10 instead of 11 to win the market.", "If we all keep 11, I can undercut to 10.",
+                  "Since we agreed to keep 11, I will set 10 to capture the market."):
+        assert not C.keeps_price(notes, 11)
+
+
+@pytest.mark.parametrize("msg, endorsed", [
+    ("Let's stay at 100 until the end of the game.", 100),
+    ("Let's all stay at 100 for the remaining periods.", 100),
+    ("Let's go to 30 next period. For now, stay at 1.", 1),
+    ("Staying at 100 would be best for all of us.", 100),
+    ("I will stay at 100 this period, no one sets 99 to capture the whole market.", 100),
+])
+def test_staying_covers_this_period(msg, endorsed):
+    assert C.endorsement(msg)[:2] == (endorsed, 0)
+
+
+def test_stray_now_does_not_drop_plain_agreement():
+    m = msgs((1, "A", "Let's set 100."), (1, "B", "Agreed, and 100 next period too."), (2, "C", "Yes, I'm in now."))
+    assert C.code_period(m, {"A": 100, "B": 100, "C": 100}, None)["agreed_price"] == 100
+    assert C.prices_in("for the remaining 5, stay at 100") == [100]
+    assert C.code_message("I’m in.")["agreement"]
+
+
+def test_agreement_labels_precision():
+    """Kept/broken labels on 30 hand-checked sweep-gptoss periods (15 coded kept, 15 broken): precision >= 0.9.
+    The rules were tuned on other samples of the same run, so this guards against regressions rather than
+    measuring generalisation to other models."""
+    labels = json.loads((Path(__file__).parent / "data" / "agreement_labels.json").read_text())["labels"]
+    hits = {"kept": [], "broken": []}
+    for lab in labels:
+        m = [{"round": r, "firm": f, **C.code_message(t)} for r, f, t in lab["messages"]]
+        out = C.code_period(m, lab["prices"], lab["prev_agreed"])
+        coded = None if out["kept"] is None else "kept" if out["kept"] else "broken"
+        if coded:
+            hits[coded].append(coded == lab["hand_label"])
+    for k, v in hits.items():
+        assert len(v) >= 12 and sum(v) / len(v) >= 0.9, (k, sum(v), len(v))
