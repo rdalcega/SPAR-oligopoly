@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from oligopoly import market as mk  # noqa: E402
+from oligopoly.engine import is_market_record_file  # noqa: E402
+from oligopoly.llm import reconstruct_from_log  # noqa: E402
 from oligopoly.analysis.chat import code_message, code_period  # noqa: E402
 from oligopoly.prompts import format_ecu  # noqa: E402
 
@@ -31,6 +33,31 @@ def content_text(m: dict) -> str:
     if isinstance(c, list):  # cache_control blocks
         return "".join(b.get("text", "") for b in c)
     return c
+
+
+def load_calls(path: Path) -> list[dict]:
+    """The call log's records in file order; compact lines (`messages_new`) get `request.messages` rebuilt by
+    `reconstruct_from_log` (or `reconstruct_error` if the chain is broken)."""
+    recs = [json.loads(line) for line in path.open() if line.strip()]
+    for i, c in enumerate(recs):
+        if "request" not in c and "messages_new" in c:
+            try:
+                c["request"] = {"messages": reconstruct_from_log(recs, i)}
+            except ValueError as e:
+                c["reconstruct_error"] = str(e)
+    return recs
+
+
+def market_files(run: Path) -> list[Path]:
+    """Completed and failed market records of a run (checkpoints are neither)."""
+    return sorted(f for f in (run / "markets").glob("*.json")
+                  if is_market_record_file(f) or f.name.endswith(".failed.json"))
+
+
+def request_bytes(c: dict) -> int:
+    if "prompt_bytes" in c:
+        return c["prompt_bytes"]
+    return sum(len(content_text(m).encode()) for m in c["request"]["messages"])
 
 
 def pct(xs, q):
@@ -198,6 +225,9 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
         if c.get("error") is not None:
             continue
         n_ok += 1
+        if "request" not in c:
+            issues.append(f"request not reconstructable: {c['tag'].get('call_id')}: {c.get('reconstruct_error')}")
+            continue
         tg = c["tag"]
         L = tg["firm"]
         req = [(m["role"], content_text(m)) for m in c["request"]["messages"]]
@@ -308,7 +338,7 @@ def tokens(calls: list[dict]) -> dict:
         phase[ph]["completion"].append(u["completion_tokens"])
         phase[ph]["reasoning"].append(u["reasoning_tokens"])
         phase[ph]["cost"].append(c["cost_usd"] or 0)
-        b = sum(len(content_text(m).encode()) for m in c["request"]["messages"])
+        b = request_bytes(c)
         ratio.append(u["prompt_tokens"] / b)
         lat.append(c["latency_s"])
         cost.append(c["cost_usd"])
@@ -355,12 +385,12 @@ def tokens(calls: list[dict]) -> dict:
 def main() -> int:
     calls_by_market = defaultdict(list)
     for run in RUNS:
-        for line in (run / "calls.jsonl").open():
-            c = json.loads(line)
-            calls_by_market[c["tag"]["market"]].append(c)
+        for c in load_calls(run / "calls.jsonl"):
+            if "event" not in c and (c.get("tag") or {}).get("market"):
+                calls_by_market[c["tag"]["market"]].append(c)
     report = {}
     for run in RUNS:
-        for f in sorted((run / "markets").glob("*.json")):
+        for f in market_files(run):
             if f.name.endswith(".failed.json"):
                 rec = json.loads(f.read_text())
                 key = rec["spec"]["model"]

@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models
-from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed
+from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed, is_market_record_file
 from oligopoly.llm import ChatResult, Usage, find_endpoint, get_endpoints, prompt_token_bound
 from oligopoly.parse import strip_reasoning
 
@@ -77,7 +77,7 @@ def load_samples(paths: list[Path]) -> dict[str, Sample]:
     """Per model name (and "*" for all models pooled). Only completed markets are used."""
     out: dict[str, Sample] = {}
     for path in paths:
-        if path.name.endswith((".failed.json", ".ckpt.json")):
+        if not is_market_record_file(path):
             continue
         rec = json.loads(path.read_text())
         name = rec["spec"]["model"]
