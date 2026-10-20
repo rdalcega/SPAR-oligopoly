@@ -285,6 +285,9 @@ chat" if there was none). Exact wording in `docs/prompts-draft.md`.
   skipped (`skipped: "context_overflow"`) instead of failing a market whose play is complete. Other failures
   (budget, retries) fail the market as usual; the rerun resumes from the checkpoint taken after the last period
   and asks only the probe (reusing answers already paid for).
+- Probe calls are tagged apart from play in the call log: `phase: "probe"`, `part: "probe"`, `period: null`
+  (call ids `<market>/<firm>/probe/a<k>`; seeds unchanged). Cost and time projections count them as their own
+  kind.
 - Switch: `post_game_probe = true` in `config/experiment.toml`, part of the experiment settings and so of every
   market fingerprint and of run_config.json. Held fixed across the run.
 - **2026-10-20, with the rolling window (engine details 11):** the probe call is built like any other request at

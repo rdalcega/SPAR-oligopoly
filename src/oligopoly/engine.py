@@ -417,7 +417,8 @@ class Market:
         for attempt in range(PROBE_MAX_REASKS + 1):
             call_id = f"{s.key}/{L}/probe/a{attempt}"
             seed = self.call_seed(L, part, period, "probe", attempt)
-            tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": part, "period": period,
+            # tagged apart from play: no part or period of its own (the seed keeps its original coordinates)
+            tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": "probe", "period": None,
                    "phase": "probe", "attempt": attempt, "call_id": call_id}
             msha = fingerprint(messages)
             cached = self.replay.pop(call_id, None)

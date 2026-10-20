@@ -21,7 +21,8 @@ def test_pilot_stats_and_pricing(tmp_path):
     log.write_text("\n".join(json.dumps(r) for r in rows))
     st = pc.pilot_stats([log], "acme/m")
     assert st.calls == 2 and st.tokens_per_byte == pytest.approx(50 / 200) and st.cached_share == 0
-    assert st.output == {"chat": [900], "price": [600]} and st.latency == {"chat": [6.0], "price": [4.0]}
+    assert st.output == {"chat": [900], "price": [600], "probe": []}
+    assert st.latency == {"chat": [6.0], "price": [4.0], "probe": []}
     calls = [{"bytes": 400, "bound": 300, "kind": "chat"}, {"bytes": 800, "bound": 500, "kind": "price"}]
     pricing = {"prompt": 1e-6, "completion": 2e-6, "input_cache_read": 1e-7}
     usd, ptok, otok = pc.price_calls(calls, st, pricing, bound_tpb=False, seed=1)
@@ -37,7 +38,24 @@ def test_steps_count_rounds_prices_and_reasks():
     c = [{"step": (1, 1, "chat1"), "attempt": 0}, {"step": (1, 1, "chat1"), "attempt": 0},
          {"step": (1, 1, "chat2"), "attempt": 2}, {"step": (1, 1, "price"), "attempt": 0},
          {"step": (1, 2, "price"), "attempt": 1}]
-    assert pc.steps(c) == {"chat": 1 + 3, "price": 1 + 2}
+    assert pc.steps(c) == {"chat": 1 + 3, "price": 1 + 2, "probe": 0}
+
+
+def test_probe_calls_are_their_own_kind(tmp_path):
+    """Probe calls (tagged part "probe", period None) are neither chat nor price: counted as their own steps,
+    and their output tokens come from the price sample until the pilots have probe calls."""
+    assert pc.phase_kind("probe") == "probe" and pc.phase_kind("chat2") == "chat" and pc.phase_kind(None) == "chat"
+    c = [{"step": ("probe", None, "probe"), "attempt": 1}, {"step": (2, 4, "price"), "attempt": 0}]
+    assert pc.steps(c) == {"chat": 0, "price": 1, "probe": 2}
+    log = tmp_path / "calls.jsonl"
+    log.write_text("\n".join(json.dumps(r) for r in [call("price", 20, 600, 4.0), call("chat1", 30, 900, 6.0)]))
+    st = pc.pilot_stats([log], "acme/m")
+    usd, _, otok = pc.price_calls([{"bytes": 4, "bound": 4, "kind": "probe"}], st, {"prompt": 0, "completion": 1},
+                                  bound_tpb=False, seed=0)
+    assert otok == 600 and st.draws("probe") == "price"
+    log.write_text(json.dumps(call("probe", 20, 300, 2.0)))
+    st = pc.pilot_stats([log], "acme/m")
+    assert st.output["probe"] == [300] and st.output["price"] == [] and st.draws("probe") == "probe"
 
 
 def test_excluded_cells_not_projected():

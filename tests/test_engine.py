@@ -74,9 +74,11 @@ def check_contexts(rec, client, exp):
             for a in d["attempts"]:
                 c, ctx = sent[a["call_id"]], a["context"]
                 msgs, tag = c["messages"], c["tag"]
-                g = tag["period"] if tag["part"] == 1 else L1 + tag["period"]
                 if tag["phase"] == "probe":
+                    assert (tag["part"], tag["period"]) == ("probe", None)
                     g = sum(exp.part_lengths) + 1
+                else:
+                    g = tag["period"] if tag["part"] == 1 else L1 + tag["period"]
                 assert messages_sha256(msgs) == ctx["messages_sha256"] and ctx["merged"] is True
                 assert reconstruct_request(rec, L, ctx) == msgs
                 # roles alternate strictly: system, user, assistant, user, ..., user
@@ -136,7 +138,8 @@ async def test_mock_market(tmp_path, n, ordering):
         if len(p["chat"]) < 3 and p["chat"]:
             assert not p["chat"][-1]["messages"]  # closed early only when everyone passed
     for c in client.calls:
-        assert c["tag"]["phase"].startswith("chat") == talk[c["tag"]["part"] - 1] or c["tag"]["phase"] in ("price", "probe")
+        assert c["tag"]["phase"] in ("price", "probe") or \
+            c["tag"]["phase"].startswith("chat") == talk[c["tag"]["part"] - 1]
 
     # payoffs consistent with market.payoffs, totals consistent with periods
     for p in rec["periods"]:
@@ -167,7 +170,7 @@ async def test_mock_market(tmp_path, n, ordering):
         t = c["tag"]
         text = "\n".join(m["content"] for m in c["messages"])
         if t["phase"] == "probe":  # after all play
-            assert (t["part"], t["period"]) == (2, 4) and "Results of period 4 (Part 2)" in text
+            assert (t["part"], t["period"]) == ("probe", None) and "Results of period 4 (Part 2)" in text
         elif t["phase"] == "price":
             assert f"Results of period {t['period']} (Part {t['part']})" not in text
         else:
@@ -863,7 +866,7 @@ async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
     assert without_resume(rec) == without_resume(ref)  # same histories, periods, totals and usage
     first, second = [c["tag"]["call_id"] for c in c1.calls], [c["tag"]["call_id"] for c in c2.calls]
     assert not set(first) & set(second)  # no completed call is made again, not even within period k
-    assert all((c["tag"]["part"], c["tag"]["period"]) >= at[1:3] for c in c2.calls)
+    assert all((c["tag"]["part"], c["tag"]["period"]) >= at[1:3] for c in c2.calls if c["tag"]["phase"] != "probe")
     assert len(first) + len(second) == len(ref_client.calls)
     # the resumed run rebuilt exactly the windows (instructions, memory, turns) of the uninterrupted one
     ref_msgs = {c["tag"]["call_id"]: c["messages"] for c in ref_client.calls}
@@ -884,7 +887,7 @@ async def test_boundary_only_checkpoint_resumes_at_period(tmp_path):
     c2 = MockClient(record=True)
     rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
     assert without_resume(rec) == without_resume(ref) and rec["resumed_from_period"] == [4]
-    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls) == (1, 4)
+    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls if c["tag"]["phase"] != "probe") == (1, 4)
 
 
 @pytest.mark.parametrize("field", ["die_schedules", "listing_orders", "fingerprint", "texts_digest", "garbage"])
@@ -906,7 +909,7 @@ async def test_mismatched_checkpoint_is_ignored(tmp_path, capsys, field):
     rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
     assert "CHECKPOINT ignored" in capsys.readouterr().out
     assert rec == ref and rec["resumed_from_period"] == []  # restarted from scratch
-    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls) == (1, 1)
+    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls if c["tag"]["phase"] != "probe") == (1, 1)
 
 
 async def test_checkpoint_files_are_not_market_records(tmp_path):
@@ -1021,7 +1024,7 @@ async def test_probe_failure_resumes_only_the_probe(tmp_path):
     s = spec(3, "NT-T")
     ref, ref_client, _ = await play(s, tmp_path / "ref")
     out = tmp_path / "run"
-    c1 = FailOnce(("B", 2, 4, "probe", 0))
+    c1 = FailOnce(("B", "probe", None, "probe", 0))
     with pytest.raises(RetriesExhausted):
         await run_market(s, c1, out, SHORT)
     ck = json.loads(engine.checkpoint_path(out, s).read_text())
@@ -1227,7 +1230,7 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
     sizes = []
     for c in client.calls:
         t = c["tag"]
-        g = t["period"] if t["part"] == 1 else 8 + t["period"]
+        g = 17 if t["phase"] == "probe" else t["period"] if t["part"] == 1 else 8 + t["period"]
         text = "\n".join(m["content"] for m in c["messages"])
         sizes.append(len(text))
         for q in range(1, 9):  # chat messages of Part 1 periods older than g - 3 are gone

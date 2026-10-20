@@ -49,7 +49,8 @@ def content_bytes(messages: list[dict[str, Any]]) -> int:
 
 
 def phase_kind(phase: str | None) -> str:
-    return "price" if phase == "price" else "chat"
+    """"price", "probe" (the post-game probe, kept apart from play) or "chat"."""
+    return phase if phase in ("price", "probe") else "chat"
 
 
 def pctl(xs: list[float], q: float) -> float:
@@ -65,8 +66,13 @@ class PilotStats:
     prompt_tokens: int = 0
     prompt_bytes: int = 0
     cached_tokens: int = 0
-    output: dict[str, list[int]] = field(default_factory=lambda: {"chat": [], "price": []})
-    latency: dict[str, list[float]] = field(default_factory=lambda: {"chat": [], "price": []})
+    output: dict[str, list[int]] = field(default_factory=lambda: {"chat": [], "price": [], "probe": []})
+    latency: dict[str, list[float]] = field(default_factory=lambda: {"chat": [], "price": [], "probe": []})
+
+    def draws(self, kind: str) -> str:
+        """The kind whose pilot sample stands in for `kind`: the probe uses the price calls' sample until the
+        pilots have probe calls."""
+        return kind if self.output[kind] else "price"
 
     @property
     def tokens_per_byte(self) -> float:
@@ -121,7 +127,7 @@ def price_calls(calls: list[dict[str, Any]], st: PilotStats, pricing: dict[str, 
     usd = ptok = otok = 0
     for c in calls:
         p = c["bound"] if bound_tpb else c["bytes"] * st.tokens_per_byte
-        o = rng.choice(st.output[c["kind"]])
+        o = rng.choice(st.output[st.draws(c["kind"])])
         usd += (p * (1 - share) * pricing["prompt"] + p * share * (cache_read or 0.0)
                 + o * pricing["completion"] + pricing.get("request", 0.0))
         ptok += p
@@ -134,7 +140,7 @@ def steps(calls: list[dict[str, Any]]) -> dict[str, int]:
     deepest: dict[tuple, int] = defaultdict(int)
     for c in calls:
         deepest[c["step"]] = max(deepest[c["step"]], c["attempt"])
-    out = {"chat": 0, "price": 0}
+    out = {"chat": 0, "price": 0, "probe": 0}
     for (_, _, phase), a in deepest.items():
         out[phase_kind(phase)] += 1 + a
     return out
@@ -186,7 +192,8 @@ async def main(argv: list[str] | None = None) -> int:
     if not st.calls or not st.output["chat"] or not st.output["price"]:
         raise SystemExit(f"no OK pilot calls of {cfg.model} for both phases")
     pricing = await endpoint_pricing(cfg)
-    lat = {k: (statistics.median(v), pctl(v, 0.9)) for k, v in st.latency.items()}
+    lat = {k: (statistics.median(v), pctl(v, 0.9)) for k, v in st.latency.items() if v}
+    lat.setdefault("probe", lat["price"])
     share = st.cached_share if pricing.get("input_cache_read") is not None else 0.0
     print(f"{a.model} at {cfg.provider}: ${pricing['prompt'] * 1e6:.3f}/M prompt, ${pricing['completion'] * 1e6:.3f}/M "
           f"completion; cache {'read at $%.3f/M on %.0f%% of prompt tokens' % (pricing['input_cache_read'] * 1e6, 100 * share) if share else 'not applied (no cache hits in the pilot)'}")
@@ -208,12 +215,12 @@ async def main(argv: list[str] | None = None) -> int:
             usd_b, _, _ = price_calls(calls, st, pricing, True, derive_seed("out", n, o, i))
             sp = steps(calls)
             r["calls"] += len(calls)
-            r["steps"] += sp["chat"] + sp["price"]
+            r["steps"] += sp["chat"] + sp["price"] + sp["probe"]
             r["peak"] = max(r["peak"], max(c["bytes"] for c in calls) * st.tokens_per_byte)
             r["usd"] += usd
             r["usd_b"] += usd_b
-            r["h50"] += (sp["chat"] * lat["chat"][0] + sp["price"] * lat["price"][0]) / 3600
-            r["h90"] += (sp["chat"] * lat["chat"][1] + sp["price"] * lat["price"][1]) / 3600
+            r["h50"] += sum(sp[k] * lat[k][0] for k in sp) / 3600
+            r["h90"] += sum(sp[k] * lat[k][1] for k in sp) / 3600
         m = {k: (v if k == "peak" else v / a.replays) for k, v in r.items()}
         k = a.markets_per_cell
         print(f"{n:>3} {o:<6} {m['calls']:>9,.0f} {m['steps']:>6,.0f} {m['peak']:>9,.0f} {m['usd']:>8.3f} "
