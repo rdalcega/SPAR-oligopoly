@@ -4,6 +4,12 @@ Extraction tolerates code fences, leading or trailing prose, leaked `<think>…<
 Python-style single quotes; it takes the last JSON object that contains the required key. Validation
 returns a `Parsed` whose `error` (if any) is phrased for the re-ask prompt, and whose `warnings` record
 every coercion or truncation so that it can be reported.
+
+Typographic quotes: when no object with the key parses, extraction is retried once after replacing a curly
+double quote (“ or ”) that sits in a structural position, i.e. right before optional whitespace and `,` or `}`,
+or right after `{`, `,` or `:` and optional whitespace, with a straight one. An answer recovered this way is
+accepted with a "JSON coerced" warning (counted as coerced, like numeric strings). Curly quotes anywhere else,
+and every quote in an answer that parses as it is, are left alone.
 """
 
 from __future__ import annotations
@@ -78,8 +84,34 @@ def _load(s: str) -> Any:
     return None
 
 
+_CURLY_CLOSE = re.compile(r"[\u201c\u201d](?=\s*[,}])")
+_CURLY_OPEN = re.compile(r"([{,:]\s*)[\u201c\u201d]")
+CURLY_QUOTE_WARNING = 'JSON coerced: typographic quote(s) in a structural position read as "'
+
+
+def straighten_structural_quotes(text: str) -> str:
+    """`text` with each “ or ” right before `\\s*[,}]` or right after `[{,:]\\s*` replaced by a straight quote."""
+    return _CURLY_OPEN.sub(r'\1"', _CURLY_CLOSE.sub('"', text))
+
+
 def extract_object(text: str | None, key: str) -> dict[str, Any] | None:
     """The last top-level JSON object in `text` that has `key`; failing that, the last nested one."""
+    return _extract(text, key)[0]
+
+
+def _extract(text: str | None, key: str) -> tuple[dict[str, Any] | None, bool]:
+    """(object, whether structural curly quotes had to be straightened to find it)."""
+    obj = _extract_strict(text, key)
+    if obj is not None or not text:
+        return obj, False
+    fixed = straighten_structural_quotes(text)
+    if fixed == text:
+        return None, False
+    obj = _extract_strict(fixed, key)
+    return obj, obj is not None
+
+
+def _extract_strict(text: str | None, key: str) -> dict[str, Any] | None:
     if not text:
         return None
     text = strip_reasoning(text)
@@ -136,10 +168,10 @@ def _no_object(content: str | None, key: str) -> str:
 def parse_price(content: str | None, p_max: int = 100) -> Parsed:
     """Price: an integer 0..p_max. Numeric strings and floats with no fractional part are accepted with a
     warning; anything else (other floats, bools, out of range) is an error."""
-    obj = extract_object(content, "price")
+    obj, curly = _extract(content, "price")
     if obj is None:
         return Parsed(error=_no_object(content, "price"))
-    p = Parsed(obj=obj)
+    p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
     v = obj["price"]
     if isinstance(v, bool) or v is None:
         p.error = f"price {json.dumps(v)} is not a whole number"
@@ -162,10 +194,10 @@ def parse_price(content: str | None, p_max: int = 100) -> Parsed:
 def parse_message(content: str | None, char_limit: int | None = 300) -> Parsed:
     """Chat message: a string (truncated to char_limit with a warning). null, an empty string or "pass"
     mean no message (value None)."""
-    obj = extract_object(content, "message")
+    obj, curly = _extract(content, "message")
     if obj is None:
         return Parsed(error=_no_object(content, "message"))
-    p = Parsed(obj=obj)
+    p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
     v = obj["message"]
     if v is not None and not isinstance(v, str):
         if isinstance(v, (dict, list)):

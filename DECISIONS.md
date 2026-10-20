@@ -165,6 +165,11 @@ sampling rule and reading notes saved alongside the analysis.
    as the extracted JSON, re-serialised.
 6. Parsing accepts numeric strings and integral floats (logged); other floats, booleans and out-of-range prices
    are invalid. Missing or over-long notes are logged but never re-asked.
+   **2026-10-20:** when no object parses, parsing retries once after straightening a typographic double quote
+   (“ or ”) in a structural position (right before `\s*[,}]` or right after `[{,:]\s*`); an answer recovered
+   this way is accepted with a "JSON coerced" warning and counted as coerced. 2 of ~290 gpt-oss answers in
+   pilot 2 closed a string this way with intact content. Quotes in answers that parse as they are, and curly
+   quotes anywhere else, are never changed.
 7. `notes` comes first in both JSON formats.
 8. Pilot runs with parts shorter than 20 periods are for testing only: they keep the instruction text and show
    the die (a 6) only in the final period.

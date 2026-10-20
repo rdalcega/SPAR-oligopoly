@@ -1,8 +1,8 @@
 """Mistakes vs deliberate choices: invalid-output rates and a small set of heuristic flags.
 
 Output problems (from the engine's logs): a decision with any invalid attempt, re-asks, fallbacks (price set to
-the firm's previous price; chat counted as a pass), coerced values (numeric strings or integral floats), and
-truncated chat messages.
+the firm's previous price; chat counted as a pass), coerced values (numeric strings, integral floats, or JSON
+with a string closed by a typographic quote), and truncated chat messages.
 
 Heuristic flags on price decisions (meant for manual reading, examples saved):
     notes_contradict     the private notes state a first-person own price ("I will set 100", "my price: 99")

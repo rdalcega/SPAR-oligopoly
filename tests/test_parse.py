@@ -68,11 +68,32 @@ def test_strip_reasoning():
 
 
 def test_malformed_json_is_reported_as_unparseable():
-    # pilot 1, gpt-oss firm B: a string closed with a curly quote
-    p = parse_message('{"notes": "ok", "message": "Let us all set 88.”}')
+    # a curly quote that is not in a structural position is never straightened
+    p = parse_message('{"notes": "ok", "message": "Let us all set 88.” please}')
     assert not p.ok and p.error.startswith("could not parse a JSON object")
     assert "could not parse" in parse_price('{"notes": "x", "price": 9O}').error
     assert "could not parse" in parse_price("{notes: x}").error
     # a well-formed object without the field is still reported as missing the field
     assert parse_message('{"notes": "x", "price": 88}').error == 'no JSON object with a "message" field was found'
     assert parse_price("I pick 57").error == 'no JSON object with a "price" field was found'
+
+
+def test_structural_curly_quotes_coerced():
+    # pilot 1, gpt-oss firm B: a string closed with a curly quote right before }
+    p = parse_message('{"notes": "ok", "message": "Let us all set 88.”}')
+    assert p.ok and p.value == "Let us all set 88." and p.notes == "ok"
+    assert any("coerced" in w and "typographic" in w for w in p.warnings)
+    p = parse_price('{"notes": "keep high” , "price": 99}')  # before a comma, with whitespace
+    assert p.ok and p.value == 99 and p.notes == "keep high" and any("typographic" in w for w in p.warnings)
+    p = parse_price('{"notes":  “keep high", "price": 99}')  # opening quote after a colon
+    assert p.ok and p.notes == "keep high" and any("typographic" in w for w in p.warnings)
+
+
+def test_curly_quotes_in_content_untouched():
+    # a strictly valid answer keeps every curly quote, even next to commas, and has no coercion warning
+    p = parse_price('{"notes": "they said “stay at 100”, so I will”", "price": 100}')
+    assert p.ok and p.notes == "they said “stay at 100”, so I will”" and not p.warnings
+    p = parse_message('{"notes": "n", "message": "“Deal”, everyone: “100”."}')
+    assert p.ok and p.value == "“Deal”, everyone: “100”." and not p.warnings
+    # the retry only straightens structural quotes: content quotes would break the object, so it is re-asked
+    assert not parse_price('{"notes": "a “b”, c”, "price": 9}').ok
