@@ -391,13 +391,16 @@ class OpenRouterClient:
 
     Billing of failed attempts: an attempt that may have reached the provider (timeouts, dropped
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
-    been sent is charged nothing. A retry after a timeout may be billed twice (the timed-out generation can
+    been sent is charged nothing. A response without `usage.cost` is charged nothing if it is an error
+    (non-200 status, or a 200 whose body is an error object with no choices: OpenRouter does not bill these)
+    and its full reservation otherwise; the log's `charge_reason` says which rule applied. A retry after a timeout may be billed twice (the timed-out generation can
     still complete upstream), so it is logged with `timeout_retry: true`.
 
     Retry policies: rate limits (HTTP 429/529, or an error saying rate limited / overloaded) are retried
     patiently and do not count against `max_retries`: exponential backoff from `rate_limit_backoff_base_s`
     with jitter, capped at `rate_limit_backoff_max_s` per wait (a longer Retry-After is honoured), until the
-    waits for this call total `rate_limit_max_wait_s`; then RetriesExhausted. Each wait is logged as an
+    waits for this call total `rate_limit_max_wait_s` or the call has made `max_attempts` attempts in all
+    (short waits could otherwise loop for a long time); then RetriesExhausted. Each wait is logged as an
     `event: rate_limit_wait` line. Other transient errors get `max_retries` retries with the normal backoff.
     """
 
@@ -415,6 +418,7 @@ class OpenRouterClient:
         rate_limit_backoff_base_s: float = 5.0,
         rate_limit_backoff_max_s: float = 120.0,
         rate_limit_max_wait_s: float = 1800.0,
+        max_attempts: int = 60,
         base_url: str = BASE_URL,
         http: httpx.AsyncClient | None = None,
     ):
@@ -433,6 +437,7 @@ class OpenRouterClient:
         self.rate_limit_backoff_base_s = rate_limit_backoff_base_s
         self.rate_limit_backoff_max_s = rate_limit_backoff_max_s
         self.rate_limit_max_wait_s = rate_limit_max_wait_s
+        self.max_attempts = max_attempts
         self.base_url = base_url
         self._http = http or httpx.AsyncClient(timeout=timeout_s)
         self._sem = asyncio.Semaphore(max_concurrency)
@@ -605,6 +610,9 @@ class OpenRouterClient:
                                            f"last error: {last_error}")
                 await asyncio.sleep(self._backoff(failures, retry_after))
                 return
+            if attempt >= self.max_attempts:
+                raise RetriesExhausted(f"{attempt} attempts (limit {self.max_attempts}), rate limited for "
+                                       f"{rl_waited:.0f} s in total; last error: {last_error}")
             remaining = self.rate_limit_max_wait_s - rl_waited
             if remaining <= 0:
                 raise RetriesExhausted(f"rate limited for {rl_waited:.0f} s in total (limit "
@@ -638,11 +646,13 @@ class OpenRouterClient:
                                                  headers=self._headers, timeout=timeout)
                 except BaseException as e:  # incl. CancelledError: settle and log (no awaits) before anything else
                     charged = 0.0 if isinstance(e, NOT_SENT) else estimate
+                    charge_reason = "not_sent" if isinstance(e, NOT_SENT) else "sent_no_response"
                     self.budget.settle(rid, charged)
                     transport = isinstance(e, httpx.TransportError)
                     last_error = "cancelled" if isinstance(e, asyncio.CancelledError) else f"{type(e).__name__}: {e}"
                     self._log({**rec, "latency_s": time.monotonic() - t0, "error": last_error,
-                               "retryable": transport, "charged_usd": charged, "budget_spent_usd": self.budget.spent})
+                               "retryable": transport, "charged_usd": charged, "charge_reason": charge_reason,
+                               "budget_spent_usd": self.budget.spent})
                     if not transport:
                         raise
                     timeout_retry = isinstance(e, httpx.TimeoutException) and not isinstance(e, NOT_SENT)
@@ -653,8 +663,19 @@ class OpenRouterClient:
                         body = None
                     usage_raw = body.get("usage") if isinstance(body, dict) else None
                     cost = usage_raw.get("cost") if isinstance(usage_raw, dict) else None
-                    # unknown cost: a 200 may have been billed, so it keeps its reservation; errors are not billed
-                    charged = float(cost) if cost is not None else estimate if resp.status_code == 200 else 0.0
+                    # unknown cost: a 200 carrying a generation may have been billed, so it keeps its
+                    # reservation; error responses (non-200, or a 200 whose body is only an error object)
+                    # are not billed by OpenRouter
+                    error_body = (isinstance(body, dict) and bool(body.get("error"))
+                                  and not isinstance(body.get("choices"), list))
+                    if cost is not None:
+                        charged, charge_reason = float(cost), "usage_cost"
+                    elif resp.status_code != 200:
+                        charged, charge_reason = 0.0, "error_status"
+                    elif error_body:
+                        charged, charge_reason = 0.0, "error_body"
+                    else:
+                        charged, charge_reason = estimate, "cost_unknown_reservation"
                     self.budget.settle(rid, charged)
             if resp is None:
                 await retry_wait(False)
@@ -662,7 +683,7 @@ class OpenRouterClient:
 
             latency = time.monotonic() - t0
             rec.update(latency_s=latency, status_code=resp.status_code, charged_usd=charged,
-                       budget_spent_usd=self.budget.spent)
+                       charge_reason=charge_reason, budget_spent_usd=self.budget.spent)
             if resp.status_code != 200 or not isinstance(body, dict) or not isinstance(body.get("choices"), list):
                 if isinstance(body, dict) and body.get("error"):
                     err = body["error"]

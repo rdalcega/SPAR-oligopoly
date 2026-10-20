@@ -414,3 +414,37 @@ async def test_sampling_log_includes_extra_body(mock, make, tmp_path):
     s = lines(tmp_path)[0]["sampling"]
     assert s == {"temperature": 0.6, "top_p": 0.95, "max_tokens": 10, "top_k": 20, "presence_penalty": 1.5,
                  "min_p": 0.0}
+
+
+async def test_error_body_200_without_cost_not_charged(mock, make, tmp_path):
+    """A 200 whose body is only an error object (no choices, no usage.cost) is not billed by OpenRouter: each
+    retry settles at 0 instead of its full reservation."""
+    err = httpx.Response(200, json={"error": {"code": 502, "message": "upstream error"}})
+    mock.post(CHAT).mock(side_effect=[err, err, httpx.Response(200, json=completion(cost=0.0001))])
+    c = make(cap=1.0)
+    r = await post(c)
+    assert r.attempts == 3
+    recs = lines(tmp_path)
+    assert [x["charged_usd"] for x in recs[:2]] == [0.0, 0.0]
+    assert [x["charge_reason"] for x in recs] == ["error_body", "error_body", "usage_cost"]
+    assert c.budget.spent == pytest.approx(0.0001)
+
+
+async def test_200_without_cost_still_charged_reservation(mock, make, tmp_path):
+    body = completion()
+    del body["usage"]["cost"]
+    mock.post(CHAT).mock(return_value=httpx.Response(200, json=body))
+    c = make(cap=1.0)
+    await post(c)
+    [rec] = lines(tmp_path)
+    assert rec["charge_reason"] == "cost_unknown_reservation" and rec["charged_usd"] == rec["reserved_usd"] > 0
+
+
+async def test_rate_limit_total_attempts_capped(mock, make, tmp_path, sleeps):
+    route = mock.post(CHAT).mock(return_value=httpx.Response(429, json={"error": {"code": 429, "message": "x"}},
+                                                             headers={"Retry-After": "0"}))
+    c = make(max_retries=0, rate_limit_max_wait_s=1e6, max_attempts=7)
+    with pytest.raises(RetriesExhausted, match="7 attempts"):
+        await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
+    assert route.call_count == 7
+    assert make().max_attempts == 60  # the default
