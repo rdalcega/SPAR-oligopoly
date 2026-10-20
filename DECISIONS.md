@@ -53,6 +53,10 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   marginal ratio seen in the pilots (2.69–3.3 bytes/token on results text; whole prompts 3.2–3.8); on pilot
   calls actual prompt tokens were 64–72% of the bound. `scripts/project_context.py` projects each cell's peak
   with the same bound and writes `exclude_cells`.
+  **2026-10-20, with the rolling window (§6 item 3):** re-projected at full part lengths (3 replays per cell):
+  peak bound + max_tokens is at most 23.3k tokens for gpt-oss-20b (limit 104.9k) and 20.6k for qwen3-14b
+  (limit 32.8k), both at n = 10 Talk. No cell is excluded for either model; qwen3-14b's earlier exclusions
+  (all Talk cells) were removed.
 - **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
   supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
 - **2026-10-20: Qwen3.5-9B dropped.** DeepInfra's shared pool rate-limited it (HTTP 429) so badly that its

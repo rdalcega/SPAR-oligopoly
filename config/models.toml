@@ -86,8 +86,8 @@ reasoning = { effort = "medium" }
 require_parameters = true
 
 ["qwen3-14b"]
-# Older Qwen generation, added for the small end. DeepInfra context is 40,960 tokens (input + output), so long
-# Talk histories may not fit; see DECISIONS.md.
+# Older Qwen generation, added for the small end. DeepInfra context is 40,960 tokens (input + output). With the
+# rolling window (DECISIONS.md, 2026-10-20) the projected peak is ~20.6k tokens incl. max_tokens: no exclusions.
 model = "qwen/qwen3-14b"
 provider = "deepinfra/fp8"
 temperature = 0.6
@@ -96,7 +96,6 @@ top_k = 20
 max_tokens = 8000
 reasoning = { effort = "medium" }
 require_parameters = true
-exclude_cells = [["NT-T", 2], ["T-NT", 2], ["NT-T", 4], ["T-NT", 4], ["NT-T", 6], ["T-NT", 6], ["NT-T", 8], ["T-NT", 8], ["NT-T", 10], ["T-NT", 10]]
 
 ["granite-4.2-8b"]
 model = "ibm-granite/granite-4.2-8b"
