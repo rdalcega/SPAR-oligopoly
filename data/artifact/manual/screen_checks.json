@@ -1,0 +1,8 @@
+{
+  "_about": "Hand-checked precision of the automated chat coder after commit 79a51bf (gpt-oss sweep sample), as reported by the coordinating session on 2026-10-20.",
+  "rows": [
+    {"check": "kept", "label": "Agreement kept", "sample": 15, "correct": 15, "deliberate": null},
+    {"check": "broken", "label": "Agreement broken", "sample": 15, "correct": 15, "deliberate": null},
+    {"check": "deception", "label": "Deception flag (firm)", "sample": 20, "correct": 17, "deliberate": 14}
+  ]
+}

@@ -1,0 +1,4 @@
+model,cells_planned,cells_complete,human_cells_planned,human_cells_complete,markets_planned,markets_complete,cost_usd,cap_usd
+gpt-oss-20b,15,15,6,6,90,90,15.25,25.0
+qwen3-14b,15,6,6,6,90,36,18.07,39.0
+pilots and probes,,,,,,,7.73,

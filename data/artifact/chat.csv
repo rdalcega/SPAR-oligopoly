@@ -1,0 +1,16 @@
+cell_id,model,n,ordering,talk_part,talk_periods,agreements,agreed_100,kept,broken,broken_undercut,broken_above_only,threat_pct,punished_next_pct,deception_flagged,deception_priced
+gpt-oss-20b|2|NT-T,gpt-oss-20b,2,NT-T,2,144,140,23,140,0,0,0,14.6,,0,0
+gpt-oss-20b|2|T-NT,gpt-oss-20b,2,T-NT,1,174,150,28,144,6,6,0,5.7,33.3,5,5
+gpt-oss-20b|4|NT-T,gpt-oss-20b,4,NT-T,2,144,133,0,126,7,5,2,74.3,100.0,6,4
+gpt-oss-20b|4|T-NT,gpt-oss-20b,4,T-NT,1,174,135,56,128,7,6,1,79.3,40.0,3,3
+gpt-oss-20b|6|NT-T,gpt-oss-20b,6,NT-T,2,144,127,0,111,16,16,0,71.5,73.3,8,8
+gpt-oss-20b|6|T-NT,gpt-oss-20b,6,T-NT,1,174,101,0,86,15,13,2,75.3,61.5,8,8
+gpt-oss-20b|8|NT-T,gpt-oss-20b,8,NT-T,2,144,131,0,109,22,19,3,72.9,84.2,9,8
+gpt-oss-20b|8|T-NT,gpt-oss-20b,8,T-NT,1,174,96,0,62,34,24,10,69.0,83.3,18,18
+gpt-oss-20b|10|NT-T,gpt-oss-20b,10,NT-T,2,144,107,24,72,35,32,3,83.3,64.5,19,19
+gpt-oss-20b|10|T-NT,gpt-oss-20b,10,T-NT,1,174,104,0,77,27,14,13,62.6,71.4,7,7
+qwen3-14b|2|NT-T,qwen3-14b,2,NT-T,2,144,103,2,99,4,4,0,27.8,100.0,4,4
+qwen3-14b|4|NT-T,qwen3-14b,4,NT-T,2,144,118,0,117,1,1,0,4.9,0.0,0,0
+qwen3-14b|4|T-NT,qwen3-14b,4,T-NT,1,174,166,1,143,23,22,1,47.7,54.5,11,11
+qwen3-14b|6|NT-T,qwen3-14b,6,NT-T,2,144,108,0,107,1,1,0,6.2,100.0,0,0
+qwen3-14b|8|NT-T,qwen3-14b,8,NT-T,2,144,130,0,125,5,5,0,29.9,100.0,4,4
