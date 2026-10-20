@@ -339,3 +339,19 @@ Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py
   not called a mistake.
 - **fn. 18 defection:** all firms at 100 at t−2 and some firm at 99 at t−1.
 - Regex coding is a screen: every category's saved examples are read before results are reported.
+- **2026-10-20, for memory-style notes** (notes now carry history, rules and contingency plans, so the old
+  "last first-person price" reading flagged 2–9% of decisions, nearly all false): the notes' stated price is only
+  an explicit first-person (or clause-initial imperative/gerund) statement of this period's own price; differences
+  ("undercut by one"), other firms' prices, past references, conditional/contingent and punishment plans,
+  later-period plans, ranges and profit amounts are ignored; disagreeing statements resolve to the one nearest a
+  "this period/now" cue, else to none (`analysis/notes.py`). Deception reads only the price-decision notes
+  (written after the chat), not chat-turn notes: a stated own price below the endorsed price (not with punishment
+  wording in that sentence or the one before) or an explicit first-person plan to undercut or deviate this period.
+  Validated on 130 hand-labelled pilot notes (`tests/data/notes_labels.json`, 36 held out); the test requires
+  precision ≥ 0.9 and recall ≥ 0.7 for the stated price. Endorsements in chat also skip "when/once we ..."
+  sentences, deliberation ("we can discuss/revisit 2") and, in a message that also speaks of this period,
+  next-period plans. Misread flags: tie_full only within one clause without contrast/condition/undercut words,
+  "higher price gets undercut" is not highest_wins, "final period of the punishment" is not horizon.
+  `summary.json` adds `mistakes_cells` (re-ask rates on price decisions and chat turns, i.e. format slips, apart
+  from strategic mistakes) and, in `probe`, `knows_not_collude_share` (best common price answered 100 while the
+  market's Talk-part mean selling price is below 90).

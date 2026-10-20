@@ -9,7 +9,11 @@ Per message (`code_message`):
                 "100,100,100" are lists of prices
     endorsed    the price the sender backs: the first price in the last sentence that has a proposal,
                 commitment or agreement cue, among sentences that are not conditional ("if ...", "otherwise
-                ..."), about the past ("was", "last period", ...), threats, accusations, refusals or taking-turns
+                ...", "when/once we ..."), deliberation ("we can discuss/revisit/consider 2", "open to 2"),
+                about the past ("was", "last period", ...), only about a later period in a message that
+                also speaks of this period ("We stay at 1 today. Next period we can move to 2"; without a
+                this-period cue, "set 2 next period" often means the price about to be posted), threats,
+                accusations, refusals or taking-turns
                 proposals (not a common price); failing that, the only distinct price in those sentences
     proposal    a proposal/commitment cue together with an endorsed price
     agreement   an un-negated agreement marker ("agree", "ok", "deal", "yes", "sounds good", "I'm in", ...) in a
@@ -36,10 +40,12 @@ Per Talk period (`code_period`):
     punished    after a breach with undercutting at t, some firm that did not undercut at t posts a lower
                 price at t+1 than its own price at t (same part); also the paper's "selling price < 99 at t+1"
     threatened  a threat-coded message by any firm in the same part at or before period t
-    deception   a firm backed the agreed price in chat, while its private notes (chat or price notes, same
-                period) state a lower own price or an un-negated first-person plan ("I will undercut", "I could
-                grab the market"); `deception_priced`
-                additionally requires that it then posted below the agreed price
+    deception   a firm backed the agreed price P in chat, while the notes of its price decision that period
+                (written after the chat; not its chat-turn notes) state this period's own price below P, or an
+                explicit first-person plan to undercut or deviate this period (`notes.stated_own_price` and
+                `notes.deviation_plan`: history, other firms' prices, differences, contingent and punishment plans
+                don't count; nor does a lower stated price with punishment wording in its sentence or the one
+                before, e.g. an agreed 0-price punishment); `deception_priced` additionally requires that it then posted below P
 """
 
 from __future__ import annotations
@@ -50,6 +56,7 @@ from collections import Counter
 import pandas as pd
 
 from .load import KEY_COLS
+from .notes import deviation_plan, stated_own_price, stated_own_price_context  # noqa: F401 (re-exported)
 
 I = re.I
 # A whole number, thousands separators included ("7,500" is 7500, not 7); values > 100 are discarded later.
@@ -66,8 +73,20 @@ ECU_PROFIT_AFTER = re.compile(r"^\s*ecu\b\s*(?:of\s+)?(?:profits?|each|apiece|in
                               r"earn|payoff|income|revenue)", I)
 ECU_AFTER = re.compile(r"^\s*ecu\b", I)
 SENT = re.compile(r"(?<=[.!?;\n])\s+|\n")
-CONDITIONAL = re.compile(r"^\W*(?:if|otherwise|or else|unless|whoever|anyone who|should anyone|else)\b|\bif (?:any|some|you)", I)
+CONDITIONAL = re.compile(r"^\W*(?:if|otherwise|or else|unless|whoever|anyone who|should anyone|else|when|whenever|"
+                         r"once(?! again| more)|"
+                         r"as soon as)\b|\bif (?:any|some|you)|\b(?:if|once|when|whenever|as soon as) (?:we|we're|we’re|"
+                         r"you|you're|both|everyone|they|all)\b", I)
+# deliberation about a possible later move, not an endorsement ("we can discuss moving to 2", "open to 2")
+# the firm's own punishment: "set 0 to comply with the punishment", "we retaliate with 0" (not "B threatened")
+OWN_PUNISH = re.compile(r"\b(?:punish(?:ment|ing)?|retaliat\w*|penalty)\b(?<!threatened to punish)", I)
+DISCUSS = re.compile(r"\b(?:discuss|revisit|consider|talk about|think about|explore)(?:ing)?\b(?! further)[^.!?]{0,30}?"
+                     r"\b(?:mov|rais|switch|go(?:ing)?\b|shift|bump|increas|higher|later|next)|\bopen to\b|"
+                     r"\boption (?:of|to)\b", I)
 PAST = re.compile(r"\b(?:was|were|had|last (?:period|round)|previous(?:ly)?|earlier|before|got|earned|made|ago)\b", I)
+LATER_ONLY = re.compile(r"\b(?:next (?:period|round|time)|(?:in )?(?:the )?(?:near )?future|upcoming|later|after (?:this|a few|"
+                        r"several|some|that|the next)|from (?:the )?next)\b", I)
+THIS_NOW = re.compile(r"\bthis (?:period|round)\b|\bthis and\b|\bnow\b|\btoday\b", I)
 PROPOSE = re.compile(r"\b(?:let'?s|let us|shall we|how about|what about|propose|suggest|we (?:all )?(?:should|could|can|must|"
                      r"will|keep|stay|set|go|stick)|everyone|every firm|all of us|we all|both of us|agree|keep|stay|stick|"
                      r"maintain|hold|set|charge|price|go (?:with|for|back)|return|back to|i(?:'ll| will| am| shall)|"
@@ -103,19 +122,9 @@ REFUSE = re.compile(r"\b(?:disagree|refuse|reject|no deal|(?:do not|don'?t|won'?
                     r"(?:(?:going to|gonna|to|even|really|just|all|both|ever)\s+)?"
                     rf"(?:set|go|price|charge|keep|stay|stick|post)\b{_NOT_LOWER}(?=[^.!?;\d]{{0,25}}\d)|"
                     r"^\W*no\b(?! problem| worries| doubt)", I)
-INTENT = re.compile(r"\bI(?:'ll|’ll| will| am going to|'m going to| plan to| intend to| should| could| can| might| want to)?"
-                    r"\s+(?:\w+\s+){0,2}?(?:undercut|defect|deviate|cheat|grab|steal|capture|exploit|betray|"
-                    r"take (?:the )?(?:whole|entire|full))", I)
 DEVIATE = re.compile(r"undercut|defect|deviat|cheat|slightly (?:lower|below|under)|below (?:the )?(?:agreed|others|them)|"
                      r"grab|steal|capture (?:the )?(?:whole |entire |full )?market|exploit|take (?:the )?(?:whole|entire|"
                      r"full) (?:market|profit)|betray", I)
-STATED = re.compile(
-    r"(?:\bI(?:'ll|’ll| will| shall| am going to|'m going to| plan to| intend to| choose to| decide to)?\s+"
-    r"(?:set|choose|post|charge|price|go|stay|keep|stick|play|remain)\b|\bmy (?:price|choice|bid)\b|"
-    r"\bI(?:'m|’m| am)\s+(?:setting|choosing|posting|charging|pricing|keeping|staying|sticking)\b)([^.!?\d]{0,30}?)\$?"
-    rf"({NUMBER})(?!\d|,\d{{3}}(?!\d)|\.\d)(?!\s*%)", I)
-
-
 def _sentence_before(text: str, start: int, width: int = 60) -> str:
     """Up to `width` characters before `start`, within the same sentence."""
     before = text[max(0, start - width):start]
@@ -159,7 +168,12 @@ def has_unnegated(pattern: re.Pattern, text: str) -> bool:
 
 def endorsed_price(text: str) -> int | None:
     sents = [s for s in SENT.split(text or "") if s.strip()]
-    usable = [s for s in sents if not any(rx.search(s) for rx in (CONDITIONAL, PAST, THREAT, ACCUSE, REFUSE, TURNS))]
+    # "next period" sentences are skipped only when the message also speaks of this period: in a message that
+    # does not, "let's set 2 next period" often means the price about to be posted
+    usable = [s for s in sents if not any(rx.search(s) for rx in (CONDITIONAL, PAST, THREAT, ACCUSE, REFUSE, TURNS,
+                                                                  DISCUSS))]
+    this_too = any(THIS_NOW.search(s) for s in usable)
+    usable = [s for s in usable if not (this_too and LATER_ONLY.search(s) and not THIS_NOW.search(s))]
     cued = [prices_in(s) for s in usable if PROPOSE.search(s) or has_unnegated(AGREE, s)]
     cued = [p for p in cued if p]
     if cued:
@@ -167,20 +181,6 @@ def endorsed_price(text: str) -> int | None:
     rejected = {p for s in sents if REFUSE.search(s) for p in prices_in(s)}  # "We should not set 100. 100?"
     distinct = {p for s in usable for p in prices_in(s)} - rejected
     return distinct.pop() if len(distinct) == 1 else None
-
-
-def stated_own_price(text: str) -> int | None:
-    """Last first-person stated own price in notes ("I will set 99", "my price: 100"), skipping conditional
-    sentences ("if B undercuts, I will set 0") and past-tense references ("my price last period was 50")."""
-    out = None
-    for sent in SENT.split(text or ""):
-        if CONDITIONAL.search(sent):
-            continue
-        for m in STATED.finditer(sent):
-            v = int(m.group(2).replace(",", ""))
-            if v <= 100 and not PAST.search(m.group(1)) and not NOT_AFTER.search(sent[m.end():m.end() + 25]) and not NEGATION.search(sent[max(0, m.start() - 30):m.start()]):
-                out = v
-    return out
 
 
 def code_message(text: str | None) -> dict:
@@ -267,15 +267,15 @@ def code_periods(chat_msgs: pd.DataFrame, chat: pd.DataFrame, fp: pd.DataFrame) 
             threatened = threatened or any(x["threat"] for x in mlist)
             r = code_period(mlist, prices, prev_agreed)
             notes = dict(zip(g["firm"], g["notes"]))
-            chat_notes = c.groupby("firm")["notes"].apply(" ".join).to_dict() if c is not None else {}
             dec, dec_priced = [], []
             if r["agreement"]:
                 for f, v in r["backed"].items():
                     if v != r["agreed_price"]:
                         continue
-                    txt = f"{chat_notes.get(f, '')} {notes.get(f, '')}"
-                    stated = [stated_own_price(x) for x in (chat_notes.get(f, ""), notes.get(f, ""))]
-                    if any(s is not None and s < v for s in stated) or has_unnegated(INTENT, txt):
+                    nt = notes.get(f, "")  # price-decision notes, written after the chat
+                    stated, context = stated_own_price_context(nt, t)
+                    lower = stated is not None and stated < v and not has_unnegated(OWN_PUNISH, context)
+                    if lower or deviation_plan(nt, t):
                         dec.append(f)
                         if prices[f] < v:
                             dec_priced.append(f)

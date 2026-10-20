@@ -403,10 +403,14 @@ def test_rival_talk_is_not_own_plan():
     assert per.iloc[0]["kept"] and per.iloc[0]["deception_notes"] == ""
 
 
-def test_deception_plan_in_chat_notes():
+def test_deception_uses_price_notes_not_chat_turn_notes():
     rec = record({1: flat((10, 10)), 2: flat((100, 99))}, chats={(2, 1): [{"A": "Let's all set 100", "B": None},
                                                                      {"A": None, "B": "ok"}]})
-    rec["periods"][1]["chat"][1]["decisions"]["B"]["notes"] = "Say yes, then I will set 99."
+    rec["periods"][1]["chat"][1]["decisions"]["B"]["notes"] = "Say yes. I will set 99 this period."
+    t = tidy([rec])
+    per = C.code_periods(C.code_messages(t.chat), t.chat, t.firm_period)
+    assert per.iloc[0]["deception_priced"] == ""  # chat-turn notes are not read
+    rec["periods"][1]["decisions"]["B"]["notes"] = "Said yes in chat, but I will set 99 this period."
     t = tidy([rec])
     per = C.code_periods(C.code_messages(t.chat), t.chat, t.firm_period)
     assert per.iloc[0]["deception_priced"] == "B"
