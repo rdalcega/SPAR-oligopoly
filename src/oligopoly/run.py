@@ -302,12 +302,22 @@ def lock_run_dir(out_dir: Path) -> IO[str]:
     return f
 
 
-async def preflight(client: OpenRouterClient, models: list[ModelConfig]) -> None:
-    """Resolve every live model's pinned endpoint (and its pricing) before any market starts."""
+PREFLIGHT_CONNECT_WAIT_S = 600.0  # how long preflight keeps retrying while the network is unreachable
+
+
+async def preflight(client: OpenRouterClient, models: list[ModelConfig],
+                    connect_wait_s: float = PREFLIGHT_CONNECT_WAIT_S) -> None:
+    """Resolve every live model's pinned endpoint (and its pricing) before any market starts. Connection
+    errors (network down) are retried patiently for up to `connect_wait_s` per model instead of aborting."""
     problems = [f"{m.name}: max_tokens is not set" for m in models if m.max_tokens is None]
+
+    def on_wait(wait: float, e: BaseException) -> None:
+        print(f"preflight: endpoint fetch failed ({type(e).__name__}: {e}); retrying in {wait:.0f} s",
+              file=sys.stderr, flush=True)
+
     for m in models:
         try:
-            await client.resolve(m.model, m.provider)
+            await client.resolve(m.model, m.provider, connect_wait_s, on_wait)
         except OpenRouterError as e:
             problems.append(f"{m.name}: {e}")
     if problems:

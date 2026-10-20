@@ -12,6 +12,7 @@ from oligopoly.llm import (
     BudgetExceeded,
     Endpoint,
     OpenRouterClient,
+    OpenRouterError,
     PermanentError,
     RetriesExhausted,
     estimate_cost,
@@ -760,3 +761,78 @@ async def test_deadline_with_unknown_send_state_is_charged(make, tmp_path):
     first, second = lines(tmp_path)
     assert "(unknown)" in first["error"] and first["charge_reason"] == "sent_no_response"
     assert second["timeout_retry"] is True
+
+
+async def test_connect_errors_wait_patiently_beyond_max_retries(mock, make, tmp_path, sleeps):
+    """A network outage (request provably never sent) is free, so it is retried patiently like a rate limit:
+    not counted against max_retries, nothing charged, each wait logged as a network_wait line."""
+    mock.post(CHAT).mock(side_effect=[httpx.ConnectError("All connection attempts failed")] * 6
+                         + [httpx.ConnectTimeout("dns"), httpx.PoolTimeout("pool")]
+                         + [httpx.Response(200, json=completion(cost=0.0001))])
+    c = make(max_retries=1, rate_limit_backoff_base_s=5, rate_limit_backoff_max_s=120, rate_limit_max_wait_s=1e6)
+    r = await post(c)
+    assert r.attempts == 9
+    recs = lines(tmp_path)
+    assert [x["charged_usd"] for x in recs[:8]] == [0.0] * 8
+    assert {x["charge_reason"] for x in recs[:8]} == {"not_sent"}
+    assert c.budget.spent == pytest.approx(0.0001)
+    waits = [x for x in lines(tmp_path, events=True) if x.get("event") == "network_wait"]
+    assert len(waits) == 8 and waits[-1]["network_retry"] == 8 and "ConnectError" in waits[0]["error"]
+    assert not [x for x in lines(tmp_path, events=True) if x.get("event") == "rate_limit_wait"]
+    assert 2.5 <= sleeps[0] <= 5 and all(w <= 120 for w in sleeps) and sleeps[-1] >= 60
+
+
+async def test_connect_errors_give_up_after_total_wait(mock, make, sleeps):
+    route = mock.post(CHAT).mock(side_effect=httpx.ConnectError("down"))
+    c = make(max_retries=0, rate_limit_backoff_base_s=100, rate_limit_backoff_max_s=120, rate_limit_max_wait_s=500)
+    with pytest.raises(RetriesExhausted, match="network unreachable"):
+        await post(c)
+    assert sum(sleeps) == pytest.approx(500) and route.call_count == len(sleeps) + 1
+    assert c.budget.spent == 0.0
+
+
+async def test_connect_errors_capped_by_max_attempts(mock, make, sleeps):
+    route = mock.post(CHAT).mock(side_effect=httpx.ConnectError("down"))
+    with pytest.raises(RetriesExhausted, match="7 attempts"):
+        await post(make(max_retries=0, rate_limit_max_wait_s=1e6, max_attempts=7))
+    assert route.call_count == 7
+
+
+async def test_sent_transport_errors_keep_max_retries(mock, make, tmp_path, sleeps):
+    """An error after the request may have been sent (e.g. a read timeout) keeps the max_retries policy."""
+    route = mock.post(CHAT).mock(side_effect=httpx.ReadTimeout("slow"))
+    with pytest.raises(RetriesExhausted, match="non-rate-limit"):
+        await post(make(max_retries=2))
+    assert route.call_count == 3
+    assert not [x for x in lines(tmp_path, events=True) if x.get("event") == "network_wait"]
+
+
+async def test_fetch_endpoints_waits_out_connect_errors(sleeps):
+    from oligopoly.llm import fetch_endpoints
+
+    with respx.mock() as r:
+        route = r.get(ENDPOINTS).mock(side_effect=[httpx.ConnectError("down")] * 10
+                                      + [httpx.Response(200, json=ENDPOINTS_BODY)])
+        seen = []
+        async with httpx.AsyncClient() as http:
+            eps = await fetch_endpoints(http, MODEL, connect_wait_s=600, on_wait=lambda w, e: seen.append(w))
+        assert len(eps) == 2 and route.call_count == 11 and len(seen) == 10 and all(w <= 60 for w in sleeps)
+        r.get(ENDPOINTS).mock(side_effect=httpx.ConnectError("down"))  # default: a few quick retries only
+        async with httpx.AsyncClient() as http:
+            with pytest.raises(OpenRouterError, match="could not fetch"):
+                await fetch_endpoints(http, MODEL)
+
+
+async def test_preflight_survives_transient_connect_errors(tmp_path, sleeps):
+    from oligopoly.config import load_models
+    from oligopoly.run import preflight
+
+    f = tmp_path / "models.toml"
+    f.write_text('[live]\nmodel = "acme/tiny"\nprovider = "deepinfra/fp8"\nmax_tokens = 100\n')
+    models = list(load_models(f).values())
+    with respx.mock() as r:
+        route = r.get(ENDPOINTS).mock(side_effect=[httpx.ConnectError("All connection attempts failed")] * 12
+                                      + [httpx.Response(200, json=ENDPOINTS_BODY)])
+        async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="sk-test") as c:
+            await preflight(c, models)
+        assert route.call_count == 13 and 0 < sum(sleeps) <= 600

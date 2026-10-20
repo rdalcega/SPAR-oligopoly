@@ -144,10 +144,19 @@ def same_provider(pinned_tag: str, served_name: str | None, endpoints: Sequence[
     return _norm(served_name) in names
 
 
-async def fetch_endpoints(http: httpx.AsyncClient, model: str, base_url: str = BASE_URL) -> list[Endpoint]:
-    """Fetch a model's provider endpoints (no auth needed). Retries transient failures a few times."""
-    last: Exception | None = None
-    for attempt in range(4):
+NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)  # the request never left
+
+
+async def fetch_endpoints(http: httpx.AsyncClient, model: str, base_url: str = BASE_URL, connect_wait_s: float = 0,
+                          on_wait: Callable[[float, BaseException], None] | None = None) -> list[Endpoint]:
+    """Fetch a model's provider endpoints (no auth needed). Retries transient failures a few times; with
+    `connect_wait_s` > 0, connection errors (NOT_SENT: e.g. the network is down) are instead retried with
+    backoff (jittered, at most 60 s per wait) until the waits total `connect_wait_s`. `on_wait(wait_s, error)`
+    is called before each such wait."""
+    last: BaseException | None = None
+    attempt = net_retries = 0
+    net_waited = 0.0
+    while True:
         try:
             r = await http.get(f"{base_url}/models/{model}/endpoints")
             if r.status_code == 200:
@@ -157,8 +166,19 @@ async def fetch_endpoints(http: httpx.AsyncClient, model: str, base_url: str = B
             last = OpenRouterError(f"endpoints {r.status_code}")
         except httpx.TransportError as e:
             last = e
-        await asyncio.sleep(0.5 * 2**attempt)
-    raise OpenRouterError(f"could not fetch endpoints for {model}: {last}")
+            if isinstance(e, NOT_SENT) and net_waited < connect_wait_s:
+                net_retries += 1
+                step = min(60.0, 2.0 * 2 ** (net_retries - 1))
+                wait = min(step * random.uniform(0.5, 1.0), connect_wait_s - net_waited)
+                net_waited += wait
+                if on_wait:
+                    on_wait(wait, e)
+                await asyncio.sleep(wait)
+                continue
+        attempt += 1
+        if attempt >= 4:
+            raise OpenRouterError(f"could not fetch endpoints for {model}: {last}")
+        await asyncio.sleep(0.5 * 2 ** (attempt - 1))
 
 
 async def get_endpoints(model: str) -> list[Endpoint]:
@@ -592,8 +612,6 @@ def _error_retryable(err: Any) -> bool:
 # extra_body keys that are routing or output options, not sampling settings (kept out of the log's `sampling`)
 NON_SAMPLING_KEYS = frozenset({"provider", "usage", "models", "route", "transforms", "plugins", "user", "stream"})
 
-NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)  # the request never left
-
 
 class OpenRouterClient:
     """Async OpenRouter client. Every attempt (failed or not, including budget refusals and cancellations)
@@ -624,7 +642,10 @@ class OpenRouterClient:
     with jitter, capped at `rate_limit_backoff_max_s` per wait (a longer Retry-After is honoured), until the
     waits for this call total `rate_limit_max_wait_s` or the call has made `max_attempts` attempts in all
     (short waits could otherwise loop for a long time); then RetriesExhausted. Each wait is logged as an
-    `event: rate_limit_wait` line. Other transient errors get `max_retries` retries with the normal backoff.
+    `event: rate_limit_wait` line. Connection errors where the request provably never left (NOT_SENT:
+    connect errors incl. DNS failures, connect and pool timeouts) cost nothing and get the same patient policy,
+    with their own wait total (also capped at `rate_limit_max_wait_s`) and `event: network_wait` lines.
+    Other transient errors get `max_retries` retries with the normal backoff.
     """
 
     def __init__(
@@ -698,16 +719,19 @@ class OpenRouterClient:
             return self.budget_max_wait_s
         return max(Budget.DEFAULT_MAX_WAIT_S, 2 * self._max_deadline_s)
 
-    async def get_endpoints(self, model: str) -> list[Endpoint]:
-        """Provider endpoints of `model` (cached per client)."""
+    async def get_endpoints(self, model: str, connect_wait_s: float = 0,
+                            on_wait: Callable[[float, BaseException], None] | None = None) -> list[Endpoint]:
+        """Provider endpoints of `model` (cached per client); see `fetch_endpoints` for `connect_wait_s`."""
         async with self._ep_lock:
             if model not in self._endpoints:
-                self._endpoints[model] = await fetch_endpoints(self._http, model, self.base_url)
+                self._endpoints[model] = await fetch_endpoints(self._http, model, self.base_url, connect_wait_s,
+                                                               on_wait)
             return self._endpoints[model]
 
-    async def resolve(self, model: str, provider: str) -> Endpoint:
+    async def resolve(self, model: str, provider: str, connect_wait_s: float = 0,
+                      on_wait: Callable[[float, BaseException], None] | None = None) -> Endpoint:
         """The pinned endpoint of `model`, with known pricing; PermanentError otherwise."""
-        eps = await self.get_endpoints(model)
+        eps = await self.get_endpoints(model, connect_wait_s, on_wait)
         ep = find_endpoint(eps, provider)
         if ep is None:
             raise PermanentError(None, f"provider tag {provider!r} not among endpoints of {model}: "
@@ -903,8 +927,28 @@ class OpenRouterClient:
 
         last_error: str | None = None
         timeout_retry = False
-        attempt = failures = rl_retries = 0
-        rl_waited = 0.0
+        attempt = failures = rl_retries = net_retries = 0
+        rl_waited = net_waited = 0.0
+
+        async def network_wait() -> None:
+            """Patient wait after a NOT_SENT connection error (free: nothing was sent), or RetriesExhausted."""
+            nonlocal net_retries, net_waited
+            if attempt >= self.max_attempts:
+                raise RetriesExhausted(f"{attempt} attempts (limit {self.max_attempts}), network unreachable for "
+                                       f"{net_waited:.0f} s in total; last error: {last_error}")
+            remaining = self.rate_limit_max_wait_s - net_waited
+            if remaining <= 0:
+                raise RetriesExhausted(f"network unreachable for {net_waited:.0f} s in total (limit "
+                                       f"{self.rate_limit_max_wait_s:.0f} s) over {attempt} attempts; "
+                                       f"last error: {last_error}")
+            net_retries += 1
+            wait = min(self._rate_limit_backoff(net_retries, None), remaining)
+            net_waited += wait
+            self._log({"ts": _now(), "event": "network_wait", **self._ids, "tag": base["tag"], "model_requested": model,
+                       "provider_requested": provider, "attempt": attempt, "network_retry": net_retries,
+                       "wait_s": round(wait, 3), "waited_total_s": round(net_waited, 3),
+                       "max_wait_s": self.rate_limit_max_wait_s, "error": last_error})
+            await asyncio.sleep(wait)
 
         async def retry_wait(rate_limited: bool, retry_after: str | None = None) -> None:
             """Sleep before the next attempt, or raise RetriesExhausted when the relevant policy is spent."""
@@ -936,7 +980,7 @@ class OpenRouterClient:
         while True:
             attempt += 1
             rec: dict[str, Any] = {"ts": _now(), "attempt": attempt, **base, "timeout_retry": timeout_retry}
-            timeout_retry = False
+            timeout_retry = not_sent = False
             resp: httpx.Response | None = None
             async with self._sem:
                 def on_wait() -> None:
@@ -970,6 +1014,7 @@ class OpenRouterClient:
                                    "budget_spent_usd": self.budget.spent})
                         if not transport:
                             raise
+                        not_sent = isinstance(e, NOT_SENT)
                         timeout_retry = isinstance(e, httpx.TimeoutException) and not isinstance(e, NOT_SENT)
                     else:
                         try:
@@ -1003,7 +1048,10 @@ class OpenRouterClient:
                                    "unexpected error", "charged_usd": estimate,
                                    "charge_reason": "unexpected_error", "budget_spent_usd": self.budget.spent})
             if resp is None:
-                await retry_wait(False)
+                if not_sent:
+                    await network_wait()
+                else:
+                    await retry_wait(False)
                 continue
 
             latency = time.monotonic() - t0
