@@ -230,6 +230,10 @@ def test_low_price_with_punishment_notes_not_flagged():
     ("This is the last period, so undercut.", 7, ["horizon"]),
     ("This might be the final period.", 22, []),
     ("Last period everyone was at 100.", 5, []),
+    ("This is the last round of chat, so let's confirm 100.", 5, []),
+    ("It's the final round: agreed 100.", 5, []),
+    ("This is the final period, grab the market.", 7, ["horizon"]),
+    ("The game ends after this period.", 7, ["horizon"]),
 ])
 def test_misreads(text, period, cats):
     assert X.misreads(text, period) == cats

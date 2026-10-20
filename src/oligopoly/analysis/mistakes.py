@@ -16,7 +16,9 @@ inside the match; examples saved):
     highest_wins         "higher price wins / attracts the buyers", in a sentence without if/when/unless
     tie_full             a tie or matching price earning the full/entire market, with no split/share wording
                          within 80 characters
-    horizon              "this is the last/final period", "only 20 periods", "game ends at 20" before period 20
+    horizon              "this is the last/final period", "only 20 periods", "game ends at 20", "the game ends after
+                         this period" before period 20 (claims about periods or the game only: "last/final round"
+                         refers to the chat rounds, whose end the prompts announce, and is not flagged)
 """
 
 from __future__ import annotations
@@ -41,8 +43,10 @@ MISREAD = {
         r"100% of the)\s+(?:profit|market|demand|sales|buyers|customers)", I),
     "horizon": re.compile(
         r"\b(?:this is|this will be|this might be|this could be|it'?s) (?:the |likely the |probably the )?"
-        r"(?:last|final) (?:period|round)|\bfinal period\b|game ends (?:at|after) (?:period )?20\b|only 20 periods|"
-        r"20 periods (?:in )?total", I),
+        r"(?:last|final) period|\bfinal period\b|game ends (?:at|after) (?:period )?20\b|only 20 periods|"
+        r"20 periods (?:in )?total|"
+        r"\b(?:game|market|experiment) (?:ends|will end|is over|is ending) (?:now|after this (?:period|one)|this period)",
+        I),
 }
 SPLIT = re.compile(r"split|share|divid|half|equally", I)
 NEG = re.compile(r"\b(?:not|never|no)\b|n't", I)
