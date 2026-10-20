@@ -171,20 +171,28 @@ async def simulate_tokens(n: int, ordering: str, exp: ExperimentConfig, chars_pe
     return {"calls": len(client.calls), "input": total, "cached": cached}
 
 
-async def _pricing(cfg: ModelConfig) -> tuple[dict[str, float] | None, str]:
-    """USD per token for the model's pinned endpoint (or its configured `pricing`, per million tokens)."""
-    if cfg.pricing:
-        return {k: v / 1e6 for k, v in cfg.pricing.items()}, "config pricing"
+async def _endpoint_info(cfg: ModelConfig) -> tuple[dict[str, float] | None, str, int | None]:
+    """USD per token for the model's pinned endpoint (or its configured `pricing`, per million tokens), where
+    that came from, and the pinned endpoint's context length (None if unknown or for mock models), which
+    `plan` needs to decide as `run_all` would."""
+    if cfg.is_mock:
+        return ({k: v / 1e6 for k, v in cfg.pricing.items()}, "config pricing", None) if cfg.pricing \
+            else (None, "mock", None)
     try:
         eps = await get_endpoints(cfg.model)
     except Exception as e:
-        return None, f"endpoint pricing unavailable ({type(e).__name__})"
-    if not eps:
-        return None, "no endpoints"
+        eps, err = [], f"endpoint metadata unavailable ({type(e).__name__})"
+    else:
+        err = "no endpoints" if not eps else None
+    ep = None if cfg.provider_pending else find_endpoint(eps, cfg.provider)
+    ctx = ep.context_length if ep else None
+    if cfg.pricing:
+        return {k: v / 1e6 for k, v in cfg.pricing.items()}, "config pricing", ctx
+    if err:
+        return None, err, None
     if cfg.provider_pending:
-        return eps[0].pricing, f"provider TODO: cheapest endpoint {eps[0].tag}"
-    ep = find_endpoint(eps, cfg.provider)
-    return (ep.pricing, f"endpoint {ep.tag}") if ep else (None, f"pinned tag {cfg.provider!r} not found")
+        return eps[0].pricing, f"provider TODO: cheapest endpoint {eps[0].tag}", None
+    return (ep.pricing, f"endpoint {ep.tag}", ctx) if ep else (None, f"pinned tag {cfg.provider!r} not found", None)
 
 
 async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig, out_tokens: int,
@@ -194,7 +202,9 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
         cells[(s.model.name, s.n, s.ordering)].append(s)
     sims = {(n, o): await simulate_tokens(n, o, exp, chars_per_token) for n, o in {(s.n, s.ordering) for s in specs}}
     models = {s.model.name: s.model for s in specs}
-    prices = {name: await _pricing(cfg) for name, cfg in models.items()}
+    info = {name: await _endpoint_info(cfg) for name, cfg in models.items()}
+    prices = {name: (p, src) for name, (p, src, _) in info.items()}
+    ctx = {name: c for name, (_, _, c) in info.items()}
     print(f"Run {specs[0].run_id if specs else '?'}: {len(cells)} cells, {len(specs)} markets; part lengths "
           f"{exp.part_lengths}{' (PILOT: die schedule shortened)' if exp.pilot else ''}")
     for name, (_, src) in prices.items():
@@ -208,7 +218,8 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
     tot = defaultdict(float)
     for (name, n, o), ss in sorted(cells.items()):
         sim, (p, _) = sims[(n, o)], prices[name]
-        todo = sum(plan(out_dir, s, exp) == "run" for s in ss)  # only what run_all would actually play
+        # only what run_all would actually play, judged with the same endpoint context length
+        todo = sum(plan(out_dir, s, exp, ctx.get(name)) == "run" for s in ss)
         out = sim["calls"] * (out_tokens + reasoning_tokens)
         if p:
             fresh = sim["input"] - sim["cached"]

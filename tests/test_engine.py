@@ -631,6 +631,36 @@ async def test_dry_run_counts_only_markets_that_would_run(tmp_path, capsys):
     assert "To run: 1 markets" in capsys.readouterr().out  # only m3
 
 
+async def test_dry_run_plans_with_endpoint_context_length(tmp_path, capsys):
+    """The dry run judges a context_overflow failure with the pinned endpoint's current context length, as
+    run_all does: a market that overflowed at 2600 tokens is counted again once the endpoint offers 4000."""
+    import httpx
+    import respx
+
+    from oligopoly.llm import BASE_URL
+
+    f = tmp_path / "models.toml"
+    f.write_text('[live]\nmodel = "acme/tiny"\nprovider = "deepinfra/fp8"\nmax_tokens = 64\n')
+    live = load_models(f)["live"]
+    exp = ExperimentConfig(part_lengths=(2, 1))
+    run = tmp_path / "runs" / "dr"
+    [s] = build_specs("dr", [live], [2], ["NT-NT"], 1)
+    engine.write_json_atomic(engine.failure_path(run, s), {
+        "reason": "context_overflow", "fingerprint": engine.market_fingerprint(s, exp),
+        "guard": {"bytes_per_token_min": 2.5, "max_tokens": 64, "context_length": 2600}})
+    args = ["--run-id", "dr", "--models", "live", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1",
+            "--part-lengths", "2,1", "--models-file", str(f), "--out-root", str(tmp_path / "runs"), "--dry-run"]
+    for ctx, todo in ((2600, 0), (4000, 1)):
+        ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "context_length": ctx,
+              "pricing": {"prompt": "0.000001", "completion": "0.000001"}}
+        with respx.mock() as r:
+            r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+                return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+            capsys.readouterr()
+            assert await main(args) == 0
+        assert f"To run: {todo} markets" in capsys.readouterr().out
+
+
 # ---------------------------------------------------------------- checkpoints
 
 
