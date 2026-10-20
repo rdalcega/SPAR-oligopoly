@@ -634,9 +634,21 @@ async def test_checkpoint_serialised_once_and_written_in_thread(tmp_path, monkey
     monkeypatch.setattr(engine.json, "loads", no_loads)
     await m.save_checkpoint()
     monkeypatch.undo()
-    assert threaded == ["write_text_atomic"]
+    assert threaded == ["dumps", "write_text_atomic"]  # serialised and written off the event loop
     assert engine.checkpoint_path(tmp_path, s).read_text() == m._boundary
     assert json.loads(m._boundary)["periods_completed"] == 0
+
+
+async def test_fingerprint_and_digest_computed_once_per_market(tmp_path, monkeypatch):
+    calls = []
+    real_fp, real_td = engine.market_fingerprint, engine.texts_digest
+    monkeypatch.setattr(engine, "market_fingerprint", lambda *a: calls.append("fp") or real_fp(*a))
+    monkeypatch.setattr(engine, "texts_digest", lambda *a: calls.append("td") or real_td(*a))
+    rec, _, _ = await play(spec(2, "NT-T"), tmp_path)  # 10 periods + probe, a checkpoint after each
+    assert calls == ["td", "fp"]
+    monkeypatch.undo()
+    assert rec["fingerprint"] == real_fp(spec(2, "NT-T"), SHORT)
+    assert rec["settings"]["texts_digest"] == real_td(SHORT)
 
 
 async def test_setup_error_writes_failure(tmp_path, monkeypatch):
@@ -859,6 +871,10 @@ async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
     k = at[2] if at[1] == 1 else SHORT.part_lengths[0] + at[2]  # 1-based over both parts
     saved = json.loads(ck.read_text())
     assert saved["periods_completed"] == k - 1 and saved["partial_calls"]  # siblings' results kept
+    # the replay key is the request's context hash (one scheme: messages_sha256 of the messages sent)
+    from oligopoly.llm import messages_sha256
+    sent = {c["tag"]["call_id"]: c["messages"] for c in c1.calls}
+    assert all(v["messages_sha256"] == messages_sha256(sent[cid]) for cid, v in saved["partial_calls"].items())
     c2 = MockClient(record=True)
     rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
     assert not ck.exists() and not engine.failure_path(out, s).exists()

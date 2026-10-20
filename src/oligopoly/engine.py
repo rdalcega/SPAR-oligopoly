@@ -125,10 +125,12 @@ def _fingerprint_from(spec: dict[str, Any], model_identity: dict[str, Any], expe
     return fingerprint({**spec, "model": model_identity, "experiment": experiment, "texts": texts, **parser})
 
 
-def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig) -> str:
+def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig, texts: str | None = None) -> str:
     """Everything that determines a market's play: its spec, the model's settings, the experiment, the
-    firm-facing wording and the parsing rules (`parse.PARSER_VERSION`)."""
-    return _fingerprint_from(spec.to_dict(), spec.model.identity(), exp.to_dict(), texts_digest(exp), PARSER_VERSION)
+    firm-facing wording (`texts`: its digest under `exp`, computed if not given) and the parsing rules
+    (`parse.PARSER_VERSION`)."""
+    return _fingerprint_from(spec.to_dict(), spec.model.identity(), exp.to_dict(),
+                             texts_digest(exp) if texts is None else texts, PARSER_VERSION)
 
 
 def record_texts_digest_matches(rec: dict[str, Any], digest: str) -> bool:
@@ -281,6 +283,9 @@ def result_from_dict(d: dict[str, Any]) -> ChatResult:
 class Market:
     def __init__(self, spec: MarketSpec, client: ChatClient, exp: ExperimentConfig, checkpoint: Path | None = None):
         self.spec, self.client, self.exp = spec, client, exp
+        # computed once (they hash the prompt texts): used by every checkpoint, restore and record
+        self.texts_digest = texts_digest(exp)
+        self.fingerprint = market_fingerprint(spec, exp, self.texts_digest)
         self.checkpoint = Path(checkpoint) if checkpoint else None
         self.resumed_from: list[int] = []  # global period index each resume started from
         self.partial_calls: dict[str, dict[str, Any]] = {}  # results of calls in the period in progress
@@ -360,7 +365,7 @@ class Market:
             seed = self.call_seed(L, part, period, phase, attempt)
             tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": part, "period": period,
                    "phase": phase, "attempt": attempt, "call_id": call_id}
-            msha = fingerprint(messages)
+            msha = ctx["messages_sha256"]  # one hash per request: the context's, also the replay key
             cached = self.replay.pop(call_id, None)
             if cached is not None and cached["messages_sha256"] == msha:  # paid for before a failure: reuse
                 r = result_from_dict(cached["result"])
@@ -420,7 +425,7 @@ class Market:
             # tagged apart from play: no part or period of its own (the seed keeps its original coordinates)
             tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": "probe", "period": None,
                    "phase": "probe", "attempt": attempt, "call_id": call_id}
-            msha = fingerprint(messages)
+            msha = ctx["messages_sha256"]  # one hash per request: the context's, also the replay key
             cached = self.replay.pop(call_id, None)
             if cached is not None and cached["messages_sha256"] == msha:
                 r = result_from_dict(cached["result"])
@@ -571,7 +576,7 @@ class Market:
     def snapshot(self) -> dict[str, Any]:
         """Everything needed to continue after the last completed period."""
         return {"version": CHECKPOINT_VERSION, "spec": self.spec.to_dict(),
-                "fingerprint": market_fingerprint(self.spec, self.exp), "texts_digest": texts_digest(self.exp),
+                "fingerprint": self.fingerprint, "texts_digest": self.texts_digest,
                 "periods_completed": len(self.periods), "die_schedules": self.dies,
                 "listing_orders": {L: f.order for L, f in self.firms.items()},
                 "firms": {L: {"instructions": f.instructions, "transcript": f.transcript, "pending": f.pending,
@@ -581,12 +586,13 @@ class Market:
 
     async def save_checkpoint(self) -> None:
         """At a period boundary: write the checkpoint and forget the finished period's call results. The
-        snapshot is serialised once, here (so later play cannot change it), and written atomically in a
-        worker thread."""
+        snapshot is serialised once, here, and both the serialisation and the atomic write run in a worker
+        thread, off the event loop. Safe because nothing in this market changes while it is awaited: the
+        market's own calls are all finished at a boundary, and other markets never touch its state."""
         self.partial_calls, self.replay = {}, {}
         if self.checkpoint is None:
             return
-        self._boundary = json.dumps(self.snapshot(), ensure_ascii=False)
+        self._boundary = await asyncio.to_thread(json.dumps, self.snapshot(), ensure_ascii=False)
         await asyncio.to_thread(write_text_atomic, self.checkpoint, self._boundary)
 
     def save_failure_checkpoint(self) -> None:
@@ -604,8 +610,8 @@ class Market:
         firms = ck.get("firms") or {}
         checks = [
             (ck.get("version") == CHECKPOINT_VERSION, "version"),
-            (ck.get("fingerprint") == market_fingerprint(self.spec, self.exp), "market fingerprint"),
-            (ck.get("texts_digest") == texts_digest(self.exp), "prompt wording digest"),
+            (ck.get("fingerprint") == self.fingerprint, "market fingerprint"),
+            (ck.get("texts_digest") == self.texts_digest, "prompt wording digest"),
             (ck.get("spec") == self.spec.to_dict(), "spec"),
             (ck.get("die_schedules") == self.dies, "die schedule"),
             (ck.get("listing_orders") == {L: f.order for L, f in self.firms.items()}, "listing orders"),
@@ -644,9 +650,9 @@ class Market:
                          "invalid_attempts": sum(len(d["errors"]) for d in decs)}
         return {
             "spec": self.spec.to_dict(),
-            "fingerprint": market_fingerprint(self.spec, self.exp),
+            "fingerprint": self.fingerprint,
             "settings": {"model": self.spec.model.to_dict(), "experiment": self.exp.to_dict(),
-                         "texts_digest": texts_digest(self.exp), "parser_version": PARSER_VERSION,
+                         "texts_digest": self.texts_digest, "parser_version": PARSER_VERSION,
                          "pilot": self.exp.pilot, "talk": dict(zip(("part1", "part2"), self.talk)),
                          "chat_spec": asdict(self.chat_spec), "feedback_all_profits": True, "exchange_rate": None,
                          "die_schedules": self.dies, "listing_orders": {L: f.order for L, f in self.firms.items()}},
