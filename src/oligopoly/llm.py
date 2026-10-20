@@ -379,6 +379,9 @@ def _error_retryable(err: Any) -> bool:
 
 # ---------------------------------------------------------------- client
 
+# extra_body keys that are routing or output options, not sampling settings (kept out of the log's `sampling`)
+NON_SAMPLING_KEYS = frozenset({"provider", "usage", "models", "route", "transforms", "plugins", "user", "stream"})
+
 NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)  # the request never left
 
 
@@ -557,7 +560,9 @@ class OpenRouterClient:
             "tag": tag or {},
             "model_requested": model,
             "provider_requested": provider,
-            "sampling": {"temperature": temperature, "top_p": top_p, "max_tokens": max_tokens},
+            # everything sent that shapes sampling: the named arguments plus extra_body (top_k, presence_penalty...)
+            "sampling": {"temperature": temperature, "top_p": top_p, "max_tokens": max_tokens,
+                         **{k: v for k, v in (extra_body or {}).items() if k not in NON_SAMPLING_KEYS}},
             "seed": seed,
             "reasoning_setting": reasoning,
             "response_format": response_format,

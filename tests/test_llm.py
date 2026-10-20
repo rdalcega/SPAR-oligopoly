@@ -405,3 +405,12 @@ async def test_non_rate_limit_errors_keep_max_retries(mock, make, sleeps):
     with pytest.raises(RetriesExhausted):
         await make(max_retries=2).chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
     assert route.call_count == 3
+
+
+async def test_sampling_log_includes_extra_body(mock, make, tmp_path):
+    mock.post(CHAT).mock(return_value=httpx.Response(200, json=completion()))
+    await make().chat(MSGS, model=MODEL, provider="deepinfra/fp8", temperature=0.6, top_p=0.95, max_tokens=10,
+                      seed=3, extra_body={"top_k": 20, "presence_penalty": 1.5, "min_p": 0.0})
+    s = lines(tmp_path)[0]["sampling"]
+    assert s == {"temperature": 0.6, "top_p": 0.95, "max_tokens": 10, "top_k": 20, "presence_penalty": 1.5,
+                 "min_p": 0.0}
