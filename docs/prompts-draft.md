@@ -24,6 +24,8 @@ n ∈ {2, 4, 6, 8, 10} × 3 orderings × both parts × two chat specs × with an
 
 ## Rendered texts (n = 4)
 
+Rendered as the engine sends them: `notes=True`, default `ChatSpec`, no exchange rate.
+
 ### NoTalk → Talk (main)
 
 #### Part 1 (Firm C)
@@ -54,6 +56,10 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants in every period.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 #### Part 2 (Firm C)
@@ -67,7 +73,7 @@ In this part of the experiment, you will be required to make the same decisions 
 
 The difference to Part 1 is that now you will be able to communicate with the other firms in your market. To this effect, we will provide you with a chat box, which you can use to send messages to the other firms. Only the firms in your market will be able to see the messages you post.
 
-In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
 
 Like in Part 1, at the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
 
@@ -76,6 +82,11 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 100 words>", "message": null} to post nothing in this round.
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 ### Talk → NoTalk
@@ -103,7 +114,7 @@ Example 2: Suppose that the four firms choose the following prices: Firm A and f
 
 In this part of the experiment you will be able to communicate with the other firms in your market. To this effect, we will provide you with a chat box, which you can use to send messages to the other firms. Only the firms in your market will be able to see the messages you post.
 
-In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
 
 At the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
 
@@ -112,6 +123,11 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants in every period.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 100 words>", "message": null} to post nothing in this round.
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 #### Part 2 (Firm C)
@@ -132,6 +148,10 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 ### NoTalk → NoTalk
@@ -164,6 +184,10 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants in every period.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 #### Part 2 (Firm C)
@@ -182,6 +206,10 @@ There will be at least 20 periods in this part of the experiment; once the 20th 
 You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+The "notes" field is private: the other firms never see it. Keep it to about 100 words at most.
+Each request ends with a short reminder of the format.
 ```
 
 ### Variant: Part 1 with the scaled exchange rate (25,000 ECU per £1)
@@ -194,30 +222,57 @@ At the end of the experiment, you will be told of the sum of profits made during
 
 ### Sample period prompts
 
+NoTalk period (the previous period's results open the same user message):
+
 ```text
 Part 1, period 4.
-Choose your selling price for this period: a whole number from 0 to 100.
-Respond with JSON only, in this format: {"price": <integer from 0 to 100>}
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
 ```
+
+NoTalk period from period 21 on:
 
 ```text
 Period 20 is over. The computer threw the virtual dice and it showed 3, so this part of the experiment continues.
 Part 2, period 21.
-The chat box has closed.
-Choose your selling price for this period: a whole number from 0 to 100.
-Respond with JSON only, in this format: {"price": <integer from 0 to 100>, "notes": "<short private notes>"}
-The "notes" field is private: the other firms never see it. Keep it short.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
 ```
 
-### Sample chat prompt (round 2)
+Talk period, after the last chat round (the final round's messages open the price prompt):
 
 ```text
-Part 2, period 5: chat, round 2 of at most 3.
-Messages so far in this period:
+Messages posted in round 3:
+Firm B: Hi all. Shall we keep prices where they were?
+Firm D: Fine by me.
+
+Part 2, period 5.
+The chat box has closed.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
+```
+
+### Sample chat prompts
+
+Round 1 from period 21 on (the die result opens the round-1 prompt):
+
+```text
+Period 20 is over. The computer threw the virtual dice and it showed 4, so this part of the experiment continues.
+Part 2, period 21: chat, round 1 of at most 3.
+No messages have been posted in this period yet.
+Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
+```
+
+Round 2 (Firm C's own round-1 message is listed in its place but not repeated: it is C's answer just above):
+
+```text
+Messages posted in round 1:
 Firm B: Hi all.
-Firm C (you): Hello.
+Firm C (you): [your message above]
 Firm D: What price is everyone setting?
-Respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round
+
+Part 2, period 5: chat, round 2 of at most 3.
+Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
 
 ### Sample results text (listing order D, A, C, B)
@@ -237,10 +292,10 @@ Your total profit in this part so far: 48,250 ECU
 Period 25 is over. The computer threw the virtual dice and it showed 6, so this part of the experiment is over.
 ```
 
-### Re-ask
+### Re-ask (kept explicit: states the full format)
 
 ```text
-Your previous response could not be used: price 150 is outside 0-100. Please respond again with JSON only, in this format: {"price": <integer from 0 to 100>}
+Your previous response could not be used: price 150 is outside 0-100. Please respond again with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
 ```
 
 
@@ -332,9 +387,19 @@ texts.
 26. JSON output (`{"price": …}`, `{"message": …}` or `null`) and the private `"notes"` field are new
     (§6 items 2, 3 and 8). In the engine every price and chat answer has the form
     `{"notes": "<private notes, at most about 100 words>", "price": …}` / `{"notes": …, "message": …}`.
+    The full format (both JSON forms, the pass option, the character limit, notes privacy and length) is stated
+    once per part, as the last paragraph of that part's instructions ("How to answer: …"); a NoTalk part states
+    only the price format. Each chat and price prompt ends with a one-line reminder instead
+    (`Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}` /
+    `Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}`), and the price prompt says only "Choose
+    your selling price for this period." (2026-10-20: the repeated ~350-character format block was about a third
+    of every firm's history.) Re-asks still state the full format. A digest of the rendered texts is part of
+    every market's fingerprint, so a resumed run never mixes wordings.
 27. Engine wiring (added with `src/oligopoly/engine.py`): each chat prompt from round 2 on, and the price prompt
     after a chat, open with the previous round's messages ("Messages posted in round k:" or "No firm posted a
-    message in round k."), so each message is shown once. After a failed last re-ask the firm is told
+    message in round k."), so each message is shown once. The firm's own message keeps its place in that list
+    but is shown as "Firm X (you): [your message above]", since it is the firm's own answer just before (as
+    posted, after any truncation). After a failed last re-ask the firm is told
     `fallback_text` ("Your response could not be used, so your price for this period was set to X." / "... so
     you posted no message in that round.").
 

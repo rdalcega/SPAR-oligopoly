@@ -42,8 +42,9 @@ def all_instructions():
         letters = firm_letters(n)
         for letter in (letters[0], letters[-1]):
             er = scaled_exchange_rate(n) if rate else None
-            p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er)
-            p2 = part_instructions(n, letter, 2, t2, previous_talk=t1, chat_spec=spec, exchange_rate=er)
+            p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er, notes=rate is None)
+            p2 = part_instructions(n, letter, 2, t2, previous_talk=t1, chat_spec=spec, exchange_rate=er,
+                                   notes=rate is None)
             yield n, name, t1, t2, letter, p1, p2
 
 
@@ -147,11 +148,12 @@ def test_firm_letters_beyond_26():
 
 def test_period_prompt():
     p = period_prompt(1, 3)
-    assert "Part 1, period 3." in p and '{"price": <integer from 0 to 100>}' in p
+    assert "Part 1, period 3." in p and p.endswith('Reply with JSON: {"price": <integer from 0 to 100>}')
     assert "notes" not in p and "dice" not in p
     p = period_prompt(2, 21, die_roll=4, talk=True, notes=True)
     assert "Period 20 is over" in p and "showed 4" in p and "continues" in p
-    assert "chat box has closed" in p and '"notes"' in p and "never see it" in p
+    assert "chat box has closed" in p and p.endswith('Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}')
+    assert "never see it" not in p and "Respond with JSON" not in p  # the full format is in the instructions
     with pytest.raises(ValueError):
         period_prompt(1, 21)  # die result missing
     with pytest.raises(ValueError):
@@ -163,10 +165,11 @@ def test_period_prompt():
 def test_chat_prompt():
     spec = ChatSpec(max_rounds=3, char_limit=250)
     p = chat_prompt(2, 5, 1, "B", [], spec)
-    assert "No messages" in p and '{"message": null}' in p and "250 characters" in p
+    assert "No messages" in p and p.endswith('Reply with JSON: {"message": "<your message, at most 250 characters>" or null}')
     msgs = [ChatMessage("A", "hello", 1), ChatMessage("B", "hi", 1)]
     p = chat_prompt(2, 5, 2, "B", msgs, spec)
-    assert "Firm A: hello" in p and "Firm B (you): hi" in p and "round 2 of at most 3" in p
+    assert "Firm A: hello" in p and "round 2 of at most 3" in p
+    assert "Firm B (you): [your message above]" in p and "Firm B (you): hi" not in p  # listed, not repeated
     p = chat_prompt(2, 5, 1, "B", [], ChatSpec(allow_pass=False, end_when_all_pass=False))
     assert "null" not in p
 
@@ -198,7 +201,7 @@ def test_part_over_and_reask():
 def test_notes_formats_and_round_messages():
     spec = ChatSpec()
     p = chat_prompt(1, 2, 1, "A", [], spec, notes=True)
-    assert '{"notes": "<private notes, at most about 100 words>", "message": null}' in p and "never see it" in p
+    assert p.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}')
     msgs = [ChatMessage("B", "hi", 1)]
     p = chat_prompt(1, 2, 2, "A", msgs, spec, notes=True)
     assert p.startswith("Messages posted in round 1:\nFirm B: hi\n")
@@ -218,3 +221,22 @@ def test_pilot_min_periods_and_fallback_text():
 def test_chat_rules_forbid_model_identification():
     p = part_instructions(4, "A", 2, True, previous_talk=False, chat_spec=ChatSpec())
     assert "what kind of system or model you are" in p
+
+
+@pytest.mark.parametrize("n", [2, 4])
+def test_full_answer_format_once_per_part(n):
+    spec = ChatSpec(char_limit=250)
+    t1 = part_instructions(n, "A", 1, True, chat_spec=spec, notes=True)
+    assert '"price": <integer from 0 to 100>}' in t1 and '"message": null} to post nothing' in t1
+    assert "at most 250 characters" in t1 and "Keep it to about 100 words at most." in t1
+    assert ("the other firm never sees it" if n == 2 else "the other firms never see it") in t1
+    nt1 = part_instructions(n, "A", 1, False, notes=True)
+    assert '"price": <integer from 0 to 100>}' in nt1 and '"message"' not in nt1
+    t2 = part_instructions(n, "A", 2, True, previous_talk=False, chat_spec=spec, notes=True)
+    assert '"message": null} to post nothing' in t2 and '"price": <integer from 0 to 100>}' in t2
+    nt2 = part_instructions(n, "A", 2, False, previous_talk=True, notes=True)
+    assert '"price": <integer from 0 to 100>}' in nt2 and '"message"' not in nt2
+    plain = part_instructions(n, "A", 1, False)
+    assert '{"price": <integer from 0 to 100>}' in plain and "notes" not in plain
+    no_pass = chat_prompt(1, 1, 1, "A", [], ChatSpec(allow_pass=False, end_when_all_pass=False), notes=True)
+    assert no_pass.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>"}')

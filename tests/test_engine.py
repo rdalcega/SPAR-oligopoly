@@ -264,7 +264,7 @@ async def test_market_with_openrouter_client(tmp_path):
         body = json.loads(request.content)
         bodies.append(body)
         last = body["messages"][-1]["content"][-1]["text"]
-        content = '{"notes": "n", "price": 99}' if '"price": <integer' in last else '{"notes": "n", "message": null}'
+        content = '{"notes": "n", "price": 99}' if '"price": <integer' in last.splitlines()[-1] else '{"notes": "n", "message": null}'
         return httpx.Response(200, json={"id": "g", "model": "acme/tiny", "provider": "DeepInfra",
                                          "choices": [{"finish_reason": "stop", "message": {"content": content}}],
                                          "usage": {"prompt_tokens": 5, "completion_tokens": 3, "cost": 0.0}})
@@ -365,6 +365,13 @@ async def test_market_fingerprint_mismatch_not_complete(tmp_path):
     before = path.read_bytes()
     s = await run_all(specs, {"mock": MockClient()}, tmp_path, ExperimentConfig(part_lengths=(6, 5)))
     assert s["failed"] == [specs[0].key] and path.read_bytes() == before  # never overwritten
+
+
+def test_fingerprint_covers_firm_facing_text(monkeypatch):
+    s = build_specs("r", [MOCK], [2], ["NT-NT"], 1)[0]
+    before = engine.market_fingerprint(s, SHORT)
+    monkeypatch.setattr(engine.prompts, "price_reminder", lambda notes: "Reply with JSON, please.")
+    assert engine.market_fingerprint(s, SHORT) != before
 
 
 def models_file(tmp_path, temperature=1.0):

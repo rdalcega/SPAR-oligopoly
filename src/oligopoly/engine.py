@@ -74,7 +74,9 @@ def fingerprint(obj: Any) -> str:
 
 def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig) -> str:
     """Everything that determines a market's play: its spec, the model's settings and the experiment."""
-    return fingerprint({**spec.to_dict(), "model": spec.model.identity(), "experiment": exp.to_dict()})
+    chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
+    return fingerprint({**spec.to_dict(), "model": spec.model.identity(), "experiment": exp.to_dict(),
+                        "texts": prompts.texts_digest(chat_spec, exp.notes)})
 
 
 def is_complete(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool | None:
@@ -283,12 +285,13 @@ class Market:
                                                  min_periods=min_p))
                 if part == 1:
                     firm.tell(prompts.part_instructions(self.spec.n, L, 2, self.talk[1], previous_talk=self.talk[0],
-                                                        chat_spec=self.chat_spec))
+                                                        chat_spec=self.chat_spec, notes=self.exp.notes))
 
     async def run(self) -> None:
         for L, firm in self.firms.items():
             firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
-                                                 chat_spec=self.chat_spec if self.talk[0] else None))
+                                                 chat_spec=self.chat_spec if self.talk[0] else None,
+                                                 notes=self.exp.notes))
         for part in (1, 2):
             for t in range(1, self.exp.part_lengths[part - 1] + 1):
                 await self.period(part, t)

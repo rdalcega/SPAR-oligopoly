@@ -17,6 +17,7 @@ Hard rules (CLAUDE.md), enforced by tests/test_prompts.py:
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -257,6 +258,7 @@ def part_instructions(
     chat_spec: ChatSpec | None = None,
     exchange_rate: float | None = None,
     feedback_all_profits: bool = True,
+    notes: bool = False,
 ) -> str:
     """Instructions shown at the start of `part` (1 or 2) to `firm_letter` in a market of `n` firms.
 
@@ -264,6 +266,8 @@ def part_instructions(
     chat_spec: required when talk is True. exchange_rate: ECU per £1 to state (None = no money
     sentences; see scaled_exchange_rate). feedback_all_profits: describe feedback as all prices plus
     every firm's period profit (design text) instead of all prices plus own profit (instructions).
+    notes: whether answers carry the private "notes" field. Each part's instructions end with the full answer
+    format (see response_format_text); the per-turn prompts only repeat a one-line reminder.
     """
     _check(n, firm_letter, part)
     if talk and chat_spec is None:
@@ -317,6 +321,7 @@ def part_instructions(
         paras.append(_die_sentence())
         paras.append("You will be matched with the same participants in every period.")
         paras.append(_payment(part, exchange_rate))
+        paras.append(response_format_text(n, chat_spec if talk else None, notes))
     else:
         paras.append("Part 1 is over.")
         paras.append("Instructions – Part 2")
@@ -348,6 +353,7 @@ def part_instructions(
             "remain matched with you for the whole of Part 2."
         )
         paras.append(_payment(part, exchange_rate))
+        paras.append(response_format_text(n, chat_spec if talk else None, notes))
     return "\n\n".join(paras)
 
 
@@ -377,9 +383,6 @@ def die_line(previous_period: int, roll: int, min_periods: int = MIN_PERIODS) ->
 
 
 _NOTES_FIELD = f'"notes": "<private notes, at most about {NOTES_WORDS} words>"'
-_NOTES_LINE = (
-    f'The "notes" field is private: the other firms never see it. Keep it to about {NOTES_WORDS} words at most.'
-)
 
 
 def price_format(notes: bool) -> str:
@@ -397,14 +400,46 @@ def message_format(chat_spec: ChatSpec, notes: bool = False) -> str:
     return s
 
 
+def response_format_text(n: int, chat_spec: ChatSpec | None, notes: bool) -> str:
+    """The full answer format, stated once per part at the end of its instructions. chat_spec: the part's chat
+    rules, or None in a NoTalk part (then nothing about messages is said)."""
+    s = f"How to answer: when you are asked for your selling price, respond with JSON only, in this format: " \
+        f"{price_format(notes)}"
+    if chat_spec is not None:
+        s += (f"\nWhen you are asked for a chat message, respond with JSON only, in this format: "
+              f"{message_format(chat_spec, notes)}.")
+    if notes:
+        others = "the other firm never sees it" if n == 2 else "the other firms never see it"
+        s += f'\nThe "notes" field is private: {others}. Keep it to about {NOTES_WORDS} words at most.'
+    s += "\nEach request ends with a short reminder of the format."
+    return s
+
+
+def price_reminder(notes: bool) -> str:
+    """One-line format reminder closing every price prompt (the full format is in the instructions)."""
+    pre = '"notes": ..., ' if notes else ""
+    return f'Reply with JSON: {{{pre}"price": <integer from 0 to 100>}}'
+
+
+def message_reminder(chat_spec: ChatSpec, notes: bool) -> str:
+    """One-line format reminder closing every chat prompt (keeps the character limit in view)."""
+    limit = f", at most {chat_spec.char_limit} characters" if chat_spec.char_limit else ""
+    value = f'"<your message{limit}>"' + (" or null" if chat_spec.allow_pass else "")
+    pre = '"notes": ..., ' if notes else ""
+    return f'Reply with JSON: {{{pre}"message": {value}}}'
+
+
+OWN_MESSAGE = "[your message above]"
+
+
 def round_messages_text(round_: int, messages: Sequence[ChatMessage], firm_letter: str) -> str:
-    """The messages posted in chat round `round_` (passes are not listed)."""
+    """The messages posted in chat round `round_` (passes are not listed). The firm's own message is listed in
+    its place but not repeated: it is the firm's last answer, just above."""
     if not messages:
         return f"No firm posted a message in round {round_}."
     lines = [f"Messages posted in round {round_}:"]
     for m in messages:
-        who = f"Firm {m.firm} (you)" if m.firm == firm_letter else f"Firm {m.firm}"
-        lines.append(f"{who}: {m.text}")
+        lines.append(f"Firm {m.firm} (you): {OWN_MESSAGE}" if m.firm == firm_letter else f"Firm {m.firm}: {m.text}")
     return "\n".join(lines)
 
 
@@ -438,10 +473,8 @@ def period_prompt(
     lines.append(f"Part {part}, period {period}.")
     if talk:
         lines.append("The chat box has closed.")
-    lines.append("Choose your selling price for this period: a whole number from 0 to 100.")
-    lines.append(f"Respond with JSON only, in this format: {price_format(notes)}")
-    if notes:
-        lines.append(_NOTES_LINE)
+    lines.append("Choose your selling price for this period.")
+    lines.append(price_reminder(notes))
     return "\n".join(lines)
 
 
@@ -468,9 +501,7 @@ def chat_prompt(
     lines.append(f"Part {part}, period {period}: chat, round {round_} of at most {chat_spec.max_rounds}.")
     if round_ == 1:
         lines.append("No messages have been posted in this period yet.")
-    lines.append(f"Respond with JSON only, in this format: {message_format(chat_spec, notes)}")
-    if notes:
-        lines.append(_NOTES_LINE)
+    lines.append(message_reminder(chat_spec, notes))
     return "\n".join(lines)
 
 
@@ -529,4 +560,24 @@ def reask_text(error: str, expected_format: str) -> str:
         f"Your previous response could not be used: {error}. Please respond again with JSON only, in this "
         f"format: {expected_format}"
     )
+
+
+def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
+    """SHA-256 of a fixed sample of every kind of firm-facing text, rendered with the run's settings. It goes
+    into every market's fingerprint, so a resumed run never mixes markets played under different wording."""
+    msgs = [ChatMessage("A", "m1", 1), ChatMessage("B", "m2", 1)]
+    texts = [
+        *(part_instructions(n, "A", p, t, previous_talk=pt, chat_spec=chat_spec, notes=notes)
+          for n in (2, 4) for t1, t2 in ((False, True), (True, False), (False, False))
+          for p, t, pt in ((1, t1, None), (2, t2, t1))),
+        period_prompt(1, 21, die_roll=3, notes=notes),
+        period_prompt(2, 5, talk=True, notes=notes, firm_letter="A", last_round=2, last_messages=msgs),
+        chat_prompt(1, 21, 1, "A", [], chat_spec, die_roll=2, notes=notes),
+        chat_prompt(1, 5, 2, "A", msgs, chat_spec, notes=notes),
+        results_text(2, 3, "A", {"A": 90, "B": 80}, {"A": 0, "B": 24000}, ["B", "A"], 1.5, 2.5),
+        part_over_text(2, 22, final_part=True, total_profit=10),
+        fallback_text("price", 7), fallback_text("message"),
+        reask_text("e", price_format(notes)), reask_text("e", message_format(chat_spec, notes)),
+    ]
+    return hashlib.sha256("\x00".join(texts).encode()).hexdigest()
 
