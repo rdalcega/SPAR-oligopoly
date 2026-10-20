@@ -63,6 +63,12 @@ class BudgetUnusable(BudgetExceeded):
     """The budget file could not be written, so no further spending can be accounted for (fail closed)."""
 
 
+class BudgetWaitTimeout(OpenRouterError):
+    """Waited the admission backstop for budget room that never came (a reservation was not settled in time).
+    Not a BudgetExceeded: the money may still be there, so only the current market fails (and checkpoints);
+    the runner keeps scheduling."""
+
+
 class ContextOverflow(OpenRouterError):
     """The prompt's token bound plus max_tokens exceeds the pinned endpoint's context length (not sent).
     `guard` holds the guard settings that refused it: bytes_per_token_min, max_tokens, context_length."""
@@ -177,9 +183,11 @@ class Budget:
 
     Admission (`admit`, used by the client): a reservation that would fit the cap given what is spent but not
     alongside the outstanding reservations waits until settlements make room, instead of failing a call that
-    the remaining money covers. It raises BudgetExceeded on true exhaustion (`spent + amount > cap`), when
-    nothing is in flight to wait for, or after waiting `max_wait_s` in all (a backstop against a reservation
-    that is never settled). The cap stays strict: spent + reserved never exceeds it.
+    the remaining money covers. It raises BudgetExceeded on true exhaustion (`spent + amount > cap`) or when
+    nothing is in flight to wait for, and BudgetWaitTimeout after waiting `max_wait_s` in all (a backstop
+    against a reservation that is never settled; it must exceed the longest HTTP timeout, since an in-flight
+    reservation is settled only when its request returns or times out). The cap stays strict: spent + reserved
+    never exceeds it.
 
     Fail closed: if the budget file cannot be written, the budget is marked unusable (`broken`), every waiting
     `admit` is woken, and every later reservation raises BudgetUnusable (a BudgetExceeded, so runners stop
@@ -189,7 +197,7 @@ class Budget:
     found on load were left by a process that has exited.
     """
 
-    DEFAULT_MAX_WAIT_S = 600.0
+    DEFAULT_MAX_WAIT_S = 1800.0  # 2 x the client's default HTTP timeout (900 s)
 
     def __init__(self, cap_usd: float, path: str | Path | None = None):
         self.cap = float(cap_usd)
@@ -241,9 +249,9 @@ class Budget:
                     on_wait: Callable[[], None] | None = None) -> str:
         """Reserve `amount` USD, waiting while it fits what is left after `spent` but not alongside the other
         outstanding reservations. `on_wait` is called once, when the first wait starts. Raises
-        BudgetExceeded when `spent + amount > cap` (true exhaustion), when it does not fit and nothing is in
-        flight, or when the waits total `max_wait_s` (default DEFAULT_MAX_WAIT_S); BudgetUnusable once the
-        budget is broken."""
+        BudgetExceeded when `spent + amount > cap` (true exhaustion) or when it does not fit and nothing is in
+        flight; BudgetWaitTimeout when the waits total `max_wait_s` (default DEFAULT_MAX_WAIT_S);
+        BudgetUnusable once the budget is broken."""
         limit = self.DEFAULT_MAX_WAIT_S if max_wait_s is None else max_wait_s
         deadline: float | None = None
         while True:
@@ -261,7 +269,7 @@ class Budget:
                 if on_wait is not None:
                     on_wait()
             if now >= deadline:
-                raise BudgetExceeded(f"waited {limit:.0f} s for budget room (reservation ${amount:.6f}, "
+                raise BudgetWaitTimeout(f"waited {limit:.0f} s for budget room (reservation ${amount:.6f}, "
                                      f"spent ${self.spent:.4f}, reserved ${self.reserved:.4f})")
             if self._settled is None:
                 self._settled = asyncio.Event()
@@ -632,7 +640,7 @@ class OpenRouterClient:
         rate_limit_backoff_max_s: float = 120.0,
         rate_limit_max_wait_s: float = 1800.0,
         max_attempts: int = 60,
-        budget_max_wait_s: float = Budget.DEFAULT_MAX_WAIT_S,
+        budget_max_wait_s: float | None = None,
         base_url: str = BASE_URL,
         http: httpx.AsyncClient | None = None,
     ):
@@ -652,7 +660,10 @@ class OpenRouterClient:
         self.rate_limit_backoff_max_s = rate_limit_backoff_max_s
         self.rate_limit_max_wait_s = rate_limit_max_wait_s
         self.max_attempts = max_attempts
+        # admission backstop: None = the larger of Budget.DEFAULT_MAX_WAIT_S and 2 x the longest HTTP timeout
+        # any call of this client has used (an in-flight reservation is held for up to one timeout)
         self.budget_max_wait_s = budget_max_wait_s
+        self._max_timeout_s = timeout_s
         self.base_url = base_url
         self._http = http or httpx.AsyncClient(timeout=timeout_s)
         self._sem = asyncio.Semaphore(max_concurrency)
@@ -676,6 +687,12 @@ class OpenRouterClient:
 
     async def aclose(self) -> None:
         await self._http.aclose()
+
+    def admission_wait_s(self) -> float:
+        """How long a call may wait for budget room before BudgetWaitTimeout (see `budget_max_wait_s`)."""
+        if self.budget_max_wait_s is not None:
+            return self.budget_max_wait_s
+        return max(Budget.DEFAULT_MAX_WAIT_S, 2 * self._max_timeout_s)
 
     async def get_endpoints(self, model: str) -> list[Endpoint]:
         """Provider endpoints of `model` (cached per client)."""
@@ -763,7 +780,7 @@ class OpenRouterClient:
         Context guard: if `prompt_token_bound(messages, bytes_per_token_min)` plus the completion allowance
         exceeds the pinned endpoint's context_length, the attempt is logged and ContextOverflow raised without
         sending anything.
-        Raises PermanentError, RetriesExhausted, BudgetExceeded or ContextOverflow.
+        Raises PermanentError, RetriesExhausted, BudgetExceeded, BudgetWaitTimeout or ContextOverflow.
         """
         if max_tokens is None:
             raise ValueError("max_tokens is required: the budget reserves its cost before each call")
@@ -781,6 +798,7 @@ class OpenRouterClient:
                 payload[k] = v
         payload.update(extra_body or {})
         timeout = self.timeout_s if timeout_s is None else timeout_s
+        self._max_timeout_s = max(self._max_timeout_s, timeout)
         base = {
             **self._ids,
             "tag": tag or {},
@@ -882,8 +900,8 @@ class OpenRouterClient:
                                "attempt": attempt, "reservation_usd": estimate, "budget_spent_usd": self.budget.spent,
                                "budget_reserved_usd": self.budget.reserved, "cap_usd": self.budget.cap})
                 try:
-                    rid = await self.budget.admit(estimate, self.budget_max_wait_s, on_wait)
-                except BudgetExceeded as e:
+                    rid = await self.budget.admit(estimate, self.admission_wait_s(), on_wait)
+                except (BudgetExceeded, BudgetWaitTimeout) as e:
                     self._log({**rec, **req(True), "error": f"{type(e).__name__}: {e}", "retryable": False,
                                "budget_spent_usd": self.budget.spent})
                     raise

@@ -584,13 +584,27 @@ def test_reserve_persist_failure_drops_reservation(tmp_path):
 
 
 async def test_admit_wait_is_bounded_and_reports_wait_once():
+    from oligopoly.llm import BudgetWaitTimeout
+
     b = Budget(1.0)
     b.reserve(0.6)  # never settled
     waits = []
-    with pytest.raises(BudgetExceeded, match="waited"):
+    with pytest.raises(BudgetWaitTimeout, match="waited") as e:  # not exhaustion: the run keeps going
         await asyncio.wait_for(b.admit(0.5, max_wait_s=0.05, on_wait=lambda: waits.append(1)), 5)
+    assert not isinstance(e.value, BudgetExceeded)
     assert waits == [1] and len(b.in_flight) == 1
     assert await b.admit(0.3, on_wait=lambda: waits.append(2)) and waits == [1]  # fits: no wait reported
+
+
+async def test_admission_wait_outlasts_the_longest_http_timeout(mock, make, tmp_path):
+    """The default admission backstop is 2 x the longest HTTP timeout used (at least Budget.DEFAULT_MAX_WAIT_S),
+    so a call never gives up waiting while another call's reservation can still legitimately be in flight."""
+    c = make()
+    assert c.timeout_s == 900 and Budget.DEFAULT_MAX_WAIT_S == 1800 and c.admission_wait_s() == 1800
+    mock.post(CHAT).mock(return_value=httpx.Response(200, json=completion()))
+    await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10, timeout_s=1500)
+    assert c.admission_wait_s() == 3000
+    assert make(budget_max_wait_s=5).admission_wait_s() == 5  # explicit setting wins
 
 
 async def test_cancel_while_waiting_for_budget_is_logged(mock, make, tmp_path):

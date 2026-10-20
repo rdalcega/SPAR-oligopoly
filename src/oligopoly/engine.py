@@ -47,7 +47,7 @@ from typing import Any, Literal, Protocol
 from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
-from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage, messages_sha256
+from .llm import BudgetExceeded, BudgetWaitTimeout, ChatResult, ContextOverflow, Usage, messages_sha256
 from .parse import PARSER_VERSION, Parsed, extract_object, parse_message, parse_price, parse_probe, strip_reasoning
 
 Kind = Literal["price", "message"]
@@ -632,11 +632,14 @@ class Market:
 
 
 def failure_reason(e: BaseException) -> str:
-    """Short reason recorded with a failed market: context_overflow, budget or error."""
+    """Short reason recorded with a failed market: context_overflow, budget, budget_wait (waited too long for
+    budget room; only this market fails, the run goes on) or error."""
     if isinstance(e, ContextOverflow):
         return "context_overflow"
     if isinstance(e, BudgetExceeded):
         return "budget"
+    if isinstance(e, BudgetWaitTimeout):
+        return "budget_wait"
     return "error"
 
 

@@ -218,6 +218,10 @@ sampling rule and reading notes saved alongside the analysis.
    (matched by call id and request messages), so the firms see exactly what an uninterrupted run would have
    shown them. A firm's failure no longer cancels the other firms' calls in flight. Records list resumes in
    `resumed_from_period`.
+   **2026-10-20:** a call that waits for budget room longer than the admission backstop (2 × the longest HTTP
+   timeout in use, at least 1,800 s; an in-flight reservation is held for up to one timeout) fails only its
+   market (reason `budget_wait`, checkpointed, retried on the next invocation); the run keeps scheduling. True
+   exhaustion (spent + reservation > cap) still stops new markets.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
     **2026-10-20:** with the rolling window (item 11) only the instructions are a stable prefix, so breakpoints
     go on the instruction messages only (Part 1's, and Part 2's once shown), never on the newest message.

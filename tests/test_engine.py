@@ -282,6 +282,14 @@ async def test_resume_and_failures(tmp_path):
                        max_concurrent_markets=1)
     assert s4["failed"] == [specs[0].key] and len(s4["not_started"]) == 2
 
+    # waiting too long for budget room is not exhaustion: only that market fails (with a checkpoint to resume)
+    from oligopoly.llm import BudgetWaitTimeout
+    s5 = await run_all(specs, {"mock": Failing(BudgetWaitTimeout, specs[0].key)}, tmp_path / "w", SHORT,
+                       max_concurrent_markets=1)
+    assert s5["failed"] == [specs[0].key] and len(s5["done"]) == 2 and not s5["not_started"]
+    fail = json.loads(engine.failure_path(tmp_path / "w", specs[0]).read_text())
+    assert fail["reason"] == "budget_wait" and engine.checkpoint_path(tmp_path / "w", specs[0]).exists()
+
 
 async def test_atomic_write(tmp_path, monkeypatch):
     path = tmp_path / "x.json"
