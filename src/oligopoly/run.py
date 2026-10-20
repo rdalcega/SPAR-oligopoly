@@ -2,8 +2,12 @@
 
     uv run python -m oligopoly.run --run-id pilot1 --models mock --n 2 4 --orderings NT-T \\
         --markets-per-cell 2 --part-lengths 6,4
-    uv run python -m oligopoly.run --run-id sweep1 --models gpt-oss-20b --n 2 4 6 8 10 \\
-        --orderings NT-T T-NT NT-NT --markets-per-cell 6 --budget-usd 40 --dry-run
+    uv run python -m oligopoly.run --run-id sweep1 --models gpt-oss-20b --markets-per-cell 6 \\
+        --budget-usd 40 --dry-run
+
+By default the run plays the paper's cells (config.PAPER_CELLS: NT-T at n = 2, 4, 6, 8; T-NT and NT-NT at
+n = 4), the default of full sweeps; --n and --orderings only narrow them. --grid plays every --n x --orderings
+pair instead (extension cells, e.g. n = 10), and needs both.
 
 Output goes to data/runs/<run-id>/: markets/<key>.json per completed market (skipped on rerun),
 markets/<key>.failed.json for failed ones (retried on rerun, resuming from markets/<key>.ckpt.json, written
@@ -32,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any
 
-from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models
+from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models, select_cells
 from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failure_path, failure_reason, is_complete,
                      is_market_record_file, market_fingerprint, record_texts_digest_matches, run_market, texts_digest,
                      write_json_atomic)
@@ -41,10 +45,15 @@ from .mock import MockClient
 from .parse import PARSER_VERSION
 
 
+def cell_specs(run_id: str, models: list[ModelConfig], cells: list[tuple[int, str]], markets_per_cell: int,
+               base_seed: int = 0) -> list[MarketSpec]:
+    return [MarketSpec(run_id, m, n, o, i, environment_seed(base_seed, n, o, i))
+            for m, (n, o), i in itertools.product(models, cells, range(markets_per_cell))]
+
+
 def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings: list[str],
                 markets_per_cell: int, base_seed: int = 0) -> list[MarketSpec]:
-    return [MarketSpec(run_id, m, n, o, i, environment_seed(base_seed, n, o, i))
-            for m, n, o, i in itertools.product(models, ns, orderings, range(markets_per_cell))]
+    return cell_specs(run_id, models, select_cells(ns, orderings, grid=True), markets_per_cell, base_seed)
 
 
 def overflowed(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig, context_length: int | None = None) -> bool:
@@ -334,8 +343,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="oligopoly.run", description=__doc__.split("\n")[0])
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--models", nargs="+", required=True, help="names from config/models.toml")
-    ap.add_argument("--n", nargs="+", type=int, required=True)
-    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), default=list(ORDERINGS))
+    ap.add_argument("--n", nargs="+", type=int, help="narrows the paper's cells (default: all of them)")
+    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), help="narrows the paper's cells")
+    ap.add_argument("--grid", action="store_true", help="play every --n x --orderings pair (extension cells)")
     ap.add_argument("--markets-per-cell", type=int, default=6)
     ap.add_argument("--budget-usd", type=float, help="USD cap for the run (required for live models)")
     ap.add_argument("--max-concurrent-markets", type=int, default=4)
@@ -364,7 +374,9 @@ async def main(argv: list[str] | None = None) -> int:
     if a.part_lengths:
         exp = exp.with_part_lengths(tuple(int(x) for x in a.part_lengths.split(",")))
     out_dir = Path(a.out_root) / a.run_id
-    specs = build_specs(a.run_id, models, a.n, a.orderings, a.markets_per_cell, a.seed)
+    if not (cells := select_cells(a.n, a.orderings, a.grid)):
+        raise ConfigError(f"no paper cell has n in {a.n} and ordering in {a.orderings}; pass --grid for extensions")
+    specs = cell_specs(a.run_id, models, cells, a.markets_per_cell, a.seed)
 
     if a.dry_run:  # read-only: no lock
         run_config(out_dir, a.seed, exp, models)
@@ -406,6 +418,7 @@ async def _run(a: argparse.Namespace, argv: list[str] | None, out_dir: Path, spe
         entries.append({"started": datetime.now(timezone.utc).isoformat(),
                         "argv": sys.argv[1:] if argv is None else argv, "git": _git(), "experiment": exp.to_dict(),
                         "models": {m.name: m.to_dict() for m in models}, "budget_usd": a.budget_usd,
+                        "cells": sorted({(s.n, s.ordering) for s in specs}),
                         "excluded": [s.key for s in specs if s.model.excludes(s.n, s.ordering)]})
         manifest.write_text(json.dumps(entries, indent=1))
         clients = {m.name: (mock if m.is_mock else live_client) for m in models}

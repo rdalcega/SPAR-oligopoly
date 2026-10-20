@@ -7,17 +7,31 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from .benchmarks import NS as PAPER_NS
 from .llm import DEFAULT_BYTES_PER_TOKEN_MIN
 
 ROOT = Path(__file__).resolve().parents[2]
 # part orderings: name -> (part 1 has chat, part 2 has chat)
 ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
+# the paper's (n, ordering) cells, the default of full sweeps (DECISIONS.md, 2026-10-20 scope update): NoTalk->Talk
+# at n in {2, 4, 6, 8}, both controls at n = 4
+PAPER_CELLS: tuple[tuple[int, str], ...] = (*((n, "NT-T") for n in PAPER_NS), (4, "T-NT"), (4, "NT-NT"))
 CONFIG_DIR = ROOT / "config"
 MOCK_PROVIDER = "mock"
 
 
 class ConfigError(ValueError):
     pass
+
+
+def select_cells(ns: list[int] | None, orderings: list[str] | None, grid: bool = False) -> list[tuple[int, str]]:
+    """(n, ordering) cells to play. By default the paper's cells, narrowed to `ns` and `orderings` when given;
+    with `grid`, every n x ordering pair (both required), for explicit extension runs."""
+    if grid:
+        if ns is None or orderings is None:
+            raise ConfigError("a grid of cells needs both n values and orderings")
+        return [(n, o) for n in ns for o in orderings]
+    return [c for c in PAPER_CELLS if (ns is None or c[0] in ns) and (orderings is None or c[1] in orderings)]
 
 
 @dataclass(frozen=True)

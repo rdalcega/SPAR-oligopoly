@@ -7,6 +7,7 @@ import pandas as pd
 
 from .. import benchmarks as b
 from .. import market
+from ..config import PAPER_CELLS
 from .load import KEY_COLS, num
 
 CELL = ["model", "n", "ordering"]
@@ -35,7 +36,7 @@ def window_mask(df: pd.DataFrame, w: str) -> pd.Series:
 
 def in_paper(n: int, ordering: str) -> bool:
     """Cells with a human counterpart: NoTalk->Talk at n in {2,4,6,8}; both controls at n = 4."""
-    return (ordering == "NT-T" and n in b.NS) or (ordering in ("T-NT", "NT-NT") and n == 4)
+    return (n, ordering) in PAPER_CELLS
 
 
 # ------------------------------------------------------------------------------------------- price levels
