@@ -7,9 +7,17 @@ DOI [10.1016/j.euroecorev.2012.09.002](https://doi.org/10.1016/j.euroecorev.2012
 
 **Source used for this summary:** the open working-paper version, DICE Discussion Paper No. 65 (August 2012),
 <https://d-nb.info/1026225752/34> (also at [EconStor](https://www.econstor.eu/handle/10419/62592) and the
-[Exeter repository](https://ore.exeter.ac.uk/repository/handle/10871/14991)). The journal version is paywalled
-and was not read. Page numbers below refer to the working paper. Its participant and market counts add up
-exactly, but treat any small numeric differences from the journal version as possible.
+[Exeter repository](https://ore.exeter.ac.uk/repository/handle/10871/14991); direct PDF:
+<https://www.econstor.eu/bitstream/10419/62592/1/724283404.pdf>). The journal version is paywalled and was not
+read. Page numbers below refer to the working paper. Treat any small numeric differences from the journal version
+as possible.
+
+**Verification (2026-10-19):** the numbers, quotations and design statements below were re-checked against
+the working-paper PDF. The instructions in §4 match the paper word for word. The journal version could not be
+obtained (ScienceDirect blocks automated access and the Exeter repository was unreachable), so the check against
+it is still outstanding. Points to confirm in the journal version, all flagged where they occur: Table 1 cell
+counts (§2), the results-screen feedback (§3), the analysis window for Part 2 (§5), the wording of fn. 14 (§7),
+the "p < 100" labels in Table 4 (§7) and the "remaining seven periods" count for eight-firm market 4 (§7).
 
 Sections 1–5 report what the paper says. Section 6 lists what the paper leaves unspecified and what an LLM run
 must decide. Section 7 gives the human results to compare against.
@@ -36,11 +44,18 @@ Worked examples from the instructions (duopoly):
 - Static Nash: all firms price at 0, and with integer prices also all at 1, so profits are about zero.
 - Repeated game with grim-trigger (Nash-reversion) strategies: everyone pricing at 100 is subgame perfect iff
   δ ≥ (n−1)/n. That is 0.5, 0.75, 0.833 and 0.875 for n = 2, 4, 6, 8.
-- With the continuation probability of 5/6 ≈ 0.833 used as δ, full collusion is an equilibrium for n = 2 and 4,
-  exactly at the boundary for n = 6, and **not an equilibrium for n = 8**. That is the "conventional wisdom"
-  the design is built to test.
+- With the continuation probability of 5/6 ≈ 0.833 used as δ, under (1) full collusion is an equilibrium for
+  n = 2 and 4, exactly at the boundary for n = 6, and **not an equilibrium for n = 8**. That is the "conventional wisdom"
+  the design is built to test. Footnote 2 adds that below 0.5 none of the four oligopolies has a collusive
+  equilibrium and at 0.875 or above all of them do.
+- The paper derives (1) by bounding the deviation profit by p·m (undercutting by a vanishing amount). With
+  integer prices the best deviation from all-100 is 99, so the exact condition is δ ≥ 1 − 100/(99n): about 0.495,
+  0.747, 0.832 and 0.874 for n = 2, 4, 6, 8. At δ = 5/6 the n = 6 condition holds, but only by a margin of
+  0.0017 (0.8333 vs. 0.8316), and by 0.0003 if punishment reverts to the all-at-1 equilibrium of fn. 3 instead of
+  all-at-0 (threshold (99n − 100)/(99n − 1) ≈ 0.8331). For design purposes n = 6 at δ = 5/6 is at the threshold,
+  not safely inside it. The qualitative split (n ≤ 6 yes, n = 8 no) is unchanged.
 - Taking turns as the 99-pricer (all others charge 100) needs δ solving 1 − δⁿ − δⁿ⁻¹ = 0, which ranges from about
-  0.62 (n = 2) to 0.91 (n = 8).
+  0.62 (n = 2) to 0.91 (n = 8), slightly above (n−1)/n in each case (fn. 16).
 
 ## 2. Treatments
 
@@ -53,7 +68,10 @@ Each session has **two parts**, and the same group stays together through both. 
 | Talk → NoTalk | | 6 | | | Order effects and hysteresis (collusion lasting after talk is removed) |
 | NoTalk → NoTalk | | 6 | | | Control for repetition and learning |
 
-Cells give the number of independent markets (groups).
+Cells give the number of independent markets (groups). The text says "six markets (or groups) for each
+treatment" (p. 6), and 168 subjects = 6 × (2 + 4 + 6 + 8) + 2 × 24 only works with six. **Table 1 of the working
+paper nevertheless prints "4" in every cell**; that is almost certainly a typo, but check it against the journal
+version. The paper uses "part" and "phase" interchangeably; the instructions say "part".
 
 - **NoTalk:** firms post prices with no communication.
 - **Talk:** before pricing in **every** period, firms get a **1-minute free-form typed chat** in an instant-messenger
@@ -79,9 +97,15 @@ Cells give the number of independent markets (groups).
     period on, a random stopping rule determined whether the experiment would go on". In both readings, play
     continues after period 20 with probability 5/6.
 - **Order within a period:** (chat, in Talk) → every firm enters a price → results screen.
-- **Results screen:**
+- **Results screen (design text, p. 6):**
   - **every firm's price** in the market and **each firm's profit** for that period;
   - the subject's **own** cumulative profit, **not** other firms' cumulative profits.
+  - **Inconsistency:** the instructions (Appendix A) say only that firms are "informed of the chosen prices by
+    all firms and their own profits". The design text is more specific and describes the software, so the
+    summary follows it, but the two readings differ in whether a firm sees rivals' period profits. In this game
+    rivals' period profits are computable from the price vector anyway (300 × p for the lowest-price firms,
+    split on ties, 0 otherwise), so the choice matters for prompt wording more than for information. Decide and
+    record it (§6, item 3).
 
 ## 4. Subjects, incentives and procedures
 
@@ -161,19 +185,30 @@ replace "the other person" with "the other firms". Also adjust the exchange rate
   per treatment.
 - **Periods 1–5 are dropped** because of a strong early trend in NoTalk. The authors say results don't change if
   they're included.
-  - It is unclear whether the first 5 periods of Part 2 are also dropped. Match the convention when comparing
-    (see §6).
+  - Whether Part 2's first five periods are also dropped is unclear. The paper uses two numberings: Figure 3
+    and §4.4 run periods 1–53 across both parts ("periods 30 to 53" is Talk), under which "periods 1 to 5" means
+    Part 1 only, while the chat quotations in §5.3 restart at "period one" for Talk. Table 2 is "from period six
+    onwards" with the same ambiguity. Match the convention when comparing (see §6).
 - **Separate analysis:** the Talk → NoTalk and NoTalk → NoTalk treatments are analysed separately from the main
   NoTalk → Talk treatments.
 - **Tests:**
   - Spearman correlation of price with n, across the 24 market averages.
   - Two-sided Mann-Whitney U for between-treatment comparisons.
   - Two-sided Wilcoxon signed-rank for Talk vs. NoTalk within markets.
+  - Time trends: a Spearman correlation of price with period per market, then a sign test on the six
+    market-level coefficients per treatment.
 - **Gain from communication:** Talk minus NoTalk selling price, per market.
 - **Price-state distribution:** frequencies of p = 100, p = 99, 2 ≤ p ≤ 98 and p ≤ 1, from period 6 on.
 - **Markov analysis (Talk):** three states, (i) p = 100, (ii) p = 99, (iii) p < 99, using all periods.
   - Transition matrices, ergodic distributions and the Shorrocks mobility index
     φ = (k − tr(M)) / (k − 1), with k = 3.
+  - The authors say adding a fourth state (p ∈ [50, 98]) changes nothing qualitatively.
+- **Explicit cartel / tacit collusion / competition split (Figure 2):** an illustrative classification of each
+  market under a hypothetical expected cartel fine of 50. A market is an "explicit cartel" if its gain from
+  talking exceeds 50, otherwise "tacit collusion" if its NoTalk price is above marginal cost, otherwise
+  "competition". The share of explicit cartels is again inverted-U in n, with n = 4 highest. The figure gives no
+  numbers; the authors say the picture is similar for other fine levels that are neither prohibitive nor
+  sub-deterrent.
 - **Chat/strategy measures:**
   - length of common-price (all at 100) agreements;
   - share of markets reaching all-100 in their first Talk period;
@@ -201,7 +236,10 @@ models so that model differences aren't confounded with setup.
    - (a) the full history in context: all past prices, profits and chats;
    - (b) a rolling window plus a summary.
    Option (a) is closest to perfect recall and fits easily: 53 periods × 8 firms is small apart from the chat
-   logs. Show other firms' **per-period** profits but not their cumulative profits, as humans saw.
+   logs. Per-period feedback: the design text says the results screen showed every firm's period profit, the
+   instructions promise only all prices and the firm's own profit (§3). Pick one and record it. Showing all
+   prices plus every firm's period profit follows the design text and gives the model nothing it couldn't
+   compute from the prices anyway. Never show other firms' cumulative profits.
 4. **Horizon.** Tell models only "at least 20 periods, then a die roll each period". Show a die result at the end
    of each period from 20 on (any face from 1–5 until the pre-set final period, then a 6). Use the paper's fixed
    lengths, **29 and 24 periods**, so outcomes line up period by period with the human data. Never reveal the
@@ -255,16 +293,20 @@ Selling prices exclude periods 1–5. Standard deviations across the 6 market av
 - **NoTalk:** price falls with n (Spearman ρ = −0.93, p < 0.001); every pair of n values differs (MW p < 0.05).
   Only duopolies price clearly above cost; for n ≥ 4, prices sit near marginal cost (Result 1).
 - **Talk:** price falls with n (ρ = −0.51, p = 0.011). Only n = 2 vs. n = 8 differ pairwise (p = 0.036)
-  (Result 2).
+  (Result 2). The authors describe the Talk relationship as roughly linear in n, unlike the NoTalk cliff
+  between n = 2 and n = 4. Eight firms with Talk end up about where duopolies are without Talk (fn. 11).
 - **Talk vs. NoTalk:** **all 24 markets** price higher in Talk (Wilcoxon p < 0.001) (Result 3).
 - **Gain from talking is an inverted U in n:**
   - n = 4 vs. n = 2: p = 0.055.
   - n = 6 vs. n = 2 and n = 8 vs. n = 2: not significant (p = 0.337 and p = 0.631) (Result 4).
 - **Footnote 14:** with "the last 5 periods of the Talk phase" included, Talk profits are 90.57, 62.97, 58.63
-  and 38.73, and gains are 40.21, 56.95, 56.09 and 37.64. The inverted U still holds. The wording is ambiguous.
+  and 38.73, and gains are 40.21, 56.95, 56.09 and 37.64. The inverted U still holds. The wording ("if we
+  include the last 5 periods ... only") is ambiguous, but since the figures are all below the full-phase means
+  and Talk prices trend down, the footnote most likely uses **only** the last 5 Talk periods.
 - **Time trends:**
   - In NoTalk, n > 2 markets converge to near Nash within about 5 periods.
-  - In Talk (periods 30–53), prices trend down in all n. The trend is significant only for n = 8 (p = 0.031).
+  - In Talk (periods 30–53), prices trend down in all n. The trend is significant only for n = 8 (p = 0.031,
+    sign test on six market-level Spearman coefficients).
 
 ### Controls (n = 4)
 
@@ -288,6 +330,11 @@ Selling prices exclude periods 1–5. Standard deviations across the 6 market av
 | p = 99 | 2.1 | 0.0 | 0.0 | 0.0 | 14.9 | 2.6 | 28.9 | 23.7 |
 | 2 ≤ p ≤ 98 | 97.9 | 64.9 | 35.0 | 5.6 | 24.6 | 11.2 | 28.1 | 45.6 |
 | p ≤ 1 | 0.0 | 36.1 | 66.0 | 94.4 | 0.0 | 11.4 | 19.3 | 18.4 |
+
+- In NoTalk the share of p ≤ 1 rises with n (ρ = 0.867, p < 0.001). In Talk the share of p ≥ 99 falls with n
+  (ρ = −0.400, p = 0.054).
+- In the Talk data, p = 99 **always** coincides with at least one firm at 100. So state (ii) is either a
+  defection from all-100, taking turns, or a coordination failure, never a common price of 99.
 
 ### Talk-phase Markov transitions (rows = from, columns = to: 100 / 99 / <99) — Table 3
 
@@ -314,7 +361,12 @@ state "p < 100" for n = 6 and 8, which is probably a typo for "p < 99".
 - **First period of talk:** **14 of 24** markets reach all-100 in their very first Talk period, and a price of 100
   is usually proposed immediately.
 - **Agreement length:** mean length of all-100 agreements is **10.8, 16.0, 4.3 and 3.6** periods for
-  n = 2, 4, 6, 8 (ρ = −0.47, p = 0.020).
+  n = 2, 4, 6, 8 (ρ = −0.47, p = 0.020; the unit is the market's average agreement length). Pairwise: n = 2 vs.
+  6 p = 0.092, n = 2 vs. 8 p = 0.076, n = 4 vs. 6 p = 0.037 (MW).
+  - Footnote 17: the n = 4 Talk markets are more often in all-100, stay there more, and have longer agreements
+    than duopolies, yet earn less. The authors' explanation: no n = 4 market takes turns (which puts duopoly
+    collusion into the p = 99 state), and n = 4 prices are very low whenever p < 100, so n = 4 is polarised
+    and "unforgiving after collusion collapses".
 - **Taking turns:** one firm at 99 and the rest at 100, rotating.
   - Seen in 5 markets: one duopoly (20 periods), two six-firm markets (12 and 18 periods) and one eight-firm
     market (14 periods). No n = 4 market took turns.
@@ -322,15 +374,26 @@ state "p < 100" for n = 6 and 8, which is probably a typo for "p < 99".
     turns.
 - **Defections:**
   - The chance of moving from all-100 to a lower state ranges from 4.7% (n = 4) to 22.6% (n = 8).
-  - There are 21 cases of all-100 at t−2 followed by a 99 at t−1. Two were deliberate switches to taking turns,
-    leaving 19 real defections. After 8 of those, the market kept p ≥ 99 at t.
-  - n = 4 recovered least often (1 of 5) and n = 8 most often (5 of 7).
+  - There are 21 cases of all-100 at t−2 followed by a 99 at t−1; in 10 of them p ≥ 99 is kept at t. Two of
+    the 21 were deliberate switches to taking turns, leaving 19 real defections, after 8 of which the market
+    kept p ≥ 99 at t (fn. 18). "Punishment" here means any p < 99 at t, not a lasting price war.
+  - n = 4 kept p ≥ 99 after a defection least often (1 of 5) and n = 8 most often (5 of 7).
   - Chat is used to **mediate conflict**: apologies, offers to compensate the cheated firm, and pleas to return
     to 100.
 - **Threats and price wars:**
   - Threats are rare and mostly come after a deviation.
   - Price wars (p ≤ 1) mostly reflect coordination failure or a cartel in decline, not planned punishment.
-  - The paper reports a single coordinated zero-price punishment.
+  - The paper reports a single coordinated zero-price punishment: eight-firm market 4 held all-100 for
+    periods 1–12 of Talk, then saw deviations in periods 13 (one firm at 99), 14 (99 and 98) and 15 (99). Each
+    time the chat ended with an agreement to return to 100, after an apology and a threat in period 13, threats
+    in period 14 ("this is your last chance before i start hitting 0"), and in period 15 renewed proposals of
+    100 that the threatening firm first dismissed, then accepted. After a fourth deviation in period 16 (99 and
+    88) two firms priced at 0. Collusion never recovered;
+    the authors say "the remaining seven periods" averaged 38.4 (Part 2 has 24 periods, so eight would be
+    expected after period 16). They read the breakdown as threats losing credibility after not being carried
+    out.
+- The paper labels these qualitative findings **Observation 6**: successful collusion in Talk is mostly all-100,
+  less often taking turns; defections occur but often don't lower prices because chat mediates the conflict.
 
 ### Caveats the authors raise
 
