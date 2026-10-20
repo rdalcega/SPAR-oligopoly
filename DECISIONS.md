@@ -110,3 +110,10 @@ permutation fixed per firm per market (seeded).
 ### §6 item 14 — cost
 
 Estimated from pilot runs before the sweep; the sweep runs under a cost cap approved beforehand.
+
+### Analysis — coding of chat transcripts
+
+No LLM judges. Chats are coded by (a) rule-based extraction (prices proposed or agreed in chat, compared with
+the prices actually posted, to classify agreements as kept or broken; mentions of punishment or retaliation
+followed by price cuts) and (b) qualitative reading of sampled transcripts by Claude Code subagents, with the
+sampling rule and reading notes saved alongside the analysis.
