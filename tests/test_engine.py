@@ -288,6 +288,60 @@ async def test_market_with_openrouter_client(tmp_path):
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
 
 
+async def test_compact_call_log_reconstructs_requests(tmp_path):
+    """calls.jsonl logs the full request only for each firm's first call and for failed (not rate-limited)
+    attempts; every request is rebuilt from the market record and matches its logged sha256."""
+    import httpx
+    import respx
+
+    from oligopoly.llm import BASE_URL, Budget, OpenRouterClient, messages_sha256, reconstruct_request
+
+    cfg = ModelConfig("tiny", "acme/tiny", "deepinfra/fp8", max_tokens=64)
+    ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "pricing": {"prompt": "0.000001", "completion": "0"},
+          "supported_parameters": ["seed"]}
+    n_posts = 0
+
+    def reply(request):
+        nonlocal n_posts
+        n_posts += 1
+        if n_posts in (5, 9):  # a server error and a rate limit, each retried
+            return httpx.Response(500 if n_posts == 5 else 429, json={"error": {"message": "x"}})
+        last = json.loads(request.content)["messages"][-1]["content"][-1]["text"]
+        content = '{"notes": "n", "price": 99}' if '"price": <integer' in last.splitlines()[-1] \
+            else '{"notes": "n", "message": "hi"}'
+        return httpx.Response(200, json={"id": "g", "model": "acme/tiny", "provider": "DeepInfra",
+                                         "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+                                         "usage": {"prompt_tokens": 5, "completion_tokens": 3, "cost": 0.0}})
+
+    with respx.mock() as r:
+        r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+            return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+        r.post(f"{BASE_URL}/chat/completions").mock(side_effect=reply)
+        async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="k",
+                                    backoff_base_s=0, rate_limit_backoff_base_s=0) as client:
+            s = MarketSpec("live", cfg, 2, "T-NT", 0, 1)
+            rec = json.loads((await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(3, 2)))).read_text())
+    log = [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    log = [x for x in log if "event" not in x]
+    assert len(log) == n_posts
+    seen: dict[str, list] = {}
+    for line in log:
+        L = line["tag"]["firm"]
+        msgs = reconstruct_request(rec, L, line["n_messages"], line["cache_upto"])
+        assert messages_sha256(msgs) == line["messages_sha256"]
+        assert line["prompt_bytes"] == sum(len(m["content"].encode()) for m in rec["histories"][L][:line["n_messages"]])
+        full = L not in seen or (line["error"] is not None and not line.get("rate_limited"))
+        assert ("request" in line) == full, line["tag"]
+        if full:
+            assert line["request"]["messages"] == msgs
+        else:  # the appended messages extend the previous logged request to this one
+            assert line["messages_from"] == len(seen[L])
+            assert seen[L] + line["messages_new"] == rec["histories"][L][:line["n_messages"]]
+            assert line["request_params"]["seed"] == line["seed"] and "messages" not in line["request_params"]
+        seen[L] = rec["histories"][L][:line["n_messages"]]
+    assert sum("request" in x for x in log) == 2 + 1  # one per firm, plus the HTTP 500
+
+
 async def test_context_overflow_fails_market(tmp_path):
     """A prompt that outgrows the pinned endpoint's context stops the market before the call is sent."""
     import httpx

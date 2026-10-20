@@ -82,7 +82,7 @@ def pilot_stats(call_logs: list[Path], model_id: str) -> PilotStats:
             u, kind = r["usage"], phase_kind((r.get("tag") or {}).get("phase"))
             s.calls += 1
             s.prompt_tokens += u["prompt_tokens"]
-            s.prompt_bytes += content_bytes(r["request"]["messages"])
+            s.prompt_bytes += content_bytes(r["request"]["messages"]) if "request" in r else r["prompt_bytes"]
             s.cached_tokens += u.get("cached_tokens") or 0
             s.output[kind].append(u["completion_tokens"])
             if r.get("latency_s") is not None:

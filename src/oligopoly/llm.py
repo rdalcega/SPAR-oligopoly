@@ -291,6 +291,23 @@ def with_cache_control(messages: Sequence[dict[str, Any]], upto: int | Sequence[
     return out
 
 
+def reconstruct_request(market_json: dict[str, Any], firm: str, n_messages: int,
+                        cache_upto: int | Sequence[int] | None = None) -> list[dict[str, Any]]:
+    """The messages of a logged request of `firm`, rebuilt from its market record (or failure record or
+    checkpoint): every request is a prefix of the firm's final history. Pass the log line's `n_messages` and
+    `cache_upto`; `messages_sha256(result)` then equals the line's `messages_sha256`."""
+    hist = market_json["histories"][firm]
+    if not 0 < n_messages <= len(hist):
+        raise ValueError(f"firm {firm}: n_messages {n_messages} outside 1..{len(hist)}")
+    msgs = [dict(m) for m in hist[:n_messages]]
+    return with_cache_control(msgs, cache_upto) if cache_upto is not None else msgs
+
+
+def messages_sha256(messages: Sequence[dict[str, Any]]) -> str:
+    """The `messages_sha256` logged for a request with these (cache_control-marked) messages."""
+    return _sha256(list(messages))
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -397,6 +414,15 @@ class OpenRouterClient:
     """Async OpenRouter client. Every attempt (failed or not, including budget refusals and cancellations)
     is appended as one JSON line to `log_path`. Use as an async context manager or call `aclose()`.
 
+    Log size: each line has `messages_sha256` (of the messages sent, cache_control included), `n_messages` and
+    `prompt_bytes` (UTF-8 bytes of the message contents). The full `request` payload is logged only for the
+    first request of each (run_id, market, firm) in a client's life, for a request that does not extend that
+    firm's previous logged one, and for failed attempts other than rate-limited ones. Other lines carry
+    `messages_from`, `messages_new` (the messages appended since the firm's previous logged request, without
+    cache_control) and `request_params` (the payload minus messages). Requests are prefixes of each firm's
+    final history, so `reconstruct_request` rebuilds any of them from the market record. Calls without
+    market and firm in `tag` always log the full request.
+
     Billing of failed attempts: an attempt that may have reached the provider (timeouts, dropped
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
     been sent is charged nothing. A response without `usage.cost` is charged nothing if it is an error
@@ -451,6 +477,8 @@ class OpenRouterClient:
         self._sem = asyncio.Semaphore(max_concurrency)
         self._endpoints: dict[str, list[Endpoint]] = {}
         self._ep_lock = asyncio.Lock()
+        # (run_id, market, firm) -> (n_messages, sha256) of the messages last logged for that firm
+        self._logged_prefix: dict[tuple[Any, ...], tuple[int, str]] = {}
         if budget.recovered_usd:
             self._log({"ts": _now(), "event": "budget_recovered_in_flight", "charged_usd": budget.recovered_usd,
                        "budget_spent_usd": budget.spent,
@@ -583,12 +611,29 @@ class OpenRouterClient:
             "cache_upto": cache_upto,
             "timeout_s": timeout,
             "messages_sha256": _sha256(msgs),
-            "request": payload,
+            "n_messages": len(msgs),
+            "prompt_bytes": sum(len(_content_text(m.get("content")).encode()) for m in msgs),
         }
+        firm_key = ((tag or {}).get("run_id"), tag["market"], tag["firm"]) \
+            if tag and "market" in tag and "firm" in tag else None
+        request_params = {k: v for k, v in payload.items() if k != "messages"}
+
+        def req(full: bool) -> dict[str, Any]:
+            """The request part of a log line: the full payload if `full`, for a firm's first logged request,
+            or when this request does not extend the firm's previous logged one; otherwise only the messages
+            appended since then (without cache_control; `cache_upto` says where breakpoints went)."""
+            raw = list(messages)
+            prev = self._logged_prefix.get(firm_key) if firm_key else None
+            if firm_key:
+                self._logged_prefix[firm_key] = (len(raw), _sha256(raw))
+            if full or prev is None or prev[0] > len(raw) or _sha256(raw[:prev[0]]) != prev[1]:
+                return {"request": payload}
+            return {"messages_from": prev[0], "messages_new": raw[prev[0]:], "request_params": request_params}
         try:
             ep = await self.resolve(model, provider)
         except PermanentError as e:
-            self._log({"ts": _now(), "attempt": 0, **base, "error": f"PermanentError: {e}", "retryable": False})
+            self._log({"ts": _now(), "attempt": 0, **base, **req(True), "error": f"PermanentError: {e}",
+                       "retryable": False})
             raise
         completion = max_tokens + int((reasoning or {}).get("max_tokens") or 0)  # cost bound: upper side
         bound = prompt_token_bound(msgs, bytes_per_token_min)
@@ -599,7 +644,8 @@ class OpenRouterClient:
         if ep.context_length and bound + completion_ctx > ep.context_length:
             err = (f"prompt bound {bound} + max_tokens {completion_ctx} exceeds the context length "
                    f"{ep.context_length} of {model} at {provider!r}")
-            self._log({"ts": _now(), "attempt": 0, **base, "error": f"ContextOverflow: {err}", "retryable": False})
+            self._log({"ts": _now(), "attempt": 0, **base, **req(True), "error": f"ContextOverflow: {err}",
+                       "retryable": False})
             raise ContextOverflow(err, guard={"bytes_per_token_min": bytes_per_token_min, "max_tokens": completion_ctx,
                                               "context_length": ep.context_length})
         estimate = estimate_cost(ep, msgs, completion)
@@ -645,7 +691,7 @@ class OpenRouterClient:
                 try:
                     rid = self.budget.reserve(estimate)
                 except BudgetExceeded as e:
-                    self._log({**rec, "error": f"BudgetExceeded: {e}", "retryable": False,
+                    self._log({**rec, **req(True), "error": f"BudgetExceeded: {e}", "retryable": False,
                                "budget_spent_usd": self.budget.spent})
                     raise
                 rec["reserved_usd"] = estimate
@@ -659,7 +705,7 @@ class OpenRouterClient:
                     self.budget.settle(rid, charged)
                     transport = isinstance(e, httpx.TransportError)
                     last_error = "cancelled" if isinstance(e, asyncio.CancelledError) else f"{type(e).__name__}: {e}"
-                    self._log({**rec, "latency_s": time.monotonic() - t0, "error": last_error,
+                    self._log({**rec, **req(True), "latency_s": time.monotonic() - t0, "error": last_error,
                                "retryable": transport, "charged_usd": charged, "charge_reason": charge_reason,
                                "budget_spent_usd": self.budget.spent})
                     if not transport:
@@ -704,7 +750,8 @@ class OpenRouterClient:
                              else _error_retryable(err))
                 last_error = f"HTTP {resp.status_code}: {json.dumps(err, default=str)[:2000]}"
                 rate_limited = retryable and _rate_limited(resp.status_code, err)
-                self._log({**rec, "error": last_error, "retryable": retryable, "rate_limited": rate_limited})
+                self._log({**rec, **req(not rate_limited), "error": last_error, "retryable": retryable,
+                           "rate_limited": rate_limited})
                 if not retryable:
                     raise PermanentError(resp.status_code, err)
                 await retry_wait(rate_limited, resp.headers.get("retry-after"))
@@ -728,12 +775,13 @@ class OpenRouterClient:
                 last_error = f"empty or errored choice: {choice.get('error')}"
                 retryable = _error_retryable(choice.get("error")) if choice.get("error") else True
                 rate_limited = retryable and bool(choice.get("error")) and _rate_limited(None, choice.get("error"))
-                self._log({**rec, "error": last_error, "retryable": retryable, "rate_limited": rate_limited})
+                self._log({**rec, **req(not rate_limited), "error": last_error, "retryable": retryable,
+                           "rate_limited": rate_limited})
                 if not retryable:
                     raise PermanentError(resp.status_code, choice.get("error"))
                 await retry_wait(rate_limited)
                 continue
-            self._log({**rec, "error": None})
+            self._log({**rec, **req(False), "error": None})
             return ChatResult(
                 content=message.get("content"), reasoning=message.get("reasoning"),
                 reasoning_details=message.get("reasoning_details"), finish_reason=choice.get("finish_reason"),
