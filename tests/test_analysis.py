@@ -311,3 +311,22 @@ def test_fn18_defection_with_deeper_cut():
     per, _ = M.strategy(t.market_period, t.firm_period)
     s = per.query("part == 2").iloc[0]
     assert (s["defections"], s["defections_kept"]) == (1, 1)
+
+
+@pytest.mark.parametrize("msg, prices, endorsed", [
+    ("Let's secure another 7,500 ECU together!", [], None),
+    ("Undercutting gives 29,700 vs 7,500, but let's keep 100.", [100], 100),
+    ("At 100 we each earn 11,250 ECU. Let's all set 100.", [100, 100], 100),
+    ("prices 7,500ECU", [], None),
+    ("We each get 75 profit", [], None),
+    ("Let us all set 100, ok?", [100], 100),
+])
+def test_thousands_separators_are_not_prices(msg, prices, endorsed):
+    assert C.prices_in(msg) == prices
+    assert C.endorsed_price(msg) == endorsed
+
+
+def test_stated_price_ignores_profit_amounts():
+    assert C.stated_own_price("I will set 11,250 ECU of profit") is None
+    assert C.stated_own_price("I will set 13,200") is None
+    assert C.stated_own_price("I will set 100, then see") == 100

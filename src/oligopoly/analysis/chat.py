@@ -46,10 +46,12 @@ import pandas as pd
 from .load import KEY_COLS
 
 I = re.I
-NUM = re.compile(r"(?<![\w#.\-])\$?(\d{1,3})(?![\d%]|\.\d|[a-z])", I)
+# A whole number, thousands separators included ("7,500" is 7500, not 7); values > 100 are discarded later.
+NUMBER = r"\d{1,3}(?:,\d{3})+|\d+"
+NUM = re.compile(rf"(?<![\w#.\-])\$?({NUMBER})(?![\d%]|,\d{{3}}(?!\d)|\.\d|[a-z])", I)
 NOT_BEFORE = re.compile(r"(?:period|round|part|turn|firm|player|number|no\.|step|day|#|top|first|last)\s*$", I)
 NOT_AFTER = re.compile(r"^\s*(?:more\s+|consecutive\s+|straight\s+)?(?:periods?|rounds?|times?|turns?|firms?|players?|"
-                       r"of (?:us|you|them)|companies|competitors|rivals|others|percent|ecu|points|(?:th|st|nd|rd|x)\b)", I)
+                       r"of (?:us|you|them)|companies|competitors|rivals|others|percent|ecu|points|profits?|(?:th|st|nd|rd|x)\b)", I)
 SENT = re.compile(r"(?<=[.!?;\n])\s+|\n")
 CONDITIONAL = re.compile(r"^\W*(?:if|otherwise|or else|unless|whoever|anyone who|should anyone|else)\b|\bif (?:any|some|you)", I)
 PAST = re.compile(r"\b(?:was|were|had|last (?:period|round)|previous(?:ly)?|earlier|before|got|earned|made|ago)\b", I)
@@ -89,15 +91,15 @@ DEVIATE = re.compile(r"undercut|defect|deviat|cheat|slightly (?:lower|below|unde
 STATED = re.compile(
     r"(?:\bI(?:'ll|’ll| will| shall| am going to|'m going to| plan to| intend to| choose to| decide to)?\s+"
     r"(?:set|choose|post|charge|price|go|stay|keep|stick|play|remain)\b|\bmy (?:price|choice|bid)\b|"
-    r"\bI(?:'m|’m| am)\s+(?:setting|choosing|posting|charging|pricing|keeping|staying|sticking)\b)([^.!?\d]{0,30}?)\$?(\d{1,3})\b"
-    r"(?!\s*%)", I)
+    r"\bI(?:'m|’m| am)\s+(?:setting|choosing|posting|charging|pricing|keeping|staying|sticking)\b)([^.!?\d]{0,30}?)\$?"
+    rf"({NUMBER})(?!\d|,\d{{3}}(?!\d)|\.\d)(?!\s*%)", I)
 
 
 def prices_in(text: str) -> list[int]:
     """Integers 0-100 in a price-like context, in order of appearance."""
     out = []
     for m in NUM.finditer(text or ""):
-        v = int(m.group(1))
+        v = int(m.group(1).replace(",", ""))
         if v <= 100 and not NOT_BEFORE.search(text[max(0, m.start() - 12):m.start()]) \
                 and not NOT_AFTER.search(text[m.end():m.end() + 25]):
             out.append(v)
@@ -128,7 +130,7 @@ def stated_own_price(text: str) -> int | None:
         if CONDITIONAL.search(sent):
             continue
         for m in STATED.finditer(sent):
-            v = int(m.group(2))
+            v = int(m.group(2).replace(",", ""))
             if v <= 100 and not PAST.search(m.group(1)) and not NOT_AFTER.search(sent[m.end():m.end() + 25]) and not NEGATION.search(sent[max(0, m.start() - 30):m.start()]):
                 out = v
     return out
