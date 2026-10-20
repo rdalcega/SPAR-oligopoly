@@ -185,7 +185,7 @@ class Budget:
     alongside the outstanding reservations waits until settlements make room, instead of failing a call that
     the remaining money covers. It raises BudgetExceeded on true exhaustion (`spent + amount > cap`) or when
     nothing is in flight to wait for, and BudgetWaitTimeout after waiting `max_wait_s` in all (a backstop
-    against a reservation that is never settled; it must exceed the longest HTTP timeout, since an in-flight
+    against a reservation that is never settled; it must exceed the longest per-attempt deadline, since an in-flight
     reservation is settled only when its request returns or times out). The cap stays strict: spent + reserved
     never exceeds it.
 
@@ -197,7 +197,7 @@ class Budget:
     found on load were left by a process that has exited.
     """
 
-    DEFAULT_MAX_WAIT_S = 1800.0  # 2 x the client's default HTTP timeout (900 s)
+    DEFAULT_MAX_WAIT_S = 3600.0  # 2 x the client's default per-attempt deadline (2 x the 900 s per-read timeout)
 
     def __init__(self, cap_usd: float, path: str | Path | None = None):
         self.cap = float(cap_usd)
@@ -636,6 +636,7 @@ class OpenRouterClient:
         max_concurrency: int = 8,
         max_retries: int = 5,
         timeout_s: float = 900.0,
+        deadline_s: float | None = None,
         backoff_base_s: float = 1.0,
         backoff_max_s: float = 60.0,
         rate_limit_backoff_base_s: float = 5.0,
@@ -657,15 +658,16 @@ class OpenRouterClient:
         self.budget = budget
         self.max_retries = max_retries
         self.timeout_s = timeout_s
+        self.deadline_s = deadline_s
         self.backoff_base_s, self.backoff_max_s = backoff_base_s, backoff_max_s
         self.rate_limit_backoff_base_s = rate_limit_backoff_base_s
         self.rate_limit_backoff_max_s = rate_limit_backoff_max_s
         self.rate_limit_max_wait_s = rate_limit_max_wait_s
         self.max_attempts = max_attempts
-        # admission backstop: None = the larger of Budget.DEFAULT_MAX_WAIT_S and 2 x the longest HTTP timeout
-        # any call of this client has used (an in-flight reservation is held for up to one timeout)
+        # admission backstop: None = the larger of Budget.DEFAULT_MAX_WAIT_S and 2 x the longest per-attempt
+        # deadline any call of this client has used (an in-flight reservation is held for up to one deadline)
         self.budget_max_wait_s = budget_max_wait_s
-        self._max_timeout_s = timeout_s
+        self._max_deadline_s = self._deadline(timeout_s, deadline_s)
         self.base_url = base_url
         self._http = http or httpx.AsyncClient(timeout=timeout_s)
         self._sem = asyncio.Semaphore(max_concurrency)
@@ -694,7 +696,7 @@ class OpenRouterClient:
         """How long a call may wait for budget room before BudgetWaitTimeout (see `budget_max_wait_s`)."""
         if self.budget_max_wait_s is not None:
             return self.budget_max_wait_s
-        return max(Budget.DEFAULT_MAX_WAIT_S, 2 * self._max_timeout_s)
+        return max(Budget.DEFAULT_MAX_WAIT_S, 2 * self._max_deadline_s)
 
     async def get_endpoints(self, model: str) -> list[Endpoint]:
         """Provider endpoints of `model` (cached per client)."""
@@ -719,17 +721,40 @@ class OpenRouterClient:
         with self.log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
-    async def _post(self, payload: dict[str, Any], timeout: float) -> httpx.Response:
-        """POST one attempt under an absolute deadline of `timeout` s for the whole request, body included.
-        httpx's float timeout bounds each read, so a trickling or keep-alive response could otherwise hold the
-        reservation indefinitely. Hitting the deadline raises httpx.ReadTimeout, handled like any read timeout
-        (charged its reservation, logged, retried with `timeout_retry`)."""
+    @staticmethod
+    def _deadline(timeout: float, deadline: float | None) -> float:
+        """The absolute per-attempt deadline: `deadline` if given, else 2 x the per-read `timeout`."""
+        return 2 * timeout if deadline is None else deadline
+
+    async def _post(self, payload: dict[str, Any], timeout: float, deadline: float) -> httpx.Response:
+        """POST one attempt. httpx's own timeouts (`timeout` s for connect, pool wait, each write and each read)
+        come first; their ConnectTimeout/PoolTimeout/ConnectError are NOT_SENT as before. Since httpx bounds
+        each read, a trickling or keep-alive response could still hold the reservation indefinitely, so the
+        whole attempt, body included, also runs under a larger absolute `deadline`.
+
+        Hitting the deadline raises httpx.ReadTimeout (charged its reservation, retried with `timeout_retry`)
+        if the request may have been sent: httpcore's trace showed request headers being written, or showed
+        nothing at all (no trace, e.g. a pool wait or a mock transport: unknown, so conservative). It raises
+        httpx.ConnectTimeout (NOT_SENT, charged nothing) only when the trace showed connection activity but no
+        request write."""
+        phase = "unknown"
+
+        async def trace(name: str, info: dict[str, Any]) -> None:
+            nonlocal phase
+            if "send_request_headers" in name:
+                phase = "sent"
+            elif phase == "unknown" and name.startswith("connection."):
+                phase = "connecting"
+
         try:
-            async with asyncio.timeout(timeout):
+            async with asyncio.timeout(deadline):
                 return await self._http.post(f"{self.base_url}/chat/completions", json=payload,
-                                             headers=self._headers, timeout=timeout)
+                                             headers=self._headers, timeout=timeout, extensions={"trace": trace})
         except TimeoutError as e:
-            raise httpx.ReadTimeout(f"absolute deadline of {timeout} s exceeded for the whole request") from e
+            msg = f"absolute deadline of {deadline} s exceeded for the whole request ({phase})"
+            if phase == "connecting":
+                raise httpx.ConnectTimeout(msg) from e
+            raise httpx.ReadTimeout(msg) from e
 
     def _backoff(self, attempt: int, retry_after: str | None) -> float:
         delay = random.uniform(0, min(self.backoff_max_s, self.backoff_base_s * 2 ** (attempt - 1)))
@@ -783,6 +808,7 @@ class OpenRouterClient:
         tag: dict[str, Any] | None = None,
         extra_body: dict[str, Any] | None = None,
         timeout_s: float | None = None,
+        deadline_s: float | None = None,
         bytes_per_token_min: float = DEFAULT_BYTES_PER_TOKEN_MIN,
     ) -> ChatResult:
         """One chat completion pinned to endpoint tag `provider` with fallbacks off.
@@ -790,7 +816,9 @@ class OpenRouterClient:
         `max_tokens` is required: the budget reserves against it. `reasoning` is OpenRouter's object, e.g.
         {"effort": "medium"}, {"max_tokens": 2000} or {"enabled": False}. `cache_upto` adds cache_control
         breakpoints (see `with_cache_control`). `tag` is caller metadata (market, firm, period, phase, ...)
-        copied into every log line. `timeout_s` overrides the client's HTTP timeout for this call.
+        copied into every log line. `timeout_s` overrides the client's per-read HTTP timeout (also connect,
+        pool and write) for this call; `deadline_s` overrides the absolute per-attempt deadline (default: the
+        client's `deadline_s`, else 2 x the per-read timeout).
         Context guard: if `prompt_token_bound(messages, bytes_per_token_min)` plus the completion allowance
         exceeds the pinned endpoint's context_length, the attempt is logged and ContextOverflow raised without
         sending anything.
@@ -812,7 +840,8 @@ class OpenRouterClient:
                 payload[k] = v
         payload.update(extra_body or {})
         timeout = self.timeout_s if timeout_s is None else timeout_s
-        self._max_timeout_s = max(self._max_timeout_s, timeout)
+        deadline = self._deadline(timeout, self.deadline_s if deadline_s is None else deadline_s)
+        self._max_deadline_s = max(self._max_deadline_s, deadline)
         base = {
             **self._ids,
             "tag": tag or {},
@@ -827,6 +856,7 @@ class OpenRouterClient:
             "require_parameters": require_parameters,
             "cache_upto": cache_upto,
             "timeout_s": timeout,
+            "deadline_s": deadline,
             "messages_sha256": _sha256(msgs),
             "n_messages": len(msgs),
             "prompt_bytes": sum(len(_content_text(m.get("content")).encode()) for m in msgs),
@@ -928,7 +958,7 @@ class OpenRouterClient:
                 t0 = time.monotonic()
                 try:
                     try:
-                        resp = await self._post(payload, timeout)
+                        resp = await self._post(payload, timeout, deadline)
                     except BaseException as e:  # incl. CancelledError: settle and log (no awaits) first
                         charged = 0.0 if isinstance(e, NOT_SENT) else estimate
                         charge_reason = "not_sent" if isinstance(e, NOT_SENT) else "sent_no_response"

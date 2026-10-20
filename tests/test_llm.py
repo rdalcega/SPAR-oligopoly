@@ -596,14 +596,16 @@ async def test_admit_wait_is_bounded_and_reports_wait_once():
     assert await b.admit(0.3, on_wait=lambda: waits.append(2)) and waits == [1]  # fits: no wait reported
 
 
-async def test_admission_wait_outlasts_the_longest_http_timeout(mock, make, tmp_path):
-    """The default admission backstop is 2 x the longest HTTP timeout used (at least Budget.DEFAULT_MAX_WAIT_S),
+async def test_admission_wait_outlasts_the_longest_deadline(mock, make, tmp_path):
+    """The default admission backstop is 2 x the longest per-attempt deadline used (at least DEFAULT_MAX_WAIT_S),
     so a call never gives up waiting while another call's reservation can still legitimately be in flight."""
     c = make()
-    assert c.timeout_s == 900 and Budget.DEFAULT_MAX_WAIT_S == 1800 and c.admission_wait_s() == 1800
+    assert c.timeout_s == 900 and Budget.DEFAULT_MAX_WAIT_S == 3600 and c.admission_wait_s() == 3600
     mock.post(CHAT).mock(return_value=httpx.Response(200, json=completion()))
     await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10, timeout_s=1500)
-    assert c.admission_wait_s() == 3000
+    assert c.admission_wait_s() == 6000  # deadline 2 x 1500
+    await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10, deadline_s=4000)
+    assert c.admission_wait_s() == 8000
     assert make(budget_max_wait_s=5).admission_wait_s() == 5  # explicit setting wins
 
 
@@ -677,8 +679,8 @@ async def test_log_chains_per_invocation(mock, make, tmp_path):
 
 
 async def test_trickling_response_hits_absolute_deadline(make, tmp_path):
-    """httpx's float timeout bounds each read; a body trickling a byte at a time must still end at timeout_s,
-    charged and retried like a read timeout."""
+    """httpx's float timeout bounds each read; a body trickling a byte at a time must still end at the
+    absolute deadline (2 x timeout_s), charged and retried like a read timeout."""
     posts = []
 
     async def trickle():
@@ -704,3 +706,57 @@ async def test_trickling_response_hits_absolute_deadline(make, tmp_path):
     assert first["charged_usd"] == first["reserved_usd"] > 0 and first["charge_reason"] == "sent_no_response"
     assert second["timeout_retry"] is True and second["error"] is None
     assert not c.budget.in_flight
+
+
+def _hanging_after(trace_events, seen):
+    """A transport that emits httpcore-style trace events for the first POST, then never answers."""
+    async def handler(request):
+        if request.method == "GET":
+            return httpx.Response(200, json=ENDPOINTS_BODY)
+        seen.append(request)
+        if len(seen) > 1:
+            return httpx.Response(200, json=completion())
+        for name in trace_events:
+            await request.extensions["trace"](name, {})
+        await asyncio.sleep(3600)
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_deadline_is_separate_and_larger_than_per_read_timeout(make, tmp_path):
+    """httpx keeps timeout_s for connect/pool/read; the absolute deadline defaults to 2 x timeout_s."""
+    seen = []
+    c = make(http=_hanging_after(["http11.send_request_headers.started"], seen))
+    r = await asyncio.wait_for(post(c, timeout_s=0.1), 5)
+    assert r.attempts == 2
+    assert seen[0].extensions["timeout"] == {"connect": 0.1, "read": 0.1, "write": 0.1, "pool": 0.1}
+    first, _ = lines(tmp_path)
+    assert first["timeout_s"] == 0.1 and first["deadline_s"] == 0.2
+    assert first["latency_s"] >= 0.19
+    # sent: charged like a read timeout and retried with timeout_retry
+    assert first["error"].startswith("ReadTimeout: absolute deadline") and "(sent)" in first["error"]
+    assert first["charged_usd"] == first["reserved_usd"] > 0 and first["charge_reason"] == "sent_no_response"
+
+
+async def test_deadline_before_request_written_is_not_charged(make, tmp_path):
+    """A deadline hit while still connecting (trace shows connection activity, no request write) is NOT_SENT."""
+    seen = []
+    c = make(http=_hanging_after(["connection.connect_tcp.started", "connection.connect_tcp.complete"], seen),
+             deadline_s=0.15)
+    r = await asyncio.wait_for(post(c, timeout_s=10), 5)
+    assert r.attempts == 2
+    first, second = lines(tmp_path)
+    assert first["deadline_s"] == 0.15
+    assert first["error"].startswith("ConnectTimeout: absolute deadline") and first["retryable"]
+    assert first["charged_usd"] == 0.0 and first["charge_reason"] == "not_sent"
+    assert second["timeout_retry"] is False
+    assert not c.budget.in_flight
+
+
+async def test_deadline_with_unknown_send_state_is_charged(make, tmp_path):
+    """No trace at all (e.g. a pool wait or a transport without tracing): unknown, so charged conservatively."""
+    seen = []
+    c = make(http=_hanging_after([], seen))
+    await asyncio.wait_for(post(c, timeout_s=10, deadline_s=0.1), 5)
+    first, second = lines(tmp_path)
+    assert "(unknown)" in first["error"] and first["charge_reason"] == "sent_no_response"
+    assert second["timeout_retry"] is True

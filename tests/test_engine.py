@@ -510,6 +510,16 @@ def test_pick_error_prefers_context_overflow():
                       BudgetExceeded)
 
 
+def test_timeout_and_deadline_are_operational(tmp_path):
+    """timeout_s (per read) and deadline_s (per attempt) reach the client but never the fingerprint."""
+    f = tmp_path / "models.toml"
+    f.write_text('[mock]\nmodel = "mock"\nprovider = "mock"\nmax_tokens = 100\ntimeout_s = 300\ndeadline_s = 700\n')
+    m = load_models(f)["mock"]
+    assert m.chat_kwargs()["timeout_s"] == 300 and m.chat_kwargs()["deadline_s"] == 700
+    assert m.identity() == dataclasses.replace(m, timeout_s=None, deadline_s=None).identity()
+    assert "deadline_s" not in m.identity() and "timeout_s" not in m.identity()
+
+
 async def test_excluded_cells_are_skipped(tmp_path):
     f = tmp_path / "models.toml"
     f.write_text('[mock]\nmodel = "mock"\nprovider = "mock"\nmax_tokens = 100\n'

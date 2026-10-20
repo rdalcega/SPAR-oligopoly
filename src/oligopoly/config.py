@@ -37,14 +37,19 @@ class ModelConfig:
     # the pinned provider must honour it (DECISIONS.md, 2026-10-20). Part of the model's identity (fingerprints).
     structured_outputs: bool = False
     pricing: dict[str, float] | None = None  # USD per million tokens, dry-run only
-    timeout_s: float | None = None  # HTTP timeout per call (client default 900 s)
+    # httpx timeout per read (also connect, pool wait and each write), client default 900 s; connect and pool
+    # timeouts mean the request was not sent and are not charged
+    timeout_s: float | None = None
+    # absolute deadline per attempt, body included (default 2 x timeout_s); a hit is charged its reservation
+    # unless the request is known not to have been sent
+    deadline_s: float | None = None
     # Context limits (DECISIONS.md, 2026-10-20): cells this model skips, as (ordering, n) pairs, and the lowest
     # UTF-8 bytes per prompt token assumed by the runtime context guard (llm.prompt_token_bound).
     exclude_cells: tuple[tuple[str, int], ...] = ()
     bytes_per_token_min: float = DEFAULT_BYTES_PER_TOKEN_MIN
 
     # settings that do not affect play; left out of fingerprints
-    OPERATIONAL = ("pricing", "timeout_s", "exclude_cells", "bytes_per_token_min")
+    OPERATIONAL = ("pricing", "timeout_s", "deadline_s", "exclude_cells", "bytes_per_token_min")
 
     def __post_init__(self) -> None:
         cells = []
@@ -87,6 +92,7 @@ class ModelConfig:
             "require_parameters": self.require_parameters,
             "extra_body": extra_body or None,
             "timeout_s": self.timeout_s,
+            "deadline_s": self.deadline_s,
             "bytes_per_token_min": self.bytes_per_token_min,
         }
 

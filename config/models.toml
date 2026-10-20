@@ -5,7 +5,10 @@
 # top_k (optional), max_tokens, reasoning (OpenRouter reasoning object), require_parameters,
 # cache_control (optional, default true: add a cache breakpoint on the newest message),
 # pricing (optional, USD per million tokens; used by --dry-run instead of live endpoint pricing),
-# timeout_s (optional HTTP timeout per call, default 900 s; a timed-out call is charged its reservation).
+# timeout_s (optional httpx timeout per read, also connect/pool/write, default 900 s; a read timeout is charged its
+#   reservation, a connect or pool timeout is not), deadline_s (optional absolute deadline per attempt, body
+#   included, default 2 x timeout_s; charged unless the request is known not to have been sent). Neither key
+#   affects play or fingerprints.
 # max_tokens is required for live models: the budget reserves its cost before every call.
 #
 # extra (optional): other sampling parameters sent as-is (presence_penalty, repetition_penalty, ...).
