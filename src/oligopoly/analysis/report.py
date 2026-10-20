@@ -93,9 +93,12 @@ def drop_excluded(records: list[dict[str, Any]], excluded: dict[str, set[tuple[s
 
 
 def build(run_ids: list[str], runs_root: str | Path,
-          excluded: dict[str, set[tuple[str, int]]] | None = None) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
-    """`excluded`: cells to leave out per model; default: `exclude_cells` in config/models.toml."""
-    recs, excluded_rows = drop_excluded(load_records(run_ids, runs_root),
+          excluded: dict[str, set[tuple[str, int]]] | None = None,
+          skip_mismatched_prompts: bool = False) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """`excluded`: cells to leave out per model; default: `exclude_cells` in config/models.toml.
+    `skip_mismatched_prompts`: leave out (with a warning) records played under other prompt wording than
+    their run records, instead of refusing (see `load_records`)."""
+    recs, excluded_rows = drop_excluded(load_records(run_ids, runs_root, skip_mismatched_prompts),
                                            excluded_cells_from_config() if excluded is None else excluded)
     if not recs:
         raise ValueError("every completed market is in an excluded cell")

@@ -11,6 +11,8 @@ from typing import Any
 import pandas as pd
 
 from .. import benchmarks as b
+from ..config import ConfigError, ModelConfig
+from ..engine import record_texts_digest_matches
 
 PHASE = {True: "Talk", False: "NoTalk"}
 KEY_COLS = ["run_id", "market_id", "model", "n", "ordering", "market_index"]
@@ -24,18 +26,43 @@ class Tables:
     markets: pd.DataFrame  # one row per market: design info and part lengths
 
 
-def load_records(run_ids: list[str], runs_root: str | Path) -> list[dict[str, Any]]:
-    """All completed market records (`<key>.json`, not `.failed.json`) of the given runs."""
+def run_texts_digest(run_dir: Path) -> str | None:
+    """The firm-facing wording digest recorded in the run's run_config.json (None for older runs)."""
+    path = run_dir / "run_config.json"
+    return json.loads(path.read_text()).get("texts_digest") if path.exists() else None
+
+
+def load_records(run_ids: list[str], runs_root: str | Path,
+                 skip_mismatched_prompts: bool = False) -> list[dict[str, Any]]:
+    """All completed market records (`<key>.json`, not `.failed.json`) of the given runs.
+
+    A record not played under the run's recorded prompt wording (`texts_digest` in run_config.json) raises
+    ValueError, or with `skip_mismatched_prompts` is left out with a printed warning. Older records without
+    their own `settings.texts_digest` are checked by recomputing their fingerprint, and get the run's digest
+    when it matches."""
     recs = []
     for rid in run_ids:
         d = Path(runs_root) / rid / "markets"
         files = sorted(p for p in d.glob("*.json") if not p.name.endswith(".failed.json"))
         if not files:
             raise FileNotFoundError(f"no completed markets in {d}")
+        digest = run_texts_digest(d.parent)
+        off = []
         for p in files:
             rec = json.loads(p.read_text())
             rec["_market_id"] = f"{rid}/{p.stem}"
+            if digest is not None:
+                if not record_texts_digest_matches(rec, digest):
+                    off.append(rec["_market_id"])
+                    continue
+                rec.setdefault("settings", {})["texts_digest"] = digest
             recs.append(rec)
+        if off and not skip_mismatched_prompts:
+            raise ValueError(f"{len(off)} market(s) of run {rid!r} were played under other prompt wording than "
+                             f"its run_config.json records, e.g. {off[0]}; pass skip_mismatched_prompts "
+                             f"(--skip-mismatched-prompts) to leave them out")
+        for m in off:
+            print(f"WARNING: skipped {m}: played under other prompt wording than run {rid!r} records")
     return recs
 
 
@@ -47,14 +74,28 @@ def num(x) -> float | None:
     return x if math.isfinite(x) else None
 
 
+def model_identity(settings_model: dict[str, Any]) -> dict[str, Any]:
+    """`ModelConfig.identity()` of a record's stored model settings (operational fields dropped, defaults
+    filled in); fields this code does not know are kept, so they still separate variants."""
+    known = set(ModelConfig.__dataclass_fields__)
+    play = {k: v for k, v in settings_model.items() if k not in ModelConfig.OPERATIONAL}
+    unknown = {k: v for k, v in play.items() if k not in known}
+    try:
+        identity = ModelConfig(**{k: v for k, v in play.items() if k in known}).identity()
+    except (TypeError, ConfigError):  # missing required fields: compare as stored
+        identity = {k: v for k, v in play.items() if k in known}
+    return {**identity, **unknown}
+
+
 def check_uniform_design(records: list[dict[str, Any]]) -> None:
-    """Refuse to pool markets of one model played under different settings (experiment config or model
-    identity), e.g. a pilot with a full run or a record left over from an earlier configuration."""
+    """Refuse to pool markets of one model played under different settings (experiment config, model
+    identity or firm-facing prompt wording), e.g. a pilot with a full run or a record left over from an
+    earlier configuration."""
     seen: dict[str, dict[str, str]] = {}
     for rec in records:
         st = rec["settings"]
-        model = {k: v for k, v in st.get("model", {}).items() if k not in ("pricing", "timeout_s")}
-        key = json.dumps({"experiment": st["experiment"], "model": model}, sort_keys=True)
+        key = json.dumps({"experiment": st["experiment"], "model": model_identity(st.get("model", {})),
+                          "texts_digest": st.get("texts_digest")}, sort_keys=True, default=str)
         seen.setdefault(rec["spec"]["model"], {}).setdefault(key, rec["_market_id"])
     mixed = {m: list(v.values()) for m, v in seen.items() if len(v) > 1}
     if mixed:

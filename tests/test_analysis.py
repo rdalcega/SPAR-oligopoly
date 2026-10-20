@@ -283,6 +283,64 @@ def test_excluded_cells_skipped_and_reported(tmp_path):
     assert set(tables["markets"]["ordering"]) == {"NT-NT", "T-NT"} and summary["meta"]["excluded_cells"] == []
 
 
+def test_uniform_design_ignores_operational_fields_only():
+    from oligopoly.analysis.load import check_uniform_design
+
+    base = {"name": "m", "model": "acme/m", "provider": "p", "temperature": 1.0, "max_tokens": 100}
+
+    def rec(i, digest="d1", **model):
+        r = record({1: flat((100, 100)), 2: flat((100, 100))}, idx=i)
+        r["settings"].update(model={**base, **model}, texts_digest=digest)
+        return r
+
+    check_uniform_design([rec(0), rec(1, pricing={"prompt": 1}, timeout_s=5, exclude_cells=[["NT-T", 8]],
+                                      bytes_per_token_min=2.0)])
+    with pytest.raises(ValueError, match="different settings"):
+        check_uniform_design([rec(0), rec(1, temperature=0.5)])
+    with pytest.raises(ValueError, match="different settings"):
+        check_uniform_design([rec(0), rec(1, digest="d2")])
+
+
+def test_records_off_the_run_prompt_digest_refused_or_skipped(tmp_path, capsys):
+    from oligopoly.analysis.load import load_records
+
+    runs = tmp_path / "runs" / "r" / "markets"
+    runs.mkdir(parents=True)
+    (runs.parent / "run_config.json").write_text(json.dumps({"texts_digest": "d1"}))
+    for i, d in enumerate(("d1", "d1", "d2")):
+        rec = record({1: flat((100, 100)), 2: flat((100, 100))}, idx=i, n=2)
+        rec["settings"]["texts_digest"] = d
+        rec.pop("_market_id")
+        (runs / f"m__n2__NT-T__m{i}.json").write_text(json.dumps(rec))
+    with pytest.raises(ValueError, match="other prompt wording"):
+        load_records(["r"], tmp_path / "runs")
+    recs = load_records(["r"], tmp_path / "runs", skip_mismatched_prompts=True)
+    assert [r["_market_id"] for r in recs] == ["r/m__n2__NT-T__m0", "r/m__n2__NT-T__m1"]
+    assert "WARNING: skipped r/m__n2__NT-T__m2" in capsys.readouterr().out
+
+
+async def test_legacy_records_checked_by_fingerprint(tmp_path):
+    from oligopoly.analysis.load import load_records
+    from oligopoly.config import ExperimentConfig, ModelConfig
+    from oligopoly.engine import MarketSpec, environment_seed, run_market, texts_digest
+    from oligopoly.mock import MockClient
+
+    exp = ExperimentConfig(part_lengths=(2, 1))
+    spec = MarketSpec("r", ModelConfig("mock", "mock", "mock", max_tokens=10, timeout_s=3), 2, "NT-NT", 0,
+                      environment_seed(0, 2, "NT-NT", 0))
+    run = tmp_path / "runs" / "r"
+    path = await run_market(spec, MockClient(), run, exp)
+    rec = json.loads(path.read_text())
+    del rec["settings"]["texts_digest"]  # as written before records stored it
+    path.write_text(json.dumps(rec))
+    (run / "run_config.json").write_text(json.dumps({"texts_digest": texts_digest(exp)}))
+    [loaded] = load_records(["r"], tmp_path / "runs")
+    assert loaded["settings"]["texts_digest"] == texts_digest(exp)
+    (run / "run_config.json").write_text(json.dumps({"texts_digest": "other"}))
+    with pytest.raises(ValueError, match="other prompt wording"):
+        load_records(["r"], tmp_path / "runs")
+
+
 # ------------------------------------------------------------------------------------------- negative controls
 
 
