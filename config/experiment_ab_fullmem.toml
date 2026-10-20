@@ -1,0 +1,13 @@
+# Market design held fixed across models (DECISIONS.md). The runner's --part-lengths overrides
+# part_lengths for pilots only.
+
+part_lengths = [29, 24]  # §6 item 4: pre-drawn, never revealed
+min_periods = 20         # stated to firms; die thrown after every period from the 20th on
+chat_rounds = 3          # §6 item 1: simultaneous rounds, early close when all pass
+char_limit = 300
+max_reasks = 2           # §6 item 8
+notes = true             # §6 item 3: private notes field on every decision
+memory_window = 60  # PILOT ONLY: A/B check vs the 3-period window (effectively full history)
+notes_max_words = 200    # engine details 12: hard cap on the notes carried as memory (instructions say ~150 words)
+notes_max_chars = 1400
+post_game_probe = true   # DECISIONS.md 2026-10-20: comprehension questions after the last period (after all play)

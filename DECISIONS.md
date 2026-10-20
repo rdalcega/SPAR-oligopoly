@@ -166,6 +166,25 @@ schema. Parsing and re-asks are unchanged (an answer is still validated as befor
 accepted the schema for both gpt-oss-20b and qwen3-14b and all 4 answers were valid JSON matching it. Whether to
 turn it on for the sweep is a separate decision; it changes the decoding, so hold it fixed across a run.
 
+**2026-10-20 (Claude Code, overnight, under the PI's instruction to rule out design faults): structured outputs
+stay off for the sweep.** With the new chat-turn wording and re-ask, the short n = 10 pilot had 0 forced passes
+for both models (gpt-oss: 33 of 180 chat turns needed a re-ask, all succeeded; qwen3-14b: 1 of 180), against
+~19% forced passes before. Since no firm is silenced, constrained decoding isn't needed, and leaving it off
+avoids changing how the models generate. Re-ask rates are reported as format slips, separate from strategic
+mistakes.
+
+**2026-10-20: memory-window A/B check (pilot only, not part of the sweep).** To rule out the 3-period window as
+a design fault after a full-length gpt-oss duopoly sat at price 1 throughout, 4 n = 2 NT-T markets per model
+were run with `memory_window = 3` (run `ab-w3`) and with 60 (effectively full history; run `ab-w60`,
+`config/experiment_ab_fullmem.toml`, pilot only). Mean Talk-part selling price: gpt-oss 52/1/2/1 (window 3) vs
+72/1/1/100 (window 60); qwen3-14b 1/85/63/75 (window 3), while its window-60 markets all hit the context guard.
+Both models do collude in pairs under the design, so the sweep keeps the PI's 3-period window; the possible
+memory effect for gpt-oss (4 vs 4 markets, not significant) is reported as a finding and a follow-up option.
+
+**2026-10-20: sweep budget.** Measured projections from the new-design pilots: gpt-oss $13.31 and qwen3-14b
+$44.45 for 90 markets each (conservative bounds $19.26 and $63.65). Key balance $60.03 at launch; the sweep cap is
+$57, applied in the §6 item 11 priority order.
+
 ### §6 item 9 — sampling
 
 Each model uses its model card's recommended settings for reasoning mode (temperature, top_p), reasoning effort
