@@ -60,7 +60,12 @@ class BudgetExceeded(OpenRouterError):
 
 
 class ContextOverflow(OpenRouterError):
-    """The prompt's token bound plus max_tokens exceeds the pinned endpoint's context length (not sent)."""
+    """The prompt's token bound plus max_tokens exceeds the pinned endpoint's context length (not sent).
+    `guard` holds the guard settings that refused it: bytes_per_token_min, max_tokens, context_length."""
+
+    def __init__(self, message: str, guard: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.guard = guard
 
 
 # ---------------------------------------------------------------- endpoint metadata
@@ -595,7 +600,8 @@ class OpenRouterClient:
             err = (f"prompt bound {bound} + max_tokens {completion_ctx} exceeds the context length "
                    f"{ep.context_length} of {model} at {provider!r}")
             self._log({"ts": _now(), "attempt": 0, **base, "error": f"ContextOverflow: {err}", "retryable": False})
-            raise ContextOverflow(err)
+            raise ContextOverflow(err, guard={"bytes_per_token_min": bytes_per_token_min, "max_tokens": completion_ctx,
+                                              "context_length": ep.context_length})
         estimate = estimate_cost(ep, msgs, completion)
 
         last_error: str | None = None

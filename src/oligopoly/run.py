@@ -44,18 +44,29 @@ def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings
             for m, n, o, i in itertools.product(models, ns, orderings, range(markets_per_cell))]
 
 
-def overflowed(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool:
-    """Whether the market's failure record says it hit the context guard under the current settings."""
+def overflowed(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig, context_length: int | None = None) -> bool:
+    """Whether the market's failure record says it hit the context guard under the current settings: the same
+    market fingerprint and the same guard settings (`guard` in the record: bytes_per_token_min, max_tokens and
+    the endpoint's context_length; the last is compared only when `context_length` is known). A record without
+    `guard` (written before it was stored) counts as the same settings."""
     path = failure_path(out_dir, spec)
     if not path.exists():
         return False
     rec = json.loads(path.read_text())
-    return rec.get("reason") == "context_overflow" and rec.get("fingerprint") == market_fingerprint(spec, exp)
+    if rec.get("reason") != "context_overflow" or rec.get("fingerprint") != market_fingerprint(spec, exp):
+        return False
+    guard = rec.get("guard")
+    if not isinstance(guard, dict):
+        return True
+    current = {"bytes_per_token_min": spec.model.bytes_per_token_min, "max_tokens": spec.model.max_tokens,
+               **({"context_length": context_length} if context_length is not None else {})}
+    return all(guard.get(k) == v for k, v in current.items())
 
 
-def plan(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> str:
+def plan(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig, context_length: int | None = None) -> str:
     """What `run_all` does with a spec: "excluded", "skipped" (complete), "mismatch" (record played under
-    other settings), "overflow" (failed with context_overflow under these settings) or "run"."""
+    other settings), "overflow" (failed with context_overflow under these settings, guard settings included)
+    or "run". `context_length` is the pinned endpoint's current context length, if known."""
     if spec.model.excludes(spec.n, spec.ordering):
         return "excluded"
     complete = is_complete(out_dir, spec, exp)
@@ -63,9 +74,24 @@ def plan(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> str:
         return "skipped"
     if complete is None:
         return "mismatch"
-    if overflowed(out_dir, spec, exp):  # deterministic enough that a retry would pay to fail again
+    if overflowed(out_dir, spec, exp, context_length):  # deterministic enough that a retry would pay to fail again
         return "overflow"
     return "run"
+
+
+async def context_lengths(specs: list[MarketSpec], clients: dict[str, ChatClient]) -> dict[str, int | None]:
+    """Model name -> the pinned endpoint's context length, from clients that can resolve endpoints (None if
+    unknown)."""
+    out: dict[str, int | None] = {}
+    for m in {s.model.name: s.model for s in specs}.values():
+        resolve = getattr(clients.get(m.name), "resolve", None)
+        out[m.name] = None
+        if resolve is not None and not m.is_mock:
+            try:
+                out[m.name] = (await resolve(m.model, m.provider)).context_length
+            except Exception:
+                pass
+    return out
 
 
 async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_dir: Path, exp: ExperimentConfig,
@@ -77,9 +103,10 @@ async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_d
     summary: dict[str, list[str]] = {"done": [], "skipped": [], "excluded": [], "failed": [], "not_started": []}
     sem = asyncio.Semaphore(max_concurrent_markets)
     stop = asyncio.Event()
+    ctx = await context_lengths(specs, clients)
 
     async def one(spec: MarketSpec) -> None:
-        action = plan(out_dir, spec, exp)
+        action = plan(out_dir, spec, exp, ctx.get(spec.model.name))
         if action == "excluded":
             summary["excluded"].append(spec.key)
             print(f"EXCLUDED {spec.key}: cell excluded for this model (context limit; exclude_cells)", flush=True)

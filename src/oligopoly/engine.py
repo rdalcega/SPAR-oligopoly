@@ -368,6 +368,7 @@ async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
         await m.run()
     except BaseException as e:
         write_json_atomic(fail, {"spec": spec.to_dict(), "reason": failure_reason(e),
+                                 **({"guard": e.guard} if isinstance(e, ContextOverflow) else {}),
                                  "error_type": type(e).__name__, "error": str(e),
                                  "traceback": traceback.format_exc(), "periods_completed": len(m.periods) if m else 0,
                                  **({k: v for k, v in m.record().items() if k != "spec"} if m else {})})

@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import os
 import re
@@ -10,7 +11,7 @@ from oligopoly.config import ConfigError, ExperimentConfig, ModelConfig, load_mo
 from oligopoly.engine import MarketSpec, environment_seed, market_path, run_market
 from oligopoly.llm import BudgetExceeded, RetriesExhausted
 from oligopoly.mock import MockClient
-from oligopoly.run import build_specs, main, run_all
+from oligopoly.run import build_specs, main, plan, run_all
 
 MOCK = ModelConfig("mock", "mock", "mock", temperature=1.0, max_tokens=100, reasoning={"effort": "medium"})
 SHORT = ExperimentConfig(part_lengths=(6, 4))
@@ -316,6 +317,16 @@ async def test_context_overflow_fails_market(tmp_path):
     # a rerun does not pay to overflow again
     summary = await run_all([s], {"tiny": MockClient()}, tmp_path, ExperimentConfig(part_lengths=(6, 4)))
     assert summary["failed"] == [s.key] and not summary["done"]
+    # the failure stores the guard settings; a change in any of them makes the market worth retrying
+    assert fail["guard"] == {"bytes_per_token_min": 2.5, "max_tokens": 64, "context_length": 2600}
+    exp = ExperimentConfig(part_lengths=(6, 4))
+    assert plan(tmp_path, s, exp) == plan(tmp_path, s, exp, 2600) == "overflow"
+    assert plan(tmp_path, s, exp, 4000) == "run"  # the endpoint's context grew
+    looser = MarketSpec("live", dataclasses.replace(cfg, bytes_per_token_min=3.0), 2, "NT-NT", 0, 1)
+    assert plan(tmp_path, looser, exp, 2600) == "run"
+    # a failure record from before the guard was stored is not retried
+    engine.write_json_atomic(engine.failure_path(tmp_path, s), {k: v for k, v in fail.items() if k != "guard"})
+    assert plan(tmp_path, looser, exp, 4000) == "overflow"
 
 
 def test_pick_error_prefers_context_overflow():
