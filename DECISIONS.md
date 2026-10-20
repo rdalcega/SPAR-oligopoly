@@ -92,11 +92,28 @@ reasoning are private.
   but never fed back.
 - Per-period feedback: every firm's price and every firm's profit for that period, plus the firm's own
   cumulative profit. Never other firms' cumulative profits.
+- **2026-10-20: superseded by a 3-period rolling window plus self-written memory** (decided by Rodrigo: humans
+  don't have perfect recall, and this models it better; option (b) of §6 item 3). Each call's context is:
+  (1) the instructions — Part 1's always, plus Part 2's once Part 2 has started (like the humans' instruction
+  sheets); (2) the firm's own latest memory; (3) its cumulative profit; (4) the last 3 completed periods
+  verbatim (results, chat messages, the firm's own answers and any re-ask exchanges), counted across the part
+  boundary; (5) the current period's turns so far and the new prompt. The `notes` field becomes the firm's
+  private memory: rewritten in full at every decision (chat turns and prices, about 150 words at most), the
+  latest version replaces the previous one, and it is the only thing carried beyond the window. The
+  instructions tell firms neutrally that they will see full details of only the last 3 periods and that their
+  notes carry forward (mechanics only, no behavioural hint). Native reasoning is still logged and never fed
+  back. Context no longer grows with the market, which makes prefix caching irrelevant and cuts cost.
 
 ### §6 item 11 — number of markets
 
 6 independent markets per model × n × ordering cell, matching the human sample: 8 × 5 × 3 × 6 = 720 markets.
 The market is the unit of analysis.
+
+**2026-10-20 update** (decided by Rodrigo): 6 markets per cell, two models — gpt-oss-20b and Qwen3-14B (re-added
+now that the rolling window keeps its context bounded; 5 × 3 × 6 = 90 markets each). If the measured cost
+projection exceeds the cap, priority is: (1) gpt-oss, all cells; (2) Qwen3-14B, the human-comparable cells
+(NT-T at n = 2, 4, 6, 8; T-NT and NT-NT at n = 4); (3) Qwen3-14B, the remaining cells. Any shortfall is
+reported, not imputed.
 
 ### §6 item 4 — horizon
 
