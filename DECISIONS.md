@@ -185,6 +185,13 @@ memory effect for gpt-oss (4 vs 4 markets, not significant) is reported as a fin
 $44.45 for 90 markets each (conservative bounds $19.26 and $63.65). Key balance $60.03 at launch; the sweep cap is
 $57, applied in the §6 item 11 priority order.
 
+**2026-10-20, during the sweep:** a network outage failed ~33 markets (connection errors; nothing billed); they
+resume from checkpoints under the patient-retry fix (e3e24a1). gpt-oss ran above projection (~$0.20 vs $0.15
+per market), so its resume pass gets a $25 cap instead of $18, keeping gpt-oss (priority 1) complete. Qwen3-14B
+keeps its $39 cap and runs its priority cells first; the key's own limit is the hard backstop, so any shortfall
+falls on Qwen3-14B extension cells, as the priority order intends. The Qwen3-14B run was restarted with 32
+concurrent markets (from 16) to finish overnight (`scripts/sweep_2026-10-20_qwen_resume.sh`).
+
 ### §6 item 9 — sampling
 
 Each model uses its model card's recommended settings for reasoning mode (temperature, top_p), reasoning effort
