@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -273,3 +274,130 @@ async def test_market_with_openrouter_client(tmp_path):
     assert "cache_control" in b["messages"][-1]["content"][-1]
     assert rec["usage"]["calls"] == len(bodies) == 2 * (2 + 1 + 1)  # 2 firms x (2 NoTalk + 1 chat + 1 price)
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
+
+
+# ---------------------------------------------------------------- review regressions
+
+
+class Scripted(MockClient):
+    """Answers by phase with fixed content."""
+
+    def __init__(self, by_phase):
+        super().__init__(record=True)
+        self.by_phase = by_phase
+
+    async def chat(self, messages, *, tag=None, **kw):
+        r = await super().chat(messages, tag=tag, **kw)
+        r.content = self.by_phase(tag)
+        return r
+
+
+async def test_history_stores_value_used(tmp_path):
+    def answer(tag):
+        if tag["phase"] == "price":
+            return '{"notes": {"plan": 1}, "price": "99", "extra": "x"}'
+        return '{"notes": "hi", "message": "' + "x" * 400 + '"}' if tag["firm"] == "A" else '{"message": "pass"}'
+
+    rec, _, _ = await play(spec(2, "T-NT"), tmp_path, exp=ExperimentConfig(part_lengths=(1, 1), chat_rounds=1),
+                           client=Scripted(answer))
+    a = [json.loads(m["content"]) for m in rec["histories"]["A"] if m["role"] == "assistant"]
+    b = [json.loads(m["content"]) for m in rec["histories"]["B"] if m["role"] == "assistant"]
+    assert a[0] == {"notes": "hi", "message": "x" * 300}  # truncated as posted
+    assert b[0] == {"message": None}  # "pass" stored as a pass
+    assert a[1] == {"notes": {"plan": 1}, "price": 99}  # coerced price; notes as returned
+
+
+async def test_gather_prefers_budget_exceeded():
+    async def retries():
+        raise RetriesExhausted("x")
+
+    async def budget_on_cancel():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            raise BudgetExceeded("cap") from None
+
+    m = engine.Market(spec(), MockClient(), SHORT)
+    with pytest.raises(BudgetExceeded):
+        await m.gather({"A": budget_on_cancel(), "B": retries()})
+    nested = ExceptionGroup("g", [RetriesExhausted("a"), ExceptionGroup("h", [ValueError(), BudgetExceeded("b")])])
+    assert isinstance(engine.pick_error(nested), BudgetExceeded)
+    assert isinstance(engine.pick_error(ExceptionGroup("g", [ValueError(), KeyError()])), ValueError)
+
+
+async def test_setup_error_writes_failure(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("bad die")
+
+    monkeypatch.setattr(engine.market, "die_schedule", boom)
+    s = spec()
+    with pytest.raises(RuntimeError):
+        await run_market(s, MockClient(), tmp_path, SHORT)
+    fail = json.loads(engine.failure_path(tmp_path, s).read_text())
+    assert fail["error_type"] == "RuntimeError" and fail["periods_completed"] == 0
+
+
+async def test_mock_kind_from_phase():
+    c = MockClient(malformed_rate=0.0)
+    msgs = [{"role": "user", "content": "anything"}]
+    for seed in range(20):
+        price = await c.chat(msgs, model="m", provider="mock", seed=seed, tag={"phase": "price"})
+        chat = await c.chat(msgs, model="m", provider="mock", seed=seed, tag={"phase": "chat1"})
+        assert "price" in price.content and "message" in chat.content
+
+
+async def test_market_fingerprint_mismatch_not_complete(tmp_path):
+    specs = build_specs("r", [MOCK], [2], ["NT-NT"], 1)
+    await run_all(specs, {"mock": MockClient()}, tmp_path, SHORT)
+    path = market_path(tmp_path, specs[0])
+    assert engine.is_complete(tmp_path, specs[0], SHORT)
+    assert engine.is_complete(tmp_path, specs[0], ExperimentConfig(part_lengths=(6, 5))) is None
+    before = path.read_bytes()
+    s = await run_all(specs, {"mock": MockClient()}, tmp_path, ExperimentConfig(part_lengths=(6, 5)))
+    assert s["failed"] == [specs[0].key] and path.read_bytes() == before  # never overwritten
+
+
+def models_file(tmp_path, temperature=1.0):
+    f = tmp_path / "models.toml"
+    f.write_text(f'[mock]\nmodel = "mock"\nprovider = "mock"\ntemperature = {temperature}\nmax_tokens = 100\n'
+                 '[mock2]\nmodel = "mock"\nprovider = "mock"\nmax_tokens = 100\ntimeout_s = 5\n'
+                 '[live]\nmodel = "acme/tiny"\nprovider = "nope"\nmax_tokens = 100\n')
+    return str(f)
+
+
+async def test_run_config_resume(tmp_path):
+    base = ["--run-id", "rc", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1", "--part-lengths",
+            "2,1", "--out-root", str(tmp_path / "runs")]
+    mf = models_file(tmp_path)
+    assert await main(base + ["--models", "mock", "--models-file", mf]) == 0
+    cfg_path = tmp_path / "runs" / "rc" / "run_config.json"
+    assert list(json.loads(cfg_path.read_text())["models"]) == ["mock"]
+    assert await main(base + ["--models", "mock", "mock2", "--models-file", mf]) == 0  # new model appended
+    cfg = json.loads(cfg_path.read_text())
+    assert list(cfg["models"]) == ["mock", "mock2"] and cfg["experiment"]["part_lengths"] == [2, 1]
+    assert "timeout_s" not in cfg["models"]["mock2"]
+    with pytest.raises(ConfigError, match="new --run-id"):
+        await main(base + ["--models", "mock", "--models-file", models_file(tmp_path, temperature=0.5)])
+    with pytest.raises(ConfigError, match="experiment"):
+        await main(base[:-3] + ["3,1", "--out-root", str(tmp_path / "runs"), "--models", "mock2",
+                                "--models-file", mf])
+    with pytest.raises(ConfigError, match="base_seed"):
+        await main(base + ["--models", "mock", "--models-file", mf, "--seed", "1"])
+
+
+async def test_preflight_aborts_before_any_market(tmp_path, monkeypatch):
+    import httpx
+    import respx
+
+    from oligopoly.llm import BASE_URL
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "pricing": {"prompt": "0", "completion": "0"}}
+    with respx.mock() as r:
+        r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+            return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+        with pytest.raises(ConfigError, match="(?s)preflight.*'nope'"):
+            await main(["--run-id", "pf", "--models", "mock", "live", "--n", "2", "--budget-usd", "1",
+                        "--models-file", models_file(tmp_path), "--out-root", str(tmp_path / "runs")])
+    run = tmp_path / "runs" / "pf"
+    assert not (run / "markets").exists() and not (run / "run_config.json").exists()

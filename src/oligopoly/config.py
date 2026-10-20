@@ -29,6 +29,9 @@ class ModelConfig:
     require_parameters: bool = True
     cache_control: bool = True
     pricing: dict[str, float] | None = None  # USD per million tokens, dry-run only
+    timeout_s: float | None = None  # HTTP timeout per call (client default 900 s)
+
+    OPERATIONAL = ("pricing", "timeout_s")  # settings that do not affect play; left out of fingerprints
 
     @property
     def is_mock(self) -> bool:
@@ -50,7 +53,12 @@ class ModelConfig:
             "max_tokens": self.max_tokens, "reasoning": self.reasoning,
             "require_parameters": self.require_parameters,
             "extra_body": {"top_k": self.top_k} if self.top_k is not None else None,
+            "timeout_s": self.timeout_s,
         }
+
+    def identity(self) -> dict[str, Any]:
+        """The settings that determine play (everything but OPERATIONAL), for run and market fingerprints."""
+        return {k: v for k, v in asdict(self).items() if k not in self.OPERATIONAL}
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

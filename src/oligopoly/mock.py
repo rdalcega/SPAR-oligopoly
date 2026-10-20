@@ -70,8 +70,7 @@ class MockClient:
 
     async def chat(self, messages: Sequence[dict[str, Any]], *, model: str, provider: str, seed: int | None = None,
                    tag: dict[str, Any] | None = None, **settings: Any) -> ChatResult:
-        last = messages[-1]["content"]
-        kind = "price" if '"price": <integer' in last else "message"
+        kind = "price" if (tag or {}).get("phase") == "price" else "message"
         content = self.respond(kind, seed or 0)
         prompt_chars = sum(len(m["content"]) for m in messages)
         usage = Usage(prompt_tokens=prompt_chars // 4, completion_tokens=len(content) // 4 + 20,

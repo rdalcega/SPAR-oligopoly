@@ -6,8 +6,10 @@
         --orderings NT-T T-NT NT-NT --markets-per-cell 6 --budget-usd 40 --dry-run
 
 Output goes to data/runs/<run-id>/: markets/<key>.json per completed market (skipped on rerun),
-markets/<key>.failed.json for failed ones (retried on rerun), calls.jsonl (every LLM call), budget.json
-and run.json (one entry per invocation). Part lengths below 20 are for pilots only: the instructions still
+markets/<key>.failed.json for failed ones (retried on rerun), calls.jsonl (every LLM call), budget.json,
+run.json (one entry per invocation) and run_config.json (the settings every market of the run shares: base
+seed, experiment and each model's settings; a rerun with different settings for a model already in the run
+is refused, while new models may be added). Part lengths below 20 are for pilots only: the instructions still
 say "at least 20 periods" while the die schedule shrinks to the part length.
 """
 
@@ -26,8 +28,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models
-from .engine import ORDERINGS, ChatClient, MarketSpec, environment_seed, market_path, run_market
-from .llm import Budget, BudgetExceeded, OpenRouterClient, get_endpoints
+from .engine import ORDERINGS, ChatClient, MarketSpec, environment_seed, is_complete, run_market, write_json_atomic
+from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
 
 
@@ -39,15 +41,21 @@ def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings
 
 async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_dir: Path, exp: ExperimentConfig,
                   max_concurrent_markets: int = 4) -> dict[str, list[str]]:
-    """Run every spec whose output file does not exist yet. `clients` maps model name -> client. A failed
-    market is recorded and the others continue; BudgetExceeded stops new markets from starting."""
+    """Run every spec without a complete record. `clients` maps model name -> client. A failed market is
+    recorded and the others continue; BudgetExceeded stops new markets from starting. A record played under
+    other settings (fingerprint mismatch) counts as failed and is left untouched."""
     summary: dict[str, list[str]] = {"done": [], "skipped": [], "failed": [], "not_started": []}
     sem = asyncio.Semaphore(max_concurrent_markets)
     stop = asyncio.Event()
 
     async def one(spec: MarketSpec) -> None:
-        if market_path(out_dir, spec).exists():
+        complete = is_complete(out_dir, spec, exp)
+        if complete:
             summary["skipped"].append(spec.key)
+            return
+        if complete is None:
+            summary["failed"].append(spec.key)
+            print(f"MISMATCH {spec.key}: its record was played under other settings; use a new run id", flush=True)
             return
         async with sem:
             if stop.is_set():
@@ -106,7 +114,7 @@ async def _pricing(cfg: ModelConfig) -> tuple[dict[str, float] | None, str]:
         return None, "no endpoints"
     if cfg.provider_pending:
         return eps[0].pricing, f"provider TODO: cheapest endpoint {eps[0].tag}"
-    ep = next((e for e in eps if e.tag.lower() == cfg.provider.lower()), None)
+    ep = find_endpoint(eps, cfg.provider)
     return (ep.pricing, f"endpoint {ep.tag}") if ep else (None, f"pinned tag {cfg.provider!r} not found")
 
 
@@ -131,7 +139,7 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
     tot = defaultdict(float)
     for (name, n, o), ss in sorted(cells.items()):
         sim, (p, _) = sims[(n, o)], prices[name]
-        todo = sum(not market_path(out_dir, s).exists() for s in ss)
+        todo = sum(not is_complete(out_dir, s, exp) for s in ss)
         out = sim["calls"] * (out_tokens + reasoning_tokens)
         if p:
             fresh = sim["input"] - sim["cached"]
@@ -154,6 +162,35 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
 
 
 # ---------------------------------------------------------------------------------------------- CLI
+
+
+def run_config(out_dir: Path, base_seed: int, exp: ExperimentConfig, models: list[ModelConfig]) -> dict[str, Any]:
+    """The run's shared settings, merged with `out_dir/run_config.json` if the run exists. Raises ConfigError
+    if the base seed, the experiment or any model already in the run differs; new models are appended."""
+    new = json.loads(json.dumps({"base_seed": base_seed, "experiment": exp.to_dict(),
+                                 "models": {m.name: m.identity() for m in models}}))
+    path = out_dir / "run_config.json"
+    if not path.exists():
+        return new
+    old = json.loads(path.read_text())
+    diffs = [k for k in ("base_seed", "experiment") if old[k] != new[k]]
+    diffs += [f"model {n!r}" for n, cfg in new["models"].items() if old["models"].get(n, cfg) != cfg]
+    if diffs:
+        raise ConfigError(f"run {out_dir.name!r} was started with different settings ({', '.join(diffs)}; see "
+                          f"{path}); use a new --run-id")
+    return {**old, "models": {**old["models"], **new["models"]}}
+
+
+async def preflight(client: OpenRouterClient, models: list[ModelConfig]) -> None:
+    """Resolve every live model's pinned endpoint (and its pricing) before any market starts."""
+    problems = [f"{m.name}: max_tokens is not set" for m in models if m.max_tokens is None]
+    for m in models:
+        try:
+            await client.resolve(m.model, m.provider)
+        except OpenRouterError as e:
+            problems.append(f"{m.name}: {e}")
+    if problems:
+        raise ConfigError("preflight failed; no market was started:\n  " + "\n  ".join(problems))
 
 
 def _git() -> dict[str, Any]:
@@ -195,6 +232,7 @@ async def main(argv: list[str] | None = None) -> int:
         exp = exp.with_part_lengths(tuple(int(x) for x in a.part_lengths.split(",")))
     out_dir = Path(a.out_root) / a.run_id
     specs = build_specs(a.run_id, models, a.n, a.orderings, a.markets_per_cell, a.seed)
+    config = run_config(out_dir, a.seed, exp, models)
 
     if a.dry_run:
         await dry_run(specs, out_dir, exp, a.assume_output_tokens, a.assume_reasoning_tokens, a.chars_per_token)
@@ -206,18 +244,22 @@ async def main(argv: list[str] | None = None) -> int:
     if live and a.budget_usd is None:
         raise ConfigError("--budget-usd is required for live models")
     out_dir.mkdir(parents=True, exist_ok=True)
-    manifest = out_dir / "run.json"
-    entries = json.loads(manifest.read_text()) if manifest.exists() else []
-    entries.append({"started": datetime.now(timezone.utc).isoformat(), "argv": sys.argv[1:] if argv is None else argv,
-                    "git": _git(), "experiment": exp.to_dict(), "models": {m.name: m.to_dict() for m in models},
-                    "budget_usd": a.budget_usd})
-    manifest.write_text(json.dumps(entries, indent=1))
-
     log = out_dir / "calls.jsonl"
     mock = MockClient(log)
     live_client = OpenRouterClient(log, Budget(a.budget_usd, out_dir / "budget.json"),
                                    max_concurrency=a.max_concurrency) if live else None
     try:
+        if live_client:
+            if live_client.budget.recovered_usd:
+                print(f"budget: charged ${live_client.budget.recovered_usd:.4f} left in flight by an earlier process")
+            await preflight(live_client, live)
+        write_json_atomic(out_dir / "run_config.json", config)
+        manifest = out_dir / "run.json"
+        entries = json.loads(manifest.read_text()) if manifest.exists() else []
+        entries.append({"started": datetime.now(timezone.utc).isoformat(),
+                        "argv": sys.argv[1:] if argv is None else argv, "git": _git(), "experiment": exp.to_dict(),
+                        "models": {m.name: m.to_dict() for m in models}, "budget_usd": a.budget_usd})
+        manifest.write_text(json.dumps(entries, indent=1))
         clients = {m.name: (mock if m.is_mock else live_client) for m in models}
         summary = await run_all(specs, clients, out_dir, exp, a.max_concurrent_markets)
     finally:

@@ -21,7 +21,7 @@ from typing import Any, Literal, Protocol
 from . import market, prompts
 from .config import ExperimentConfig, ModelConfig
 from .firm import Firm
-from .llm import ChatResult
+from .llm import BudgetExceeded, ChatResult
 from .parse import Parsed, parse_message, parse_price, strip_reasoning
 
 ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
@@ -67,6 +67,25 @@ class MarketSpec:
                 "market_index": self.market_index, "seed": self.seed}
 
 
+def fingerprint(obj: Any) -> str:
+    """SHA-256 of the canonical JSON of `obj`."""
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig) -> str:
+    """Everything that determines a market's play: its spec, the model's settings and the experiment."""
+    return fingerprint({**spec.to_dict(), "model": spec.model.identity(), "experiment": exp.to_dict()})
+
+
+def is_complete(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool | None:
+    """True if the market's record exists with the expected fingerprint, False if it is missing, None if it
+    exists but was played under other settings (never complete; never overwritten)."""
+    path = market_path(out_dir, spec)
+    if not path.exists():
+        return False
+    return json.loads(path.read_text()).get("fingerprint") == market_fingerprint(spec, exp) or None
+
+
 def market_path(out_dir: Path, spec: MarketSpec) -> Path:
     return Path(out_dir) / "markets" / f"{spec.key}.json"
 
@@ -107,6 +126,14 @@ class Decision:
         return {"value": self.value, "notes": self.notes, "valid": not self.fallback, "fallback": self.fallback,
                 "reasks": self.reasks, "errors": self.errors, "warnings": self.warnings,
                 "attempts": self.attempts}
+
+
+def pick_error(eg: BaseExceptionGroup) -> BaseException:
+    """The first BudgetExceeded among the (possibly nested) members of `eg`, else its first leaf."""
+    def leaves(e: BaseException) -> list[BaseException]:
+        return [x for sub in e.exceptions for x in leaves(sub)] if isinstance(e, BaseExceptionGroup) else [e]
+    errs = leaves(eg)
+    return next((e for e in errs if isinstance(e, BudgetExceeded)), errs[0])
 
 
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
@@ -177,8 +204,9 @@ class Market:
                 "provider_mismatch": r.provider_mismatch, "error": p.error, "warnings": p.warnings,
                 "usage": asdict(r.usage), "cost_usd": r.cost_usd,
                 **({"content": r.content} if p.error else {})})
-            if p.ok:
-                firm.answer(json.dumps(p.obj, ensure_ascii=False))
+            if p.ok:  # the firm's history keeps the value actually used, and its notes as returned
+                notes = {"notes": p.obj["notes"]} if "notes" in p.obj else {}
+                firm.answer(json.dumps({**notes, kind: p.value}, ensure_ascii=False))
                 d.value, d.notes, d.warnings = p.value, p.notes, p.warnings
                 return d
             d.errors.append(p.error)
@@ -192,12 +220,13 @@ class Market:
         return d
 
     async def gather(self, coros: dict[str, Any]) -> dict[str, Decision]:
-        """Run the firms' decisions concurrently; the first failure cancels the rest and is re-raised as is."""
+        """Run the firms' decisions concurrently; the first failure cancels the rest and is re-raised as is
+        (BudgetExceeded in preference, so the runner stops scheduling markets)."""
         try:
             async with asyncio.TaskGroup() as tg:
                 tasks = {L: tg.create_task(c) for L, c in coros.items()}
         except ExceptionGroup as eg:
-            raise eg.exceptions[0] from None
+            raise pick_error(eg) from None
         return {L: t.result() for L, t in tasks.items()}
 
     # ------------------------------------------------------------------ periods
@@ -281,6 +310,7 @@ class Market:
                          "invalid_attempts": sum(len(d["errors"]) for d in decs)}
         return {
             "spec": self.spec.to_dict(),
+            "fingerprint": market_fingerprint(self.spec, self.exp),
             "settings": {"model": self.spec.model.to_dict(), "experiment": self.exp.to_dict(),
                          "pilot": self.exp.pilot, "talk": dict(zip(("part1", "part2"), self.talk)),
                          "chat_spec": asdict(self.chat_spec), "feedback_all_profits": True, "exchange_rate": None,
@@ -298,13 +328,14 @@ async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
     `.failed.json` record (with the periods completed so far) and re-raises."""
     exp = exp or ExperimentConfig()
     out, fail = market_path(Path(out_dir), spec), failure_path(Path(out_dir), spec)
-    m = Market(spec, client, exp)
+    m: Market | None = None
     try:
+        m = Market(spec, client, exp)
         await m.run()
     except BaseException as e:
         write_json_atomic(fail, {"spec": spec.to_dict(), "error_type": type(e).__name__, "error": str(e),
-                                 "traceback": traceback.format_exc(), "periods_completed": len(m.periods),
-                                 **{k: v for k, v in m.record().items() if k != "spec"}})
+                                 "traceback": traceback.format_exc(), "periods_completed": len(m.periods) if m else 0,
+                                 **({k: v for k, v in m.record().items() if k != "spec"} if m else {})})
         raise
     write_json_atomic(out, m.record())
     fail.unlink(missing_ok=True)
