@@ -640,13 +640,23 @@ async def test_log_chains_per_invocation(mock, make, tmp_path):
     final = [sysm, u[0], a[0], u[1], a[2], u[3]]
     await send(alive, final[:4])
     await send(alive, final)
-    await send(alive, final[:3] + [{"role": "user", "content": "other"}])  # rewrites the prefix: logged in full
+    window = [sysm, {"role": "user", "content": "memory"}, *final[3:]]  # not a prefix extension: still compact
+    await send(alive, window)
     log = lines(tmp_path)
     assert len({x["invocation"] for x in log}) == 2
-    assert ["request" in x for x in log] == [True, False, False, True, False, True]
+    assert ["request" in x for x in log] == [True, False, False, True, False, False]
+    assert log[5]["messages_ref"] == [0, {"role": "user", "content": "memory"}, 3, 4, 5]
     for i, x in enumerate(log):
         assert messages_sha256(reconstruct_from_log(log, i)) == x["messages_sha256"]
-    # the record-based rebuild reads checkpoints too, but cannot rebuild the dead process's diverged call
-    ck = {"firms": {"A": {"messages": final, "pending": []}}}
-    assert messages_sha256(reconstruct_request(ck, "A", 6, -1)) == log[4]["messages_sha256"]
-    assert messages_sha256(reconstruct_request(ck, "A", 6, -1)) != log[2]["messages_sha256"]
+    # the record-based rebuild reads checkpoints too (instructions, transcript and a call's context)
+    ck = {"firms": {"A": {"instructions": ["rules"], "transcript": [{**m, "period": 1} for m in final[1:]],
+                          "pending": [], "notes": None}}}
+    ctx = {"instructions": 1, "memory": "memory", "window": [2, 5]}
+    assert messages_sha256(reconstruct_request(ck, "A", ctx, -1)) == log[5]["messages_sha256"]
+    assert messages_sha256(reconstruct_request(ck, "A", ctx, -1)) != log[4]["messages_sha256"]
+    with pytest.raises(ValueError):
+        reconstruct_request(ck, "A", {**ctx, "window": [2, 9]})
+    # a broken reference is reported, not guessed
+    bad = [*log[:5], {**log[5], "messages_ref": [0, 99]}]
+    with pytest.raises(ValueError, match="chain broken"):
+        reconstruct_from_log(bad, 5)

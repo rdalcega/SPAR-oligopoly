@@ -205,6 +205,32 @@ sampling rule and reading notes saved alongside the analysis.
    shown them. A firm's failure no longer cancels the other firms' calls in flight. Records list resumes in
    `resumed_from_period`.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
+    **2026-10-20:** with the rolling window (item 11) only the instructions are a stable prefix, so breakpoints
+    go on the instruction messages only (Part 1's, and Part 2's once shown), never on the newest message.
+11. **Rolling window, exact definition (2026-10-20, implements §6 item 3's rolling window with W =
+    `memory_window` = 3 in `config/experiment.toml`).** Periods are numbered globally across parts (Part 2
+    period t is Part 1's length + t; the post-game probe is the total + 1). Each firm keeps a full transcript:
+    every user and assistant message exactly as it occurred, each tagged with its period. A period's turns
+    start with the user message that opens it, which carries the results of the previous period (plus die,
+    part-over text and any fallback notice), followed by the chat-round prompts (with the other firms'
+    messages), the firm's answers, re-asks, failed answers and the price prompt. A request in period t is,
+    in order: (1) system: Part 1 instructions; (2) user: Part 2 instructions, from Part 2 on; (3) user: the
+    memory block, "Your notes (written by you at your last decision): <notes>" or "You have not written any
+    notes yet.", then the firm's own cumulative profit (part; in Part 2 also the experiment), as of the start
+    of period t; (4) every transcript turn of periods t−3, t−2, t−1 and t, verbatim, the last being the new
+    prompt. So the "last 3 completed periods" are t−3..t−1 with their chats and answers; the results shown are
+    those of t−4 (opening t−3), t−3, t−2 and the most recent, t−1 (opening t). The memory is the `notes` of the
+    firm's latest valid answer (chat or price) that had a `notes` field; an answer without notes, an invalid
+    answer or a fallback leaves it unchanged; an empty string replaces it. Within one decision (first ask and
+    re-asks) the memory block is fixed. Part 2 instructions are a user message (as they were in the pilots,
+    rather than a second system message, which some chat templates reject). The record keeps every firm's
+    `instructions` and full `transcripts`, and each attempt's `context` (instruction count, memory text,
+    transcript window [lo, hi), messages_sha256), from which `llm.reconstruct_request` rebuilds the request;
+    `calls.jsonl` logs the first request of each firm per process in full and later ones as `messages_ref`
+    (per message, an index into the firm's previous logged request or the new message). Checkpoints store the
+    instructions, transcript, pending text and notes, so a resume rebuilds identical windows (tested). Context
+    size is bounded, so the context guard and `scripts/project_context.py` see a peak that no longer grows with
+    the part lengths.
 
 ### Post-game comprehension probe (2026-10-20)
 
@@ -228,6 +254,12 @@ chat" if there was none). Exact wording in `docs/prompts-draft.md`.
   and asks only the probe (reusing answers already paid for).
 - Switch: `post_game_probe = true` in `config/experiment.toml`, part of the experiment settings and so of every
   market fingerprint and of run_config.json. Held fixed across the run.
+- **2026-10-20, with the rolling window (engine details 11):** the probe call is built like any other request at
+  the end of the game: instructions, memory block (latest notes, final profits) and the turns of the last 3
+  periods of Part 2 plus the final results. The wording is unchanged. The `deviations` question ("in the last
+  part") therefore now tests the firm's memory: deviations older than the window are visible only if the firm
+  wrote them into its notes. Read the answers with that in mind; `last_period_prices` is still within the
+  window.
 - Analysis: `summary.json` → `probe` gives per cell the share correct on the maximum price and on the best
   common price, the mean share of last-period prices recalled exactly (and the share of firms recalling all),
   the share of valid answers and the number skipped; `probe_answers.csv` keeps every firm's answers, with the

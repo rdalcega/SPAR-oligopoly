@@ -104,6 +104,14 @@ class ExperimentConfig:
     # post-game comprehension probe after the final period (DECISIONS.md, 2026-10-20); adds calls and the
     # record's "probe" entry, never changes play
     post_game_probe: bool = True
+    # completed periods each request shows verbatim; older play survives only in the firm's own notes
+    # (DECISIONS.md §6 item 3, 2026-10-20)
+    memory_window: int = 3
+
+    def __post_init__(self) -> None:
+        w = self.memory_window
+        if isinstance(w, bool) or not isinstance(w, int) or w < 1:
+            raise ConfigError(f"memory_window must be an integer >= 1, got {w!r}")
 
     @property
     def pilot(self) -> bool:

@@ -42,9 +42,11 @@ def all_instructions():
         letters = firm_letters(n)
         for letter in (letters[0], letters[-1]):
             er = scaled_exchange_rate(n) if rate else None
-            p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er, notes=rate is None)
+            w = 3 if letter == letters[0] else None  # the engine's rolling window, and the full-history wording
+            p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er, notes=rate is None,
+                                   memory_window=w)
             p2 = part_instructions(n, letter, 2, t2, previous_talk=t1, chat_spec=spec, exchange_rate=er,
-                                   notes=rate is None)
+                                   notes=rate is None, memory_window=w)
             yield n, name, t1, t2, letter, p1, p2
 
 
@@ -228,7 +230,7 @@ def test_full_answer_format_once_per_part(n):
     spec = ChatSpec(char_limit=250)
     t1 = part_instructions(n, "A", 1, True, chat_spec=spec, notes=True)
     assert '"price": <integer from 0 to 100>}' in t1 and '"message": null} to post nothing' in t1
-    assert "at most 250 characters" in t1 and "Keep it to about 100 words at most." in t1
+    assert "at most 250 characters" in t1 and "Keep it to about 150 words at most." in t1
     assert ("the other firm never sees it" if n == 2 else "the other firms never see it") in t1
     nt1 = part_instructions(n, "A", 1, False, notes=True)
     assert '"price": <integer from 0 to 100>}' in nt1 and '"message"' not in nt1
@@ -275,3 +277,56 @@ def test_every_chat_prompt_says_prices_come_after_the_chat():
     assert "or null" not in chat_price_reask_text(ChatSpec(allow_pass=False, end_when_all_pass=False), notes=False)
     for w in BANNED_EVERYWHERE:
         assert w not in (r + CHAT_TURN_LINE).lower()
+
+
+# words that would tell firms what to remember or how to behave (DECISIONS.md §6 item 3, 2026-10-20)
+BEHAVIOURAL_HINTS = ["collu", "agree", "cheat", "punish", "cooperat", "trust", "deviat", "promise", "betray",
+                     "retaliat", "threat", "plan", "strateg", "rival", "should", "track"]
+
+
+def how_to_answer(text):
+    return text[text.index("How to answer:"):]
+
+
+@pytest.mark.parametrize("n", [2, 4])
+def test_window_and_memory_mechanics_without_behavioural_hints(n):
+    from oligopoly.prompts import window_text
+
+    others = "the other firm never sees it" if n == 2 else "the other firms never see it"
+    for t1, t2 in ((False, True), (True, False), (False, False)):
+        p1 = part_instructions(n, "A", 1, t1, chat_spec=ChatSpec(), notes=True, memory_window=3)
+        p2 = part_instructions(n, "A", 2, t2, previous_talk=t1, chat_spec=ChatSpec(), notes=True, memory_window=3)
+        for text, talk in ((p1, t1), (p2, t2)):
+            h = how_to_answer(text)
+            assert "Each request shows the full details of only the last three periods" in h
+            assert "and of the current period so far." in h
+            assert f'The "notes" field is private: {others}.' in h
+            assert ("Your notes are carried forward to your next decision, where they replace your previous notes, "
+                    "so write in them everything you want to remember. Keep them to about 150 words at most.") in h
+            low = h.lower()
+            for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
+                assert w not in low, w
+            if not talk:
+                assert not any(w in low for w in COMMUNICATION_WORDS)
+    assert "the last period (" in window_text(1, False)
+    no_notes = part_instructions(n, "A", 1, False, notes=False, memory_window=3)
+    assert "last three periods" in no_notes and "notes" not in no_notes
+    assert "last three periods" not in part_instructions(n, "A", 1, False, notes=True)  # full history: unsaid
+    with pytest.raises(ValueError):
+        window_text(0, False)
+
+
+def test_memory_block():
+    from oligopoly.prompts import memory_text
+
+    assert memory_text(True, None, 1, 0) == ("You have not written any notes yet.\n"
+                                             "Your total profit in this part so far: 0 ECU")
+    m = memory_text(True, "B cut to 90 in period 4.", 2, 1500, 22500.5)
+    assert m == ("Your notes (written by you at your last decision): B cut to 90 in period 4.\n"
+                 "Your total profit in this part so far: 1,500 ECU\n"
+                 "Your total profit in the experiment so far: 22,500.50 ECU")
+    assert memory_text(False, "x", 1, 10) == "Your total profit in this part so far: 10 ECU"
+    with pytest.raises(ValueError):
+        memory_text(True, None, 2, 0)
+    for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
+        assert w not in memory_text(True, None, 1, 0).lower()

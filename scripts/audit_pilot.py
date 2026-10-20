@@ -36,11 +36,11 @@ def content_text(m: dict) -> str:
 
 
 def load_calls(path: Path) -> list[dict]:
-    """The call log's records in file order; compact lines (`messages_new`) get `request.messages` rebuilt by
-    `reconstruct_from_log` (or `reconstruct_error` if the chain is broken)."""
+    """The call log's records in file order; compact lines (`messages_ref`, or `messages_new` in older logs) get
+    `request.messages` rebuilt by `reconstruct_from_log` (or `reconstruct_error` if the chain is broken)."""
     recs = [json.loads(line) for line in path.open() if line.strip()]
     for i, c in enumerate(recs):
-        if "request" not in c and "messages_new" in c:
+        if "request" not in c and ("messages_new" in c or "messages_ref" in c):
             try:
                 c["request"] = {"messages": reconstruct_from_log(recs, i)}
             except ValueError as e:

@@ -259,6 +259,7 @@ def part_instructions(
     exchange_rate: float | None = None,
     feedback_all_profits: bool = True,
     notes: bool = False,
+    memory_window: int | None = None,
 ) -> str:
     """Instructions shown at the start of `part` (1 or 2) to `firm_letter` in a market of `n` firms.
 
@@ -268,6 +269,8 @@ def part_instructions(
     every firm's period profit (design text) instead of all prices plus own profit (instructions).
     notes: whether answers carry the private "notes" field. Each part's instructions end with the full answer
     format (see response_format_text); the per-turn prompts only repeat a one-line reminder.
+    memory_window: the number of completed periods each request shows in full (DECISIONS.md §6 item 3,
+    2026-10-20), stated with the answer format; None = the whole history (nothing is said).
     """
     _check(n, firm_letter, part)
     if talk and chat_spec is None:
@@ -321,7 +324,7 @@ def part_instructions(
         paras.append(_die_sentence())
         paras.append("You will be matched with the same participants in every period.")
         paras.append(_payment(part, exchange_rate))
-        paras.append(response_format_text(n, chat_spec if talk else None, notes))
+        paras.append(response_format_text(n, chat_spec if talk else None, notes, memory_window))
     else:
         paras.append("Part 1 is over.")
         paras.append("Instructions – Part 2")
@@ -353,7 +356,7 @@ def part_instructions(
             "remain matched with you for the whole of Part 2."
         )
         paras.append(_payment(part, exchange_rate))
-        paras.append(response_format_text(n, chat_spec if talk else None, notes))
+        paras.append(response_format_text(n, chat_spec if talk else None, notes, memory_window))
     return "\n\n".join(paras)
 
 
@@ -362,7 +365,7 @@ def part_instructions(
 # --------------------------------------------------------------------------------------------------
 
 
-NOTES_WORDS = 100
+NOTES_WORDS = 150
 
 
 def die_line(previous_period: int, roll: int, min_periods: int = MIN_PERIODS) -> str:
@@ -400,19 +403,54 @@ def message_format(chat_spec: ChatSpec, notes: bool = False) -> str:
     return s
 
 
-def response_format_text(n: int, chat_spec: ChatSpec | None, notes: bool) -> str:
+def response_format_text(n: int, chat_spec: ChatSpec | None, notes: bool, memory_window: int | None = None) -> str:
     """The full answer format, stated once per part at the end of its instructions. chat_spec: the part's chat
-    rules, or None in a NoTalk part (then nothing about messages is said)."""
+    rules, or None in a NoTalk part (then nothing about messages is said). memory_window: see
+    part_instructions; with it, the notes are described as the firm's private memory (mechanics only)."""
     s = f"How to answer: when you are asked for your selling price, respond with JSON only, in this format: " \
         f"{price_format(notes)}"
     if chat_spec is not None:
         s += (f"\nWhen you are asked for a chat message, respond with JSON only, in this format: "
               f"{message_format(chat_spec, notes)}.")
-    if notes:
-        others = "the other firm never sees it" if n == 2 else "the other firms never see it"
+    others = "the other firm never sees it" if n == 2 else "the other firms never see it"
+    if memory_window is not None:
+        s += "\n" + window_text(memory_window, chat_spec is not None)
+        if notes:
+            s += (f'\nThe "notes" field is private: {others}. Your notes are carried forward to your next decision, '
+                  "where they replace your previous notes, so write in them everything you want to remember. Keep "
+                  f"them to about {NOTES_WORDS} words at most.")
+    elif notes:
         s += f'\nThe "notes" field is private: {others}. Keep it to about {NOTES_WORDS} words at most.'
     s += "\nEach request ends with a short reminder of the format."
     return s
+
+
+def window_text(memory_window: int, talk: bool) -> str:
+    """What each request shows (DECISIONS.md §6 item 3, 2026-10-20). Mechanics only."""
+    if memory_window < 1:
+        raise ValueError("memory_window must be >= 1")
+    k = "the last period" if memory_window == 1 else f"the last {number_word(memory_window)} periods"
+    what = "their results, the chat messages and your own answers" if talk else "their results and your own answers"
+    return f"Each request shows the full details of only {k} ({what}) and of the current period so far."
+
+
+NO_NOTES_YET = "You have not written any notes yet."
+
+
+def memory_text(notes_enabled: bool, notes: str | None, part: int, cumulative_part: float,
+                cumulative_total: float | None = None) -> str:
+    """The memory block at the top of every request: the firm's latest private notes (if the run uses notes) and
+    its own cumulative profit (Part 2 also shows the total over the experiment)."""
+    lines = []
+    if notes_enabled:
+        lines.append(NO_NOTES_YET if notes is None else
+                     f"Your notes (written by you at your last decision): {notes}")
+    lines.append(f"Your total profit in this part so far: {format_ecu(cumulative_part)} ECU")
+    if part == 2:
+        if cumulative_total is None:
+            raise ValueError("Part 2 shows the total over the experiment")
+        lines.append(f"Your total profit in the experiment so far: {format_ecu(cumulative_total)} ECU")
+    return "\n".join(lines)
 
 
 def price_reminder(notes: bool) -> str:
@@ -605,12 +643,13 @@ def probe_prompt(letters: Sequence[str]) -> str:
             f"Reply with JSON: {probe_format(letters)}")
 
 
-def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
+def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = None) -> str:
     """SHA-256 of a fixed sample of every kind of firm-facing text, rendered with the run's settings. It goes
     into every market's fingerprint, so a resumed run never mixes markets played under different wording."""
     msgs = [ChatMessage("A", "m1", 1), ChatMessage("B", "m2", 1)]
     texts = [
-        *(part_instructions(n, "A", p, t, previous_talk=pt, chat_spec=chat_spec, notes=notes)
+        *(part_instructions(n, "A", p, t, previous_talk=pt, chat_spec=chat_spec, notes=notes,
+                            memory_window=memory_window)
           for n in (2, 4) for t1, t2 in ((False, True), (True, False), (False, False))
           for p, t, pt in ((1, t1, None), (2, t2, t1))),
         period_prompt(1, 21, die_roll=3, notes=notes),
@@ -623,6 +662,7 @@ def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
         fallback_text("price", 7), fallback_text("message"),
         reask_text("e", price_format(notes)), reask_text("e", message_format(chat_spec, notes)),
         chat_price_reask_text(chat_spec, notes),
+        memory_text(notes, None, 1, 0), memory_text(notes, "x", 2, 1.5, 2.5),
         probe_prompt(["A", "B"]), reask_text("e", probe_format(["A", "B"])),
     ]
     return hashlib.sha256("\x00".join(texts).encode()).hexdigest()

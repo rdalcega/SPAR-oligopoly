@@ -154,20 +154,22 @@ def _tokens(messages: list[dict[str, Any]], chars_per_token: float) -> int:
 
 
 async def simulate_tokens(n: int, ordering: str, exp: ExperimentConfig, chars_per_token: float) -> dict[str, float]:
-    """Calls and input tokens (total, and cacheable as the previous call's prompt) of one mock market."""
+    """Calls and input tokens (total, and cacheable: the messages a call shares as a prefix with the same firm's
+    previous call, which under the rolling window is mostly the instructions) of one mock market."""
     mock = ModelConfig("mock", "mock", "mock")
     client = MockClient(record=True)
     with tempfile.TemporaryDirectory() as tmp:
         await run_market(MarketSpec("dry-run", mock, n, ordering, 0, environment_seed(0, n, ordering, 0)),
                          client, Path(tmp), exp)
-    last: dict[str, int] = {}
+    last: dict[str, list[dict[str, Any]]] = {}
     total = cached = 0
     for c in client.calls:
-        firm = c["tag"]["firm"]
-        t = _tokens(c["messages"], chars_per_token)
-        total += t
-        cached += last.get(firm, 0)
-        last[firm] = t
+        firm, msgs = c["tag"]["firm"], c["messages"]
+        prev = last.get(firm, [])
+        k = next((i for i, (a, b) in enumerate(zip(prev, msgs)) if a != b), min(len(prev), len(msgs)))
+        total += _tokens(msgs, chars_per_token)
+        cached += _tokens(msgs[:k], chars_per_token)
+        last[firm] = msgs
     return {"calls": len(client.calls), "input": total, "cached": cached}
 
 
@@ -210,7 +212,7 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
     for name, (_, src) in prices.items():
         print(f"  pricing {name}: {src}")
     print(f"  token model: chars/token {chars_per_token}, +4/message; output {out_tokens} + reasoning "
-          f"{reasoning_tokens} tokens per call; cached input = previous prompt of the same firm; "
+          f"{reasoning_tokens} tokens per call; cached input = prefix shared with the firm's previous prompt; "
           f"mock re-asks included")
     hdr = f"{'model':18} {'n':>3} {'order':6} {'mkts':>4} {'todo':>4} {'calls/mkt':>9} {'in tok/mkt':>11} " \
           f"{'cached':>10} {'out tok/mkt':>11} {'$/mkt':>8} {'$ todo':>9}"

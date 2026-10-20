@@ -8,11 +8,20 @@ open period t + 1's user message; the final period's results go with the end-of-
 Post-game probe (`post_game_probe`, DECISIONS.md 2026-10-20): after the final period, the final results and
 end-of-experiment text open one more user message per firm with comprehension questions (`probe_firm`), scored
 into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
-period, so a market whose probe failed reruns only the probe.
+period, so a market whose probe failed reruns only the probe. The probe sees the same windowed context and
+memory as any call, so its question about the last part's chat tests the firm's memory.
+
+Context (DECISIONS.md §6 item 3, 2026-10-20): every request is built fresh from the firm's instructions, its
+memory block (latest private notes and own cumulative profit) and the verbatim turns of the last
+`memory_window` completed periods plus the current one (see `firm.py` for the exact window). The record keeps
+every firm's full transcript (`transcripts`, all turns) and instructions, and each attempt's `context` (number of
+instruction messages, memory text, transcript window, messages_sha256), so `llm.reconstruct_request` rebuilds
+every request. Prompt-cache breakpoints go on the instruction messages only.
 
 Checkpoints: `run_market` writes `markets/<key>.ckpt.json` atomically when the market starts and after every
-completed period (part boundaries included): the firms' histories and queued text, the period records,
-cumulative profits, last prices, usage so far, the market fingerprint and the wording digest. When a market
+completed period (part boundaries included): the firms' instructions, transcripts, notes and queued text, the
+period records, cumulative profits, last prices, usage so far, the market fingerprint and the wording digest
+(a resume therefore rebuilds identical windows and memory blocks). When a market
 fails, the checkpoint is rewritten with the results of the calls already made in the period in progress
 (`partial_calls`, keyed by call id and checked against the request's messages). A rerun with a matching
 checkpoint resumes after its last completed period and reuses those results instead of calling again, so
@@ -38,7 +47,7 @@ from typing import Any, Literal, Protocol
 from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
-from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage
+from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage, messages_sha256
 from .parse import PARSER_VERSION, Parsed, extract_object, parse_message, parse_price, parse_probe, strip_reasoning
 
 Kind = Literal["price", "message"]
@@ -90,7 +99,8 @@ def fingerprint(obj: Any) -> str:
 
 def texts_digest(exp: ExperimentConfig) -> str:
     """Digest of the firm-facing wording under `exp` (see `prompts.texts_digest`)."""
-    return prompts.texts_digest(prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit), exp.notes)
+    return prompts.texts_digest(prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit), exp.notes,
+                                exp.memory_window)
 
 
 def _fingerprint_from(spec: dict[str, Any], model_identity: dict[str, Any], experiment: dict[str, Any],
@@ -216,7 +226,8 @@ def score_probe(answers: dict[str, Any] | None, truth: dict[str, Any]) -> dict[s
 
 
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
-CHECKPOINT_VERSION = 2  # 2: `probe` (post-game probe result, None until done)
+CHECKPOINT_VERSION = 3  # 2: `probe` (post-game probe result, None until done); 3: windowed context (firm
+# instructions, transcript and notes instead of an append-only history)
 # ChatResult fields kept for a call made in a period that did not complete (enough for decide and _account)
 RESULT_FIELDS = ("content", "finish_reason", "native_finish_reason", "provider", "model", "generation_id",
                  "cost_usd", "latency_s", "attempts", "seed_possibly_ignored", "provider_mismatch")
@@ -242,7 +253,8 @@ class Market:
         self.letters = prompts.firm_letters(spec.n)
         self.talk = ORDERINGS[spec.ordering]
         self.chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
-        self.firms = {L: Firm(L, random.Random(derive_seed("order", spec.seed, L)).sample(self.letters, spec.n))
+        self.firms = {L: Firm(L, random.Random(derive_seed("order", spec.seed, L)).sample(self.letters, spec.n),
+                              window=exp.memory_window)
                       for L in self.letters}
         self.dies = [market.die_schedule(exp.part_lengths[p - 1], exp.part_min_periods(p),
                                          rng=derive_seed("die", spec.seed, p)) for p in (1, 2)]
@@ -255,6 +267,24 @@ class Market:
             "provider_mismatch_calls": 0, "providers_served": []}
 
     # ------------------------------------------------------------------ calls
+
+    def global_period(self, part: int, period: int) -> int:
+        """1-based period index over both parts (the post-game probe is the total + 1)."""
+        return period if part == 1 else self.exp.part_lengths[0] + period
+
+    def memory(self, L: str, part: int) -> str:
+        """Firm L's memory block for a call in `part`: its latest notes and its own cumulative profit."""
+        return prompts.memory_text(self.exp.notes, self.firms[L].notes, part, self.profit[L][part - 1],
+                                   sum(self.profit[L]) if part == 2 else None)
+
+    def ask(self, L: str, prompt: str, g: int, mem: str) -> tuple[list[dict[str, Any]], dict[str, Any],
+                                                                  list[int] | None]:
+        """Firm L's request for `prompt` in global period g: messages, context record and cache breakpoints (on
+        the instruction messages, the only stable prefix)."""
+        messages, ctx = self.firms[L].ask(prompt, g, mem)
+        ctx["messages_sha256"] = messages_sha256(messages)
+        cache = list(range(ctx["instructions"])) if self.spec.model.cache_control else None
+        return messages, ctx, cache
 
     def call_seed(self, firm: str, part: int, period: int, phase: str, attempt: int) -> int:
         s = self.spec
@@ -286,7 +316,8 @@ class Market:
             def parse(c: str | None) -> Parsed:
                 return parse_message(c, self.exp.char_limit)
         d = Decision(kind)
-        messages = firm.ask(prompt)
+        g, mem = self.global_period(part, period), self.memory(L, part)  # memory is fixed within a decision
+        messages, ctx, cache = self.ask(L, prompt, g, mem)
         for attempt in range(self.exp.max_reasks + 1):
             call_id = f"{s.key}/{L}/p{part}/t{period}/{phase}/a{attempt}"
             seed = self.call_seed(L, part, period, phase, attempt)
@@ -297,8 +328,7 @@ class Market:
             if cached is not None and cached["messages_sha256"] == msha:  # paid for before a failure: reuse
                 r = result_from_dict(cached["result"])
             else:
-                r = await self.client.chat(messages, seed=seed, tag=tag,
-                                           cache_upto=-1 if cfg.cache_control else None, **cfg.chat_kwargs())
+                r = await self.client.chat(messages, seed=seed, tag=tag, cache_upto=cache, **cfg.chat_kwargs())
             self.partial_calls[call_id] = {"messages_sha256": msha, "result": result_to_dict(r)}
             self._account(r)
             p = parse(r.content)
@@ -310,18 +340,20 @@ class Market:
                 "call_id": call_id, "seed": seed, "generation_id": r.generation_id, "provider": r.provider,
                 "finish_reason": r.finish_reason, "seed_possibly_ignored": r.seed_possibly_ignored,
                 "provider_mismatch": r.provider_mismatch, "error": p.error, "warnings": p.warnings,
-                "usage": asdict(r.usage), "cost_usd": r.cost_usd,
+                "usage": asdict(r.usage), "cost_usd": r.cost_usd, "context": ctx,
                 **({"content": r.content} if p.error else {})})
-            if p.ok:  # the firm's history keeps the value actually used, and its notes as returned
+            if p.ok:  # the firm's transcript keeps the value actually used, and its notes as returned
                 notes = {"notes": p.obj["notes"]} if "notes" in p.obj else {}
                 firm.answer(json.dumps({**notes, kind: p.value}, ensure_ascii=False))
+                if p.notes is not None:  # the latest notes replace the memory; an answer without notes keeps it
+                    firm.notes = p.notes
                 d.value, d.notes, d.warnings = p.value, p.notes, p.warnings
                 return d
             d.errors.append(p.error)
             bad = strip_reasoning(r.content or "")
             firm.answer(bad[:2000] if bad else "(empty response)")
             if attempt < self.exp.max_reasks:
-                messages = firm.ask(reask or prompts.reask_text(p.error, fmt))
+                messages, ctx, cache = self.ask(L, reask or prompts.reask_text(p.error, fmt), g, mem)
         d.fallback = True
         d.value = self.prev_price[L] if kind == "price" else None
         firm.tell(prompts.fallback_text(kind, d.value if kind == "price" else None))
@@ -336,7 +368,8 @@ class Market:
         fmt = prompts.probe_format(self.letters)
         out: dict[str, Any] = {"answers": None, "valid": False, "errors": [], "warnings": [], "attempts": [],
                                "skipped": None}
-        messages = firm.ask(prompts.probe_prompt(self.letters))
+        g, mem = self.global_period(2, period) + 1, self.memory(L, 2)  # after the last period, same window and memory
+        messages, ctx, cache = self.ask(L, prompts.probe_prompt(self.letters), g, mem)
         for attempt in range(PROBE_MAX_REASKS + 1):
             call_id = f"{s.key}/{L}/probe/a{attempt}"
             seed = self.call_seed(L, part, period, "probe", attempt)
@@ -348,8 +381,7 @@ class Market:
                 r = result_from_dict(cached["result"])
             else:
                 try:
-                    r = await self.client.chat(messages, seed=seed, tag=tag,
-                                               cache_upto=-1 if cfg.cache_control else None, **cfg.chat_kwargs())
+                    r = await self.client.chat(messages, seed=seed, tag=tag, cache_upto=cache, **cfg.chat_kwargs())
                 except ContextOverflow as e:
                     out["skipped"] = "context_overflow"
                     out["errors"].append(f"ContextOverflow: {e}")
@@ -361,7 +393,7 @@ class Market:
                 "call_id": call_id, "seed": seed, "generation_id": r.generation_id, "provider": r.provider,
                 "finish_reason": r.finish_reason, "seed_possibly_ignored": r.seed_possibly_ignored,
                 "provider_mismatch": r.provider_mismatch, "error": p.error, "warnings": p.warnings,
-                "usage": asdict(r.usage), "cost_usd": r.cost_usd, "content": r.content})
+                "usage": asdict(r.usage), "cost_usd": r.cost_usd, "context": ctx, "content": r.content})
             out["answers"], out["warnings"] = p.value, p.warnings
             if p.ok:
                 firm.answer(json.dumps(p.value, ensure_ascii=False))
@@ -371,7 +403,7 @@ class Market:
             bad = strip_reasoning(r.content or "")
             firm.answer(bad[:2000] if bad else "(empty response)")
             if attempt < PROBE_MAX_REASKS:
-                messages = firm.ask(prompts.reask_text(p.error, fmt))
+                messages, ctx, cache = self.ask(L, prompts.reask_text(p.error, fmt), g, mem)
         return out
 
     async def run_probe(self) -> None:
@@ -463,17 +495,18 @@ class Market:
                 firm.tell(prompts.part_over_text(part, period, final_part=part == 2,
                                                  total_profit=sum(self.profit[L]) if part == 2 else None,
                                                  min_periods=min_p))
-                if part == 1:
-                    firm.tell(prompts.part_instructions(self.spec.n, L, 2, self.talk[1], previous_talk=self.talk[0],
-                                                        chat_spec=self.chat_spec, notes=self.exp.notes))
+                if part == 1:  # shown in every later request, like the humans' instruction sheets
+                    firm.add_instructions(prompts.part_instructions(
+                        self.spec.n, L, 2, self.talk[1], previous_talk=self.talk[0], chat_spec=self.chat_spec,
+                        notes=self.exp.notes, memory_window=self.exp.memory_window))
 
     async def run(self) -> None:
         """Play the market, or its remaining periods after `restore`."""
-        if not any(f.messages for f in self.firms.values()):
+        if not any(f.instructions for f in self.firms.values()):
             for L, firm in self.firms.items():
                 firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
                                                      chat_spec=self.chat_spec if self.talk[0] else None,
-                                                     notes=self.exp.notes))
+                                                     notes=self.exp.notes, memory_window=self.exp.memory_window))
             await self.save_checkpoint()
         schedule = [(part, t) for part in (1, 2) for t in range(1, self.exp.part_lengths[part - 1] + 1)]
         if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:
@@ -485,7 +518,7 @@ class Market:
             await self.run_probe()
             await self.save_checkpoint()
         for firm in self.firms.values():
-            firm.flush()
+            firm.flush(sum(self.exp.part_lengths) + 1)
 
     # ------------------------------------------------------------------ checkpoints
 
@@ -495,7 +528,8 @@ class Market:
                 "fingerprint": market_fingerprint(self.spec, self.exp), "texts_digest": texts_digest(self.exp),
                 "periods_completed": len(self.periods), "die_schedules": self.dies,
                 "listing_orders": {L: f.order for L, f in self.firms.items()},
-                "firms": {L: {"messages": f.messages, "pending": f.pending} for L, f in self.firms.items()},
+                "firms": {L: {"instructions": f.instructions, "transcript": f.transcript, "pending": f.pending,
+                              "notes": f.notes} for L, f in self.firms.items()},
                 "periods": self.periods, "profit": self.profit, "prev_price": self.prev_price, "usage": self.usage,
                 "resumed_from_period": self.resumed_from, "probe": self.probe, "partial_calls": {}}
 
@@ -535,7 +569,9 @@ class Market:
         if bad := [what for ok, what in checks if not ok]:
             return "checkpoint does not match: " + ", ".join(bad)
         for L, f in self.firms.items():
-            f.messages, f.pending = list(firms[L]["messages"]), list(firms[L]["pending"])
+            ck_firm = firms[L]
+            f.instructions, f.transcript = list(ck_firm["instructions"]), [dict(m) for m in ck_firm["transcript"]]
+            f.pending, f.notes = list(ck_firm["pending"]), ck_firm["notes"]
         self.periods, self.usage = ck["periods"], ck["usage"]
         self.profit = {L: list(v) for L, v in ck["profit"].items()}
         self.prev_price = dict(ck["prev_price"])
@@ -570,7 +606,9 @@ class Market:
             "periods": self.periods,
             "totals": totals,
             "usage": self.usage,
-            "histories": {L: f.messages for L, f in self.firms.items()},
+            # every turn of every firm (not windowed); each attempt's `context` gives the window it was sent
+            "instructions": {L: f.instructions for L, f in self.firms.items()},
+            "transcripts": {L: f.transcript for L, f in self.firms.items()},
             "resumed_from_period": self.resumed_from,
             "probe": self.probe,  # None when the probe is off (or, in a failure record, not yet asked)
         }

@@ -381,25 +381,31 @@ def _strip_cache_control(messages: Sequence[dict[str, Any]]) -> list[dict[str, A
     return out
 
 
-def _histories(market_json: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    """Firm histories of a market record or failure record (`histories`) or of a checkpoint
-    (`firms[firm]["messages"]`)."""
-    if "histories" in market_json:
-        return market_json["histories"]
-    return {L: f["messages"] for L, f in (market_json.get("firms") or {}).items()}
+def _firm_texts(market_json: dict[str, Any], firm: str) -> tuple[list[str], list[dict[str, Any]]]:
+    """(instructions, transcript) of `firm` in a market record or failure record (`instructions`,
+    `transcripts`) or in a checkpoint (`firms[firm]`)."""
+    if "transcripts" in market_json:
+        return market_json["instructions"][firm], market_json["transcripts"][firm]
+    f = (market_json.get("firms") or {})[firm]
+    return f["instructions"], f["transcript"]
 
 
-def reconstruct_request(market_json: dict[str, Any], firm: str, n_messages: int,
+def reconstruct_request(market_json: dict[str, Any], firm: str, context: dict[str, Any],
                         cache_upto: int | Sequence[int] | None = None) -> list[dict[str, Any]]:
-    """The messages of a logged request of `firm`, rebuilt from its market record, failure record or checkpoint,
-    assuming the request is a prefix of the firm's final history. Pass the log line's `n_messages` and
-    `cache_upto`, then check `messages_sha256(result)` against the line's `messages_sha256`: the assumption
-    fails for calls made in a period that a process died in and a later invocation replayed differently.
-    `reconstruct_from_log` rebuilds any logged request from the log itself."""
-    hist = _histories(market_json)[firm]
-    if not 0 < n_messages <= len(hist):
-        raise ValueError(f"firm {firm}: n_messages {n_messages} outside 1..{len(hist)}")
-    msgs = [dict(m) for m in hist[:n_messages]]
+    """The messages of a request of `firm`, rebuilt from its market record, failure record or checkpoint and the
+    attempt's `context` (from the record's decisions: the number of instruction messages, the memory text and
+    the transcript window [lo, hi)). Pass the log line's `cache_upto` to get the messages as sent (check
+    `messages_sha256(result)` against the line's `messages_sha256`), or none to compare with the context's own
+    `messages_sha256` (of the messages without cache_control). A call made in a period that a process died in
+    and a later invocation replayed differently is not in the final record; `reconstruct_from_log` rebuilds any
+    logged request from the log itself."""
+    from .firm import context_messages
+
+    instructions, transcript = _firm_texts(market_json, firm)
+    k, (lo, hi) = context["instructions"], context["window"]
+    if not 1 <= k <= len(instructions) or not 0 <= lo < hi <= len(transcript):
+        raise ValueError(f"firm {firm}: context {k} instructions, window [{lo}, {hi}) does not fit the record")
+    msgs = context_messages(instructions[:k], context["memory"], transcript[lo:hi])
     return with_cache_control(msgs, cache_upto) if cache_upto is not None else msgs
 
 
@@ -409,16 +415,22 @@ def _firm_key(line: dict[str, Any]) -> tuple[Any, ...] | None:
         if "market" in tag and "firm" in tag else None
 
 
+def _compact(line: dict[str, Any]) -> bool:
+    return "messages_ref" in line or "messages_new" in line
+
+
 def reconstruct_from_log(lines: Sequence[dict[str, Any]], index: int) -> list[dict[str, Any]]:
     """The messages sent (cache_control included) by the request logged at `lines[index]`, where `lines` are
-    a calls.jsonl's records in file order. A line with `request` carries them in full. A compact line
-    (`messages_from`, `messages_new`) extends the latest preceding request line of the same firm, market, run
-    and `invocation` (process), which is how the client logged it; the chain is followed back to a full line.
-    Raises ValueError if the chain is broken. Check the result with `messages_sha256`."""
+    a calls.jsonl's records in file order. A line with `request` carries them in full. A compact line refers to
+    the latest preceding request line of the same firm, market, run and `invocation` (process), which is how the
+    client logged it: `messages_ref` lists, per message, either the index of an identical message in that
+    previous request or the message itself; older logs have `messages_from`/`messages_new` (the messages
+    appended to it). The chain is followed back to a full line. Raises ValueError if the chain is broken. Check
+    the result with `messages_sha256`."""
     line = lines[index]
     if "request" in line:
         return list(line["request"]["messages"])
-    if "messages_new" not in line:
+    if not _compact(line):
         raise ValueError(f"line {index} carries no request")
     key = _firm_key(line)
     if key is None or key[0] is None:
@@ -431,11 +443,22 @@ def reconstruct_from_log(lines: Sequence[dict[str, Any]], index: int) -> list[di
         if "request" in prev:
             msgs = _strip_cache_control(prev["request"]["messages"])
             break
-        if "messages_new" in prev:
+        if _compact(prev):
             chain.append(prev)
     else:
         raise ValueError(f"line {index}: no earlier full request of {key}")
     for c in reversed(chain):
+        if "messages_ref" in c:
+            new = []
+            for ref in c["messages_ref"]:
+                if isinstance(ref, int) and not isinstance(ref, bool):
+                    if not 0 <= ref < len(msgs):
+                        raise ValueError(f"line {index}: chain broken (reference {ref} to {len(msgs)} messages)")
+                    new.append(dict(msgs[ref]))
+                else:
+                    new.append(dict(ref))
+            msgs = new
+            continue
         if c["messages_from"] != len(msgs):
             raise ValueError(f"line {index}: chain broken (messages_from {c['messages_from']} after {len(msgs)} "
                              f"messages)")
@@ -569,12 +592,13 @@ class OpenRouterClient:
     Log size: each line has `invocation` (one id per client, i.e. per runner process), `messages_sha256` (of the
     messages sent, cache_control included), `n_messages` and `prompt_bytes` (UTF-8 bytes of the message
     contents). The full `request` payload is logged for the first request of each (run_id, market, firm) in a
-    client's life (so in each process invocation), for a request that does not extend that firm's previous
-    logged one, and for failed attempts other than rate-limited ones. Other lines carry `messages_from`,
-    `messages_new` (the messages appended since the firm's previous logged request in this invocation, without
-    cache_control) and `request_params` (the payload minus messages); `reconstruct_from_log` chains them from
-    the latest preceding full line of the same firm and invocation. Calls without market and firm in `tag`
-    always log the full request.
+    client's life (so in each process invocation) and for failed attempts other than rate-limited ones. Other
+    lines carry `messages_ref` (per message sent, without cache_control: the index of an identical message in
+    the firm's previous logged request in this invocation, or the message itself) and `request_params` (the
+    payload minus messages); `reconstruct_from_log` chains them from the latest preceding full line of the same
+    firm and invocation. Firms' contexts are windowed (instructions, memory, recent turns), so consecutive
+    requests share most messages but not a prefix. Calls without market and firm in `tag` always log the full
+    request.
 
     Billing of failed attempts: an attempt that may have reached the provider (timeouts, dropped
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
@@ -637,8 +661,8 @@ class OpenRouterClient:
         # one id per client (= per process invocation of the runner), in every log line
         self.invocation_id = uuid.uuid4().hex
         self._ids = {"invocation": self.invocation_id}
-        # (run_id, market, firm) -> (n_messages, sha256 of the first and of the last message) last logged
-        self._logged_prefix: dict[tuple[Any, ...], tuple[int, str, str]] = {}
+        # (run_id, market, firm) -> sha256 of each message (without cache_control) of its last logged request
+        self._logged: dict[tuple[Any, ...], list[str]] = {}
         if budget.recovered_usd:
             self._log({"ts": _now(), "event": "budget_recovered_in_flight", **self._ids, "charged_usd": budget.recovered_usd,
                        "budget_spent_usd": budget.spent,
@@ -779,20 +803,21 @@ class OpenRouterClient:
             if tag and "market" in tag and "firm" in tag else None
         request_params = {k: v for k, v in payload.items() if k != "messages"}
 
+        raw = list(messages)
+        raw_sha = [_sha256(m) for m in raw]
+
         def req(full: bool) -> dict[str, Any]:
-            """The request part of a log line: the full payload if `full`, for a firm's first logged request in
-            this client, or when this request does not extend the firm's previous logged one; otherwise only the
-            messages appended since then (without cache_control; `cache_upto` says where breakpoints went).
-            The prefix check compares the previous length and the hashes of the first and last messages of the
-            prefix (O(1) in the history length; firm histories are append-only)."""
-            raw = list(messages)
-            prev = self._logged_prefix.get(firm_key) if firm_key else None
-            if firm_key and raw:
-                self._logged_prefix[firm_key] = (len(raw), _sha256(raw[0]), _sha256(raw[-1]))
-            if (full or prev is None or not 0 < prev[0] <= len(raw) or _sha256(raw[0]) != prev[1]
-                    or _sha256(raw[prev[0] - 1]) != prev[2]):
+            """The request part of a log line: the full payload if `full` or for a firm's first logged request in
+            this client; otherwise `messages_ref`, each message (without cache_control; `cache_upto` says where
+            breakpoints went) as the index of an identical message in the firm's previous logged request, or as
+            itself when it is new."""
+            prev = self._logged.get(firm_key) if firm_key else None
+            if firm_key:
+                self._logged[firm_key] = raw_sha
+            if full or prev is None:
                 return {"request": payload}
-            return {"messages_from": prev[0], "messages_new": raw[prev[0]:], "request_params": request_params}
+            where = {h: i for i, h in reversed(list(enumerate(prev)))}
+            return {"messages_ref": [where.get(h, m) for h, m in zip(raw_sha, raw)], "request_params": request_params}
         try:
             ep = await self.resolve(model, provider)
         except PermanentError as e:
