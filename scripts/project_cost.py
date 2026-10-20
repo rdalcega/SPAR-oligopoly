@@ -13,6 +13,11 @@ Method:
   the runtime guard (`llm.prompt_token_bound` with the model's bytes_per_token_min) is reported alongside.
 - Output tokens (completion_tokens, which include reasoning) are drawn per call from that model's pilot
   distribution for the call's phase.
+- Notes: the pilots asked for 100-150 words on every answer; runs now state `notes_words` (500 by default) and
+  write notes with prices and in the transition call only. The replay's notes are set to the stated length (in
+  every later prompt); each price or transition call adds the stated notes' extra tokens over the pilots' mean
+  notes to its drawn output (assumes firms use the full allowance: on the high side, as a budget cap needs), and
+  each chat call's draw loses the pilots' mean notes.
 - Price: the pinned endpoint's pricing (prompt, completion, per request). Cache-read pricing is applied to the
   pilot's cached share of prompt tokens only if the pilot showed cache hits for the model.
 - Time per market: sequential steps (each chat round and each price decision of a period is one step in which all
@@ -29,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import random
 import statistics
@@ -38,7 +44,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from project_context import ReplayClient, Sample, load_samples
+from project_context import ReplayClient, Sample, cap_note, load_samples
 
 from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models, select_cells
 from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed
@@ -119,7 +125,7 @@ class CostReplay(ReplayClient):
 
 
 def price_calls(calls: list[dict[str, Any]], st: PilotStats, pricing: dict[str, float], bound_tpb: bool,
-                seed: int) -> tuple[float, int, int]:
+                seed: int, extra_out: float = 0.0, chat_notes_out: float = 0.0) -> tuple[float, int, int]:
     """(USD, prompt tokens, output tokens) of the recorded calls. Prompt tokens are bytes x the empirical
     tokens per byte, or the guard's bound when `bound_tpb`; output tokens are drawn from the pilot per phase."""
     rng = random.Random(seed)
@@ -129,6 +135,11 @@ def price_calls(calls: list[dict[str, Any]], st: PilotStats, pricing: dict[str, 
     for c in calls:
         p = c["bound"] if bound_tpb else c["bytes"] * st.tokens_per_byte
         o = rng.choice(st.output[st.draws(c["kind"])])
+        phase = c.get("step", (None, None, c["kind"]))[2]
+        if phase in ("price", "transition"):  # notes are written with prices and in the transition call
+            o += extra_out
+        elif c["kind"] == "chat":  # pilot chat answers carried notes; chat answers no longer do
+            o = max(1.0, o - chat_notes_out)
         usd += (p * (1 - share) * pricing["prompt"] + p * share * (cache_read or 0.0)
                 + o * pricing["completion"] + pricing.get("request", 0.0))
         ptok += p
@@ -190,10 +201,20 @@ async def main(argv: list[str] | None = None) -> int:
     sample = samples.get(a.model)
     if not sample or not sample.usable:
         raise SystemExit(f"no usable pilot markets of {a.model}")
+    pilot_notes = [len(x) for x in sample.notes if x]
+    if exp.notes:  # notes at the stated length (about 6 characters per word)
+        stated = cap_note(exp.notes_words, 6 * exp.notes_words)
+        sample = dataclasses.replace(sample, notes=[stated])
     st = pilot_stats(sorted(pilots.glob("pilot*/calls.jsonl")), cfg.model)
     if not st.calls or not st.output["chat"] or not st.output["price"]:
         raise SystemExit(f"no OK pilot calls of {cfg.model} for both phases")
     pricing = await endpoint_pricing(cfg)
+    # output tokens the stated notes add over the pilots' (bytes x the pilot's tokens per byte)
+    extra_out = max(0.0, 6 * exp.notes_words - statistics.mean(pilot_notes or [0])) * st.tokens_per_byte \
+        if exp.notes else 0.0
+    chat_notes_out = statistics.mean(pilot_notes or [0]) * st.tokens_per_byte  # pilot notes in chat outputs
+    print(f"notes at the stated {exp.notes_words} words: +{extra_out:.0f} output tokens per price or transition "
+          f"call; chat calls -{chat_notes_out:.0f} (chat answers carry no notes)")
     lat = {k: (statistics.median(v), pctl(v, 0.9)) for k, v in st.latency.items() if v}
     lat.setdefault("probe", lat["price"])
     share = st.cached_share if pricing.get("input_cache_read") is not None else 0.0
@@ -213,8 +234,8 @@ async def main(argv: list[str] | None = None) -> int:
         reps = [await replay_cell(cfg, sample, n, o, exp, i) for i in range(a.replays)]
         r = defaultdict(float)
         for i, calls in enumerate(reps):
-            usd, _, _ = price_calls(calls, st, pricing, False, derive_seed("out", n, o, i))
-            usd_b, _, _ = price_calls(calls, st, pricing, True, derive_seed("out", n, o, i))
+            usd, _, _ = price_calls(calls, st, pricing, False, derive_seed("out", n, o, i), extra_out, chat_notes_out)
+            usd_b, _, _ = price_calls(calls, st, pricing, True, derive_seed("out", n, o, i), extra_out, chat_notes_out)
             sp = steps(calls)
             r["calls"] += len(calls)
             r["steps"] += sp["chat"] + sp["price"] + sp["probe"]

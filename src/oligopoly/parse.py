@@ -17,13 +17,15 @@ from __future__ import annotations
 import ast
 import json
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 # Version of the parsing rules, part of every market fingerprint and of run_config.json, so a run never mixes
 # markets parsed under different rules. Bump it whenever a change can turn an invalid answer valid or change
 # the value read from an answer. 1: initial rules; 2: structural typographic quotes straightened (2026-10-20).
-PARSER_VERSION = 2
+PARSER_VERSION = 4  # 3: no "notes long" warning (the stated length is a setting; the engine caps notes);
+# 4: chat answers carry no notes (any "notes" field there is ignored)
 
 _THINK = re.compile(r"<(think|thinking|reasoning)>.*?</\1>", re.S | re.I)
 _THINK_CLOSE = re.compile(r"</(think|thinking|reasoning)>", re.I)
@@ -83,7 +85,9 @@ def _load(s: str) -> Any:
     pythonish = re.sub(r"\bnull\b", "None", re.sub(r"\btrue\b", "True", re.sub(r"\bfalse\b", "False", s)))
     for cand in (s, pythonish):
         try:
-            obj = ast.literal_eval(cand)
+            with warnings.catch_warnings():  # model text such as "\\p" would print an invalid-escape warning
+                warnings.simplefilter("ignore", SyntaxWarning)
+                obj = ast.literal_eval(cand)
         except (ValueError, SyntaxError, MemoryError, RecursionError):
             continue
         # Only JSON-shaped values: `{"notes": ..., "price": 5}` (the format line copied literally) evaluates to
@@ -160,8 +164,6 @@ def _notes(obj: dict[str, Any], p: Parsed) -> None:
         p.warnings.append(f"notes coerced from {type(n).__name__}")
         n = json.dumps(n, ensure_ascii=False)
     p.notes = n
-    if len(n.split()) > 150:
-        p.warnings.append(f"notes long ({len(n.split())} words)")
 
 
 def _no_object(content: str | None, key: str) -> str:
@@ -181,6 +183,14 @@ def _no_object(content: str | None, key: str) -> str:
     return f'no JSON object with a "{key}" field was found'
 
 
+QUOTE_CHARS = 60  # a value quoted in an error (shown to the firm in the re-ask) is cut to this many characters
+
+
+def _quote(v: Any) -> str:
+    s = json.dumps(v, ensure_ascii=False)
+    return s if len(s) <= QUOTE_CHARS else s[:QUOTE_CHARS - 1] + "…"
+
+
 def parse_price(content: str | None, p_max: int = 100) -> Parsed:
     """Price: an integer 0..p_max. Numeric strings and floats with no fractional part are accepted with a
     warning; anything else (other floats, bools, out of range) is an error."""
@@ -190,7 +200,7 @@ def parse_price(content: str | None, p_max: int = 100) -> Parsed:
     p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
     v = obj["price"]
     if isinstance(v, bool) or v is None:
-        p.error = f"price {json.dumps(v)} is not a whole number"
+        p.error = f"price {_quote(v)} is not a whole number"
     elif isinstance(v, int):
         p.value = v
     elif isinstance(v, float) and v.is_integer():
@@ -200,7 +210,7 @@ def parse_price(content: str | None, p_max: int = 100) -> Parsed:
         p.value = int(float(v))
         p.warnings.append(f"price coerced from string {v!r}")
     else:
-        p.error = f"price {json.dumps(v, ensure_ascii=False)} is not a whole number"
+        p.error = f"price {_quote(v)} is not a whole number"
     if p.error is None and not 0 <= p.value <= p_max:
         p.error, p.value = f"price {p.value} is outside 0-{p_max}", None
     _notes(obj, p)
@@ -230,7 +240,24 @@ def parse_message(content: str | None, char_limit: int | None = 300) -> Parsed:
         p.warnings.append(f"message truncated from {len(text)} to {char_limit} characters")
         text = text[:char_limit]
     p.value = text
+    if "notes" in obj:  # notes are written with price answers only: never read from a chat turn
+        p.warnings.append("notes on a chat turn ignored")
+    return p
+
+
+def parse_notes(content: str | None) -> Parsed:
+    """Notes only (the transition call): an object with a "notes" field, coerced to text like any notes; its value
+    is the notes. Missing or null notes are an error here, since they are the whole answer."""
+    obj, curly = _extract(content, "notes")
+    if obj is None:
+        return Parsed(error=_no_object(content, "notes"))
+    p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
     _notes(obj, p)
+    if p.notes is None:
+        p.error = 'the "notes" field is null'
+    if extra := sorted(k for k in obj if k != "notes"):
+        p.warnings.append(f"fields other than notes ignored: {', '.join(extra)}")
+    p.value = p.notes
     return p
 
 

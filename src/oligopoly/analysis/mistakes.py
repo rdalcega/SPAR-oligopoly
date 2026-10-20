@@ -125,8 +125,26 @@ def flag_chat(chat: pd.DataFrame) -> pd.DataFrame:
     return c
 
 
-def rates(ff: pd.DataFrame, fc: pd.DataFrame) -> pd.DataFrame:
-    """Per model: output-problem rates (price and chat decisions) and heuristic flag rates."""
+def flag_transition(tr: pd.DataFrame) -> pd.DataFrame:
+    """Transition-call notes plus misreading flags (they are read as written before Part 2 period 1)."""
+    t = tr.copy()
+    mr = [misreads(n, 1) for n in t["notes"]]
+    for k in MISREAD:
+        t[f"misread_{k}"] = [k in m for m in mr]
+    return t
+
+
+def _transition_agg(ft: pd.DataFrame | None, by: list[str]) -> pd.DataFrame | None:
+    if ft is None or not len(ft):
+        return None
+    mr = [f"misread_{k}" for k in MISREAD]
+    t = ft.assign(reask=ft["invalid_attempts"] > 0, misread=ft[mr].any(axis=1))
+    return t.groupby(by).agg(transition_decisions=("firm", "size"), transition_reask_rate=("reask", "mean"),
+                             transition_fallback=("fallback", "mean"), misread_transition=("misread", "mean"))
+
+
+def rates(ff: pd.DataFrame, fc: pd.DataFrame, ft: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Per model: output-problem rates (price, chat and transition decisions) and heuristic flag rates."""
     price = ff.assign(invalid=ff["invalid_attempts"] > 0).groupby("model").agg(
         price_decisions=("price", "size"), price_any_invalid=("invalid", "mean"), price_reasks=("reasks", "sum"),
         price_fallback=("fallback", "mean"), price_coerced=("coerced", "mean"),
@@ -140,13 +158,15 @@ def rates(ff: pd.DataFrame, fc: pd.DataFrame) -> pd.DataFrame:
             chat_fallback=("fallback", "mean"), chat_truncated=("truncated", "mean"),
             **{f"chat_misread_{k}": (f"misread_{k}", "mean") for k in MISREAD})
         out = price.join(chat, how="left")
+    if (t := _transition_agg(ft, ["model"])) is not None:
+        out = out.join(t, how="left")
     return out.reset_index()
 
 
 CELL = ["model", "n", "ordering"]
 
 
-def cell_rates(ff: pd.DataFrame, fc: pd.DataFrame) -> pd.DataFrame:
+def cell_rates(ff: pd.DataFrame, fc: pd.DataFrame, ft: pd.DataFrame | None = None) -> pd.DataFrame:
     """Per (model, n, ordering): format slips kept apart from strategic mistakes.
 
     Format slips: the share of price decisions and of chat turns that needed a re-ask (any invalid attempt), and
@@ -165,6 +185,8 @@ def cell_rates(ff: pd.DataFrame, fc: pd.DataFrame) -> pd.DataFrame:
             misread_chat=("misread", "mean")), how="left")
     else:
         out = out.assign(chat_turns=0, chat_reask_rate=None, chat_fallback=None, misread_chat=None)
+    if (t := _transition_agg(ft, CELL)) is not None:
+        out = out.join(t, how="left")
     return out.reset_index()
 
 

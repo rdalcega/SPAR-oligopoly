@@ -122,6 +122,99 @@ reasoning are private.
   instructions tell firms neutrally that they will see full details of only the last 3 periods and that their
   notes carry forward (mechanics only, no behavioural hint). Native reasoning is still logged and never fed
   back. Context no longer grows with the market, which makes prefix caching irrelevant and cuts cost.
+- **2026-10-20 (later): superseded by the summaries layout** (decided by Rodrigo: the verbatim window
+  interleaved notes, answers and results in a confusing order and repeated the latest notes; it also showed
+  4 periods of results for W = 3). The window and the self-written memory stay; what a request shows changes.
+  Each call is the instructions as the system message (plus Part 2's, prepended to the user message, once
+  Part 2 has started) and **one user message** with, in order: (1) the system-generated summaries of the last
+  W = `memory_window` completed periods (exactly W; results of every firm, any price-fallback notice, and the
+  die or end-of-part line of that period), counted across the part boundary, followed by the firm's own
+  cumulative profit as of the call; (2) the firm's latest notes; (3) in Talk parts only, the chat messages of
+  the current period so far (every round, every firm, in the firm's listing order, its own message as posted,
+  passes as "(no message)"; a placeholder before any round); (4) the prompt. The firm's earlier answers and
+  earlier periods' chat are never shown again; only the current decision's failed answers and re-asks follow
+  as assistant/user messages. In Talk parts, an agreement therefore survives past its period only through the
+  notes; a firm that breaks an agreement its latest notes do not mention may have forgotten it, which the
+  analysis should treat apart from deliberate cheating. The post-game probe sees the same sections without a
+  chat section, so its "deviations" question tests the notes. The notes length stated to firms becomes a
+  setting, `notes_words` (default **500 words**, up from 150, since the rest of the prompt is much shorter);
+  the hard cap rises to 650 words / 4,500 characters. Results from this layout are not comparable with the
+  verbatim-window sweeps (gpt-oss, Qwen3-14B) and the window A/B; those runs keep their records and remain
+  rebuildable. Exact definition: engine details 11.
+- **2026-10-20: transition call between the parts** (decided by Rodrigo; wording approved by him). Once Part 1 is
+  over (its final summary written and Part 2's instructions given), before Part 2 period 1, every firm gets one
+  notes-only call: the usual sections without chat (Part 2's instructions, the summaries of the last W periods,
+  its totals as of Part 2's start, its notes), then "Part 1 is over. Part 2 starts with the next period; its
+  instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take
+  it into account." with the format `{"notes": "<private notes, at most about N words>"}`. The answer's notes
+  replace the memory like any other; an answer still unusable after the re-asks leaves the notes unchanged and
+  nothing is told. ~~It runs in every ordering.~~ **Revised the same day (Rodrigo): it runs only where
+  communication changes between the parts (NT-T, T-NT); NT-NT and T-T have no transition call, since nothing
+  changes there.** **This departs from the paper** (human subjects only read the Part 2 sheet): it invites a
+  reflection the humans were not prompted for and may strengthen how firms carry Part 1 into Part 2. It is a
+  setting, `transition` (default on; it needs `notes`), so a run for the human comparison can switch it off;
+  whichever value a run uses is held fixed across its models. Recorded under the market record's
+  `transition` (decisions by firm; call ids `.../p2/t0/transition/a<k>`, tag part 2, period 0, phase
+  `transition`; its transcript turns carry Part 2 period 1's global index). Fields other than `notes` in the
+  answer are ignored with a warning.
+- **2026-10-20: fourth ordering T-T** (Talk in both parts; requested by Rodrigo so every NoTalk/Talk ordering is
+  supported). An extension with no human benchmark: it is not among the paper's cells (`oligopoly.run` plays it
+  only as a grid cell, e.g. `--grid --n 4 --orderings T-T`), and its results stay apart from the human comparison.
+  Part 2's instructions say "As in Part 1, you will be able to communicate…" and repeat the chat rules. The
+  statistics module treats both of its parts as Talk windows (price-vs-n trends, Part 1 vs Part 2 within
+  markets) and adds T-T comparisons per n: Talk after Talk vs Talk after NoTalk (T-T vs NT-T Part 2), the same
+  Part 1 as T-NT (a replication check), and Talk kept vs removed (T-T vs T-NT Part 2); the hysteresis table gains
+  T-T's Part 1 and Part 2 means.
+- **2026-10-20: chat turns carry no notes** (decided by Rodrigo). Notes are written with each price answer (and
+  in the transition call) only; the chat answer format is `{"message": ...}`, and a `notes` field there is
+  ignored with the warning "notes on a chat turn ignored" (`PARSER_VERSION` 4). The notes of the last price
+  answer therefore stay in every chat round of the next period, and a terse chat-turn note can no longer wipe the
+  memory, so memory works the same way in Talk and NoTalk parts. Nothing is lost: the current period's chat is
+  shown in full in every request of that period, including the price call, where the firm writes its next
+  notes. The instructions say: "You write notes with each price. They are shown to you in every later request
+  until you next write notes, which then replace them, …" (neutral about the transition call, which the Part 1
+  instructions may not describe). This supersedes "rewritten in full at every decision (chat turns and prices)"
+  above. With structured outputs, `chat_turn` has no `notes` property. Notes a model writes on a chat turn anyway
+  are kept in that decision's record as `notes_ignored` (evidence of private plans for the analysis) and never
+  shown. **Discontinuity:** the chat-turn misread rates in the mistakes tables also read chat-turn notes, which
+  older records have and new ones do not, so those rates drop for a mechanical reason across this change.
+- **2026-10-20: transition-call confound in the analysis.** With the call in NT-T and T-NT only, Part 2
+  comparisons between an ordering with it and one without (T-NT vs NT-NT, T-T vs NT-T, T-T vs T-NT) include its
+  effect: such `mw_orderings` rows carry a caveat, as do the hysteresis rows of a model whose markets had the call.
+  Human-comparison rows carry the transition caveat only for Part 2 windows of orderings whose markets had it.
+- **2026-10-20: projections from the pilot records** (`data/runs/` of the `experiments` worktree;
+  `--pilots .claude/worktrees/experiments/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10 x four
+  orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
+  `project_cost.py` (6 markets per paper cell, 36 markets): gpt-oss-20b ~$4.97 ($6.29 with the guard's token
+  bound), qwen3-14b ~$11.70 ($15.42); price and transition calls carry the stated 500-word notes (+~760 output
+  tokens each), chat calls none.
+- **2026-10-20: final review fixes** (Claude/Codex review of the branch; firm-facing wording changes in the first
+  four points):
+  - Own cumulative profit names the part ("Your total profit in Part 2 so far"): "this part" right after a summary
+    saying "this part of the experiment is over" read as Part 1's profit at the transition and early in Part 2.
+  - The notes sit between "[start of your notes]" and "[end of your notes]": they are free text that can contain
+    lines like "Round 1: …" or "Period 18: …".
+  - A price fallback names its period ("Your price response in period t could not be used, so your price in that
+    period was set to X."), since the summary stays visible in later periods.
+  - A chat message is shown on one line and in double quotes (`prompts.shown_message`): a firm could otherwise post
+    line breaks forging "Firm A (you): …" or "Round 2:" lines in every other firm's chat section. Stored messages
+    are unchanged.
+  - Errors quote at most 60 characters of an invalid value, and a re-ask cuts the stated error at 1,000
+    characters (a backstop), so re-asks stay bounded without losing the reason.
+  - With structured outputs on, the transition call sends a strict `transition_notes` schema (notes only).
+  - Boolean settings (`notes`, `post_game_probe`, `transition`) must be true or false (a TOML string is refused).
+  - Analysis: a `transition` table (one row per firm and market) feeds the mistakes tables (re-ask, fallback and
+    misread rates of the transition call); markets record the `transition` setting, and every human-comparison row
+    of a model whose markets had the call carries a caveat. The audit checks what each request selected (the
+    last W summaries, this period's chat rounds, the latest valid notes) and counts the transition call.
+  - Projections: `oligopoly.run --dry-run` writes mock notes at the stated length and adds them to the output
+    estimate (80 + 4/3 token per word); `project_cost.py` replays notes at the stated length and adds their extra
+    output tokens; `project_context.py --synthetic` (ASCII worst case) and `--utf8-max` (every capped field in
+    4-byte characters, a strict bound; the only synthetic mode `--write` accepts). Results 2026-10-20 (grid
+    n = 2-10, all four orderings, 3 replays): ASCII worst case within every model's limit (tightest qwen3-14b,
+    ~19.6k of 32.8k incl. max_tokens); the strict bound exceeds qwen3-14b's limit in Talk cells from n = 6
+    (paper cells NT-T n = 6, 8 included). Not applied as exclusions: no real run writes 4-byte text throughout,
+    and the runtime guard refuses any request over the limit before it is sent.
 
 ### §6 item 11 — number of markets
 
@@ -230,9 +323,16 @@ sampling rule and reading notes saved alongside the analysis.
 1. Die faces and each firm's listing order are seeded from (base seed, n, ordering, market index) only, so all
    models face identical draws in a cell. Per-call sampling seeds hash all call coordinates plus that seed.
 2. Chat messages of a round are shown in the reader's own listing order, once, at the top of the next prompt.
+   **2026-10-20 (summaries layout):** every round of the current period is shown in each request of that period
+   (every firm listed, passes as "(no message)", the reader's own message as posted, i.e. after truncation to the
+   character limit); earlier periods' chat never.
 3. Own cumulative profit: Part 1 shows the part total; Part 2 shows the Part-2 total and the overall total.
 4. After the final failed re-ask the firm is told the fallback (price set to X / no message posted). The fallback
    price is the firm's last price, carried across parts; 100 only in Part 1 period 1.
+   **2026-10-20 (summaries layout):** a price fallback is told in that period's summary ("Your price response in
+   period t could not be used, so your price in that period was set to X."; it names the period because the summary
+   stays visible in later periods); a chat fallback shows in the firm's own line of that round, "(no message: your
+   response could not be used)".
 5. Failed attempts stay in the firm's history (raw content with think blocks stripped); valid answers are stored
    as the extracted JSON, re-serialised.
 6. Parsing accepts numeric strings and integral floats (logged); other floats, booleans and out-of-range prices
@@ -259,6 +359,7 @@ sampling rule and reading notes saved alongside the analysis.
     **2026-10-20:** with the rolling window (item 11) only the instructions are a stable prefix, so breakpoints
     go on the instruction messages only (Part 1's, and Part 2's once shown), never on the newest message.
     **2026-10-20, with same-role merging (item 11):** on the system message (Part 1's instructions) only.
+    Unchanged in the summaries layout.
 11. **Rolling window, exact definition (2026-10-20, implements §6 item 3's rolling window with W =
     `memory_window` = 3 in `config/experiment.toml`).** Periods are numbered globally across parts (Part 2
     period t is Part 1's length + t; the post-game probe is the total + 1). Each firm keeps a full transcript:
@@ -288,8 +389,32 @@ sampling rule and reading notes saved alongside the analysis.
     instructions, transcript, pending text and notes, so a resume rebuilds identical windows (tested). Context
     size is bounded, so the context guard and `scripts/project_context.py` see a peak that no longer grows with
     the part lengths.
+    **2026-10-20 (later): summaries layout, replaces the above for new runs** (§6 item 3). Each firm's
+    transcript entries carry a `kind`: `summary` (written when a period ends: `results_text` without cumulative
+    lines, then queued notices, then the die line from the minimum period on or `part_over_text`), `chat` (one
+    round as this firm sees it, `round_text`), `prompt`, `answer`, `reask`. A request in global period t is:
+    (1) system: Part 1 instructions; (2) one user message joining with blank lines: Part 2 instructions (from
+    Part 2 on), `summaries_text` of the last W summary entries (periods t−W..t−1; "No periods have been played
+    yet." before any) followed by `totals_text` (own cumulative profit for the part, named: "Your total profit
+    in Part k so far", and in Part 2 for the experiment, as of the call; the transition call shows Part 2's),
+    `notes_text` (if the run uses notes: "Your most recent notes:", then the notes between the lines "[start of
+    your notes]" and "[end of your notes]", since they are free text that could pass for results or chat; the
+    latest answer with a `notes` field, which may be older than the last answer; "(empty)" for empty notes; or
+    "You have not written any notes yet."), `chat_text` of this period's chat entries (Talk parts only, including the price call; "No messages
+    have been posted in this period yet." before round 1), and the prompt; (3) for a re-ask, the decision's
+    failed answers and re-asks, alternating. Prompts no longer carry the die or chat messages. Answers are
+    stored as their extracted JSON with the notes as the firm carries them (coerced to text, capped), and the
+    notes shown are those of the latest answer with a `notes` field (an index, `notes_at`, kept in the
+    checkpoint). Each attempt's `context` is {`layout`: "sections", `instructions`, `summaries` (transcript
+    indices), `totals` (text), `notes` (bool), `notes_at`, `chat` (indices or null), `turns` [lo, hi),
+    `messages_sha256`}; `reconstruct_request` rebuilds it through `firm.section_messages` (with the current
+    section wording, which is in the texts digest), and older contexts as before. `CHECKPOINT_VERSION` 5,
+    `PARSER_VERSION` 3 (the parser's fixed 150-word "notes long" warning is dropped; truncation still warns).
 
-12. **Notes cap (2026-10-20, review).** The notes a firm carries are hard-capped so memory stays bounded:
+12. **Notes cap (2026-10-20, review).** **Summaries layout (2026-10-20, later):** the stated length is
+    `notes_words` (default 500) and the cap is 650 words / 4,500 characters by default (`notes_max_words` must be
+    at least `notes_words`); the rest of this item is unchanged apart from those numbers.
+    The notes a firm carries are hard-capped so memory stays bounded:
     over 200 words or 1,400 characters (`notes_max_words`, `notes_max_chars` in `config/experiment.toml`, part
     of the fingerprint), they are cut after the last whole word that fits and " [truncated]" is appended (the
     total stays within 1,400 characters). The firm sees only the capped notes, both in its memory block and in

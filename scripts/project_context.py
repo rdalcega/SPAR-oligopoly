@@ -17,6 +17,14 @@ model whose context length is unknown is reported and left unchanged.
 
 --notes-at-cap: worst case for the notes cap (DECISIONS.md engine details 12): every notes field the replay writes
 is exactly at the cap (notes_max_words words, notes_max_chars characters, ASCII) instead of a pilot sample.
+
+--synthetic: no pilot markets needed. A worst-case sample instead of pilot outputs: notes at the cap (as
+--notes-at-cap), every chat message at the character limit, every firm posting in every round of every Talk
+period (the chat never closes early), and SYNTHETIC_INVALID of answers invalid (a price object whose value fills
+the 2,000 characters the engine keeps, so the re-ask quotes an error too), so re-ask chains occur. The caps count
+characters while the context guard counts UTF-8 bytes, so plain --synthetic (ASCII) is a worst case for
+English-like text only; --utf8-max fills every capped field with 4-byte characters, a true upper bound (and the
+only synthetic mode --write accepts, so exclusions are never cleared on a non-bound). Not a cost estimate.
 """
 
 from __future__ import annotations
@@ -129,10 +137,14 @@ class ReplayClient:
             content = json.dumps(probe_answer(messages, rng))
         elif self.s.invalid[kind] and rng.random() < self.s.p_invalid(kind):
             content = rng.choice(self.s.invalid[kind])
+        elif tag.get("phase") == "transition":  # notes only (the pilots had no transition call)
+            content = json.dumps({"notes": rng.choice([x for x in self.s.notes if x is not None] or [""])},
+                                 ensure_ascii=False)
         else:
             notes = rng.choice(self.s.notes)
-            obj: dict[str, Any] = {"notes": notes} if notes is not None else {}
-            if kind == "price":
+            obj: dict[str, Any] = {}
+            if kind == "price":  # notes go with prices only
+                obj = {"notes": notes} if notes is not None else {}
                 obj["price"] = rng.choice(self.s.prices)
             else:
                 r, used = int(tag["phase"][4:]), self._rounds(tag)
@@ -146,12 +158,32 @@ class ReplayClient:
                           seed_possibly_ignored=False, provider_mismatch=False)
 
 
-def cap_note(max_words: int, max_chars: int) -> str:
-    """ASCII notes at the cap: `max_words` words, `max_chars` characters if that many words can fill them (never
-    over either, so the engine keeps them whole)."""
+SYNTHETIC_INVALID = 0.2  # share of invalid answers in the --synthetic sample
+
+
+WIDE = "\U0001D535"  # a 4-byte UTF-8 character, for --utf8-max
+
+
+def synthetic_sample(exp: ExperimentConfig, char: str = "x") -> Sample:
+    """The --synthetic worst-case sample (see the module docstring); `char` fills every capped field."""
+    head, tail = '{"price": "', '"}'
+    # a closed price string: the engine keeps all 2,000 characters and the re-ask quotes the (shortened) value
+    bad = head + char * (2000 - len(head) - len(tail)) + tail
+    # 4-byte characters: one word filling the character cap (spaces would be 1-byte); ASCII: words and spaces
+    notes = char * exp.notes_max_chars if char != "x" else cap_note(exp.notes_max_words, exp.notes_max_chars)
+    return Sample(notes=[notes],
+                  messages=[char * (exp.char_limit or 300)], prices=list(range(101)),
+                  rounds_used=Counter({exp.chat_rounds: 1}), passes=0, posts=1,
+                  attempts={k: 10 for k in KINDS}, invalid={k: [bad] * int(10 * SYNTHETIC_INVALID) for k in KINDS},
+                  markets=0)
+
+
+def cap_note(max_words: int, max_chars: int, char: str = "x") -> str:
+    """Notes at the cap made of `char`: `max_words` words, `max_chars` characters if that many words can fill them
+    (never over either, so the engine keeps them whole)."""
     per = max(1, (max_chars + 1) // max_words - 1)  # word length so that the words and spaces fit
-    text = " ".join(["x" * per] * max_words)
-    return text + "x" * max(0, max_chars - len(text))  # the last word takes up any slack
+    text = " ".join([char * per] * max_words)
+    return text + char * max(0, max_chars - len(text))  # the last word takes up any slack
 
 
 async def project(cfg: ModelConfig, sample: Sample, n: int, ordering: str, exp: ExperimentConfig,
@@ -224,16 +256,26 @@ async def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write", action="store_true", help="write exclude_cells into the models file")
     ap.add_argument("--notes-at-cap", action="store_true",
                     help="worst case: every notes field at the cap (notes_max_words / notes_max_chars)")
+    ap.add_argument("--synthetic", action="store_true",
+                    help="worst-case synthetic sample instead of pilot outputs (no pilot markets needed)")
+    ap.add_argument("--utf8-max", action="store_true",
+                    help="with --synthetic: 4-byte characters in every capped field (a true upper bound)")
     a = ap.parse_args(argv)
+    if a.utf8_max and not a.synthetic:
+        raise SystemExit("--utf8-max needs --synthetic")
+    if a.write and a.synthetic and not a.utf8_max:
+        raise SystemExit("--write with --synthetic needs --utf8-max (the ASCII sample is not an upper bound)")
 
     registry = load_models(a.models_file)
     names = a.models or [k for k, v in registry.items() if not v.is_mock]
     if unknown := [k for k in names if k not in registry]:
         raise SystemExit(f"unknown models {unknown}")
     exp = load_experiment(a.experiment_file)
-    samples = load_samples(sorted(Path(a.pilots).glob("pilot*/markets/*.json")))
-    if not samples.get("*") or not samples["*"].usable:
-        raise SystemExit(f"no completed pilot markets with chat under {a.pilots}")
+    samples = {} if a.synthetic else load_samples(sorted(Path(a.pilots).glob("pilot*/markets/*.json")))
+    if a.synthetic:
+        samples["*"] = synthetic_sample(exp, WIDE if a.utf8_max else "x")
+    elif not samples.get("*") or not samples["*"].usable:
+        raise SystemExit(f"no completed pilot markets with chat under {a.pilots} (--synthetic needs none)")
     ctx = dict(zip(names, await asyncio.gather(*(context_length(registry[k]) for k in names))))
     cells = select_cells(a.n, a.orderings, a.grid)
     ns, orderings = sorted({n for n, _ in cells}), [o for o in ORDERINGS if any(c[1] == o for c in cells)]
@@ -244,9 +286,11 @@ async def main(argv: list[str] | None = None) -> int:
         cfg = registry[name]
         own = samples.get(name)
         sample = own if own and own.usable else samples["*"]
-        if a.notes_at_cap:
+        if a.notes_at_cap and not a.synthetic:  # (the synthetic sample's notes are at the cap already)
             sample = dataclasses.replace(sample, notes=[cap_note(exp.notes_max_words, exp.notes_max_chars)])
-        src = f"{own.markets} pilot market(s)" if own and own.usable else "no usable pilot of its own: all pooled"
+        src = ("synthetic worst case, 4-byte characters" if a.utf8_max else "synthetic worst case, ASCII") \
+            if a.synthetic else f"{own.markets} pilot market(s)" if own and own.usable \
+            else "no usable pilot of its own: all pooled"
         length, problem = ctx[name]
         limit = int(length * a.threshold) if length else None
         print(f"\n{name}  ({src}; bytes/token {cfg.bytes_per_token_min}; max_tokens {cfg.max_tokens}; "

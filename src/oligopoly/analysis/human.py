@@ -23,6 +23,8 @@ CAV = {
     "defections": "Paper removed 2 deliberate turn switches by reading chats; LLM counts are price-based candidates.",
     "spell": "Paper's unit is a market's average all-100 agreement length; LLM mean over markets with >= 1 spell.",
     "pooled": "Pooled over n = 2, 4, 6, 8 (24 human markets).",
+    "transition": ("Played with the transition call (notes written between the parts), which human subjects did "
+                   "not have; Part 2 comparisons are not like for like."),
 }
 
 
@@ -36,9 +38,14 @@ def comparison(cells: pd.DataFrame, t2: pd.DataFrame, markov_summ: list[dict], s
 
     for model in sorted(cells["model"].unique()):
         lengths_ok = bool(markets.loc[markets["model"] == model, "paper_lengths"].all())
+        mm = markets[markets["model"] == model]
+        # the transition call between the parts departs from the paper (DECISIONS.md §6 item 3): it can affect only
+        # Part 2, in the orderings whose markets had it
+        with_transition = set(mm.loc[mm["transition"], "ordering"]) if "transition" in mm else set()
 
         def add(block, measure, n, o, window, llm, human, sd=None, hsd=None, n_llm=None, cav=()):
-            cav = list(cav) + ([] if lengths_ok else ["Part lengths differ from the paper's 29/24."])
+            cav = list(cav) + ([] if lengths_ok else ["Part lengths differ from the paper's 29/24."]) + (
+                [CAV["transition"]] if o in with_transition and "p2" in str(window) else [])
             rows.append({"model": model, "block": block, "measure": measure, "n": n, "ordering": o,
                          "window": window, "llm": num(llm), "llm_sd": num(sd), "llm_n_markets": n_llm,
                          "human": human, "human_sd": hsd,

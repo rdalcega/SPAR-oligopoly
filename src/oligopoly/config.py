@@ -12,7 +12,9 @@ from .llm import DEFAULT_BYTES_PER_TOKEN_MIN
 
 ROOT = Path(__file__).resolve().parents[2]
 # part orderings: name -> (part 1 has chat, part 2 has chat)
-ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
+# T-T is an extension (no human benchmark); the paper's cells use the other three
+ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False),
+                                           "T-T": (True, True)}
 # the paper's (n, ordering) cells, the default of full sweeps (DECISIONS.md, 2026-10-20 scope update): NoTalk->Talk
 # at n in {2, 4, 6, 8}, both controls at n = 4
 PAPER_CELLS: tuple[tuple[int, str], ...] = (*((n, "NT-T") for n in PAPER_NS), (4, "T-NT"), (4, "NT-NT"))
@@ -129,19 +131,31 @@ class ExperimentConfig:
     # post-game comprehension probe after the final period (DECISIONS.md, 2026-10-20); adds calls and the
     # record's "probe" entry, never changes play
     post_game_probe: bool = True
-    # completed periods each request shows verbatim; older play survives only in the firm's own notes
-    # (DECISIONS.md §6 item 3, 2026-10-20)
+    # completed periods whose summaries each request shows; older play survives only in the firm's own notes
+    # (DECISIONS.md §6 item 3, summaries layout)
     memory_window: int = 3
-    # hard cap on the notes a firm carries as memory and in its windowed answers (DECISIONS.md engine details
-    # 12): longer notes are cut at a word boundary and marked " [truncated]"; the instructions ask for ~150 words
-    notes_max_words: int = 200
-    notes_max_chars: int = 1400
+    # the notes length stated to firms ("at most about N words")
+    notes_words: int = 500
+    # hard cap on the notes a firm carries as memory (DECISIONS.md engine details 12): longer notes are cut at a
+    # word boundary and marked " [truncated]"; at least notes_words
+    notes_max_words: int = 650
+    notes_max_chars: int = 4500
+    # the transition call between the parts: each firm writes notes for Part 2 before it starts (DECISIONS.md §6
+    # item 3, 2026-10-20), only in orderings where communication changes (NT-T, T-NT); needs notes
+    transition: bool = True
 
     def __post_init__(self) -> None:
-        for name, low in (("memory_window", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
+        for name in ("notes", "post_game_probe", "transition"):  # a TOML string such as "false" must not pass
+            if not isinstance(getattr(self, name), bool):
+                raise ConfigError(f"{name} must be true or false, got {getattr(self, name)!r}")
+        for name, low in (("memory_window", 1), ("notes_words", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
             w = getattr(self, name)
             if isinstance(w, bool) or not isinstance(w, int) or w < low:
                 raise ConfigError(f"{name} must be an integer >= {low}, got {w!r}")
+        if self.transition and not self.notes:
+            raise ConfigError("transition needs notes = true (the transition call asks for notes only)")
+        if self.notes and self.notes_max_words < self.notes_words:
+            raise ConfigError(f"notes_max_words ({self.notes_max_words}) is below notes_words ({self.notes_words})")
 
     @property
     def pilot(self) -> bool:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +18,18 @@ PHASE = {True: "Talk", False: "NoTalk"}
 KEY_COLS = ["run_id", "market_id", "model", "n", "ordering", "market_index"]
 
 
+TRANSITION_COLS = ["run_id", "market_id", "model", "n", "ordering", "market_index", "part", "period", "firm",
+                   "notes", "valid", "fallback", "reasks", "invalid_attempts", "coerced", "warnings", "errors"]
+
+
 @dataclass
 class Tables:
     firm_period: pd.DataFrame  # one row per firm x period
     market_period: pd.DataFrame  # one row per market x period
     chat: pd.DataFrame  # one row per firm x chat round (message or pass)
     markets: pd.DataFrame  # one row per market: design info and part lengths
+    # one row per firm x market: the transition call between the parts (DECISIONS.md §6 item 3), if the run had it
+    transition: pd.DataFrame = field(default_factory=lambda: pd.DataFrame(columns=TRANSITION_COLS))
 
 
 def run_texts_digest(run_dir: Path) -> str | None:
@@ -109,7 +115,7 @@ def _coerced(warnings: list[str]) -> bool:
 
 def tidy(records: list[dict[str, Any]]) -> Tables:
     check_uniform_design(records)
-    fp, mp, ch, mk = [], [], [], []
+    fp, mp, ch, mk, tr = [], [], [], [], []
     for rec in records:
         s = rec["spec"]
         lengths = rec["settings"]["experiment"]["part_lengths"]
@@ -118,7 +124,13 @@ def tidy(records: list[dict[str, Any]]) -> Tables:
         talk = rec["settings"]["talk"]
         mk.append(key | {"part1_len": lengths[0], "part2_len": lengths[1], "phase1": PHASE[talk["part1"]],
                          "phase2": PHASE[talk["part2"]], "pilot": rec["settings"].get("pilot", False),
-                         "paper_lengths": tuple(lengths) == (b.PART1_PERIODS, b.PART2_PERIODS)})
+                         "paper_lengths": tuple(lengths) == (b.PART1_PERIODS, b.PART2_PERIODS),
+                         "transition": rec.get("transition") is not None})  # the call ran in this market
+        for L, d in (rec.get("transition") or {}).items():
+            tr.append(key | {"part": 2, "period": 0, "firm": L, "notes": d["notes"] or "", "valid": d["valid"],
+                             "fallback": d["fallback"], "reasks": d["reasks"], "invalid_attempts": len(d["errors"]),
+                             "coerced": _coerced(d["warnings"]), "warnings": "; ".join(d["warnings"]),
+                             "errors": " | ".join(e[:120] for e in d["errors"])})
         for p in rec["periods"]:
             part, t = p["part"], p["period"]
             g = t if part == 1 else lengths[0] + t
@@ -151,7 +163,10 @@ def tidy(records: list[dict[str, Any]]) -> Tables:
         chat = pd.DataFrame(columns=KEY_COLS + ["part", "period", "gperiod", "phase", "round", "firm", "message",
                                                 "passed", "chars", "notes", "fallback", "reasks",
                                                 "invalid_attempts", "truncated", "coerced"])
-    return Tables(firm_period=pd.DataFrame(fp).sort_values(sort + ["firm"], ignore_index=True),
+    transition = (pd.DataFrame(tr).sort_values(["market_id", "firm"], ignore_index=True) if tr
+                  else pd.DataFrame(columns=TRANSITION_COLS))
+    return Tables(transition=transition,
+                  firm_period=pd.DataFrame(fp).sort_values(sort + ["firm"], ignore_index=True),
                   market_period=pd.DataFrame(mp).sort_values(sort, ignore_index=True),
                   chat=chat.sort_values(sort + ["round", "firm"], ignore_index=True) if len(chat) else chat,
                   markets=pd.DataFrame(mk).sort_values("market_id", ignore_index=True))

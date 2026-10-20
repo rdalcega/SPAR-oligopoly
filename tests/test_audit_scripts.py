@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import audit_pilot as ap  # noqa: E402
 import project_context as pctx  # noqa: E402
@@ -40,6 +42,29 @@ async def test_context_projection_covers_the_probe():
     # the probe (answered by the replay client) is the last and longest prompt
     assert await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2)), 1) > \
         await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2), post_game_probe=False), 1)
+
+
+async def test_synthetic_projection_is_an_upper_envelope():
+    """--synthetic needs no pilots; its worst case (notes at the cap, full chat, re-asks) exceeds a light sample's
+    peak in every ordering, and the transition call is answered with notes."""
+    from collections import Counter
+
+    from oligopoly.config import ExperimentConfig, ModelConfig
+
+    exp = ExperimentConfig(part_lengths=(3, 2))
+    syn = pctx.synthetic_sample(exp)
+    assert syn.usable and syn.p_pass == 0 and syn.p_invalid("price") == pctx.SYNTHETIC_INVALID
+    assert len(syn.notes[0]) <= exp.notes_max_chars and len(syn.messages[0]) == exp.char_limit
+    light = pctx.Sample(notes=["n"], messages=["hi"], prices=[100], rounds_used=Counter({1: 1}), passes=1, posts=1)
+    cfg = ModelConfig("m", "acme/m", "p", max_tokens=10)
+    for o in ("NT-T", "T-NT", "NT-NT", "T-T"):
+        assert await pctx.project(cfg, syn, 3, o, exp, 1) > await pctx.project(cfg, light, 3, o, exp, 1)
+    # the caps count characters, the guard UTF-8 bytes: 4-byte characters give the true upper bound
+    wide = pctx.synthetic_sample(exp, pctx.WIDE)
+    assert len(wide.notes[0]) == len(syn.notes[0]) and len(wide.notes[0].encode()) > 3 * len(syn.notes[0])
+    assert await pctx.project(cfg, wide, 3, "T-T", exp, 1) > 2 * await pctx.project(cfg, syn, 3, "T-T", exp, 1)
+    with pytest.raises(SystemExit):
+        await pctx.main(["--synthetic", "--write", "--models", "mock"])
 
 
 async def test_audit_rebuilds_windowed_requests_and_checks_the_log(tmp_path):
@@ -188,3 +213,67 @@ def test_same_round_leak_matches_whole_message_lines():
     assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, posted) == ["future/same-round message of B visible"]
     # B's line from an earlier round is legitimately visible
     assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, {**posted, (1, 1, 2): {"B": sentence}}) == []
+
+
+def test_probe_model_request_builders_run_offline():
+    """scripts/probe_models.py builds its requests from the prompt functions: they must keep working (no calls)."""
+    import probe_models as pm
+
+    for build in (pm.price_messages, pm.chat_messages, pm.long_messages):
+        msgs = build()
+        assert msgs[0]["role"] == "system" and msgs[-1]["role"] == "user"
+    long = "\n".join(m["content"] for m in pm.long_messages())
+    assert "The computer threw the virtual dice" in long and "Round 1:" in long
+
+
+async def test_audit_checks_what_each_request_selected(tmp_path, monkeypatch):
+    """A request that leaves out the latest summary, chat round or notes still matches its own hash; check_sections
+    catches it. Corrupt contexts are not reconstructable, and a mistyped boolean setting is refused."""
+    import dataclasses
+
+    from oligopoly import firm as firm_mod
+    from oligopoly.config import ConfigError, ExperimentConfig, ModelConfig
+    from oligopoly.engine import MarketSpec, environment_seed, run_market
+    from oligopoly.llm import reconstruct_request
+    from oligopoly.mock import MockClient
+
+    s = MarketSpec("t", ModelConfig("mock", "mock", "mock"), 3, "T-T", 0, environment_seed(0, 3, "T-T", 0))
+    exp = ExperimentConfig(part_lengths=(4, 3))
+    rec = json.loads((await run_market(s, MockClient(), tmp_path / "ok", exp)).read_text())
+    assert ap.check_sections(rec) == []
+
+    ask = firm_mod.Firm.ask
+
+    def dropping(self, *a, **kw):  # hide the latest summary and chat round, and the notes
+        ask(self, *a, **kw)
+        c = self._ctx
+        c.update(summaries=c["summaries"][:-1], notes_at=None, chat=c["chat"][:-1] if c["chat"] else c["chat"])
+        return firm_mod.section_messages(self.instructions, self.transcript, c), dict(c)
+
+    monkeypatch.setattr(firm_mod.Firm, "ask", dropping)
+    bad = json.loads((await run_market(s, MockClient(), tmp_path / "bad", exp)).read_text())
+    issues = ap.check_sections(bad)
+    for what in ("summaries shown", "chat section", "notes shown"):
+        assert any(what in i for i in issues), what
+
+    ctx = rec["periods"][2]["decisions"]["A"]["attempts"][0]["context"]
+    for broken in ({**ctx, "turns": [ctx["turns"][0], len(rec["transcripts"]["A"]) + 50]},
+                   {**ctx, "summaries": [-1]}, {**ctx, "turns": [-1, 0]}, {**ctx, "notes_at": ctx["turns"][0]}):
+        with pytest.raises(ValueError):
+            reconstruct_request(rec, "A", broken)
+    for bad_flag in ({"transition": "false"}, {"notes": 1}, {"post_game_probe": "no"}):
+        with pytest.raises(ConfigError):
+            dataclasses.replace(exp, **bad_flag)
+
+
+def test_leaks_accept_a_sentence_seen_earlier_in_quoted_form():
+    """A firm repeating a sentence another firm posted in an earlier round is not a leak (summaries layout: messages
+    are shown quoted, on one line); an unseen same-round message still is."""
+    from oligopoly.prompts import round_text
+
+    sentence = "Proposal: everyone sets 100 from now on and we keep it there."
+    posted = {(1, 1, 1): {"B": sentence}, (1, 1, 2): {"C": sentence, "B": "A brand new idea nobody saw yet, really."}}
+    text = round_text(1, posted[(1, 1, 1)], ["A", "B", "C"], "A")  # what A sees in its round-2 request
+    assert ap.leaks({}, "A", (1, 1, "chat2"), text, {}, posted, set()) == []
+    leaked = text + "\n" + "A brand new idea nobody saw yet, really."
+    assert ap.leaks({}, "A", (1, 1, "chat2"), leaked, {}, posted, set()) == ["future/same-round message of B visible"]
