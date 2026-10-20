@@ -117,8 +117,19 @@ def _notes(obj: dict[str, Any], p: Parsed) -> None:
 
 
 def _no_object(content: str | None, key: str) -> str:
-    if not content or not strip_reasoning(content):
+    """Re-ask error when `extract_object` found nothing: empty, malformed JSON, or no object with `key`."""
+    text = strip_reasoning(content) if content else ""
+    if not text:
         return "the response was empty"
+    malformed = parsed = False
+    for m in re.finditer(r"\{", text):
+        sub = _balanced(text, m.start())
+        if sub is not None and isinstance(_load(sub), dict):
+            parsed = True
+        elif key in (sub or text[m.start():]):
+            malformed = True  # an object mentioning the key that does not parse (e.g. a curly quote, cut off)
+    if malformed or ("{" in text and not parsed):
+        return "could not parse a JSON object (it is malformed or incomplete)"
     return f'no JSON object with a "{key}" field was found'
 
 

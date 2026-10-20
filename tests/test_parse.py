@@ -34,7 +34,7 @@ def test_price_coercion(raw, value, warn):
     ('{"price": 150}', "outside"), ('{"price": -1}', "outside"), ('{"price": 57.5}', "whole number"),
     ('{"price": true}', "whole number"), ('{"price": "fifty"}', "whole number"), ('{"price": null}', "whole number"),
     ("I pick 57", "no JSON"), ("", "empty"), (None, "empty"), ("<think>only thinking</think>", "empty"),
-    ('{"message": "hi"}', "no JSON"), ('{"notes": "x", "price": ', "no JSON"),
+    ('{"message": "hi"}', "no JSON"), ('{"notes": "x", "price": ', "could not parse a JSON object"),
 ])
 def test_price_errors(content, needle):
     p = parse_price(content)
@@ -65,3 +65,14 @@ def test_message_truncation_and_errors():
 def test_strip_reasoning():
     assert strip_reasoning("<think>a</think> b <thinking>c</thinking>") == "b"
     assert strip_reasoning("abc </think> d") == "d"
+
+
+def test_malformed_json_is_reported_as_unparseable():
+    # pilot 1, gpt-oss firm B: a string closed with a curly quote
+    p = parse_message('{"notes": "ok", "message": "Let us all set 88.”}')
+    assert not p.ok and p.error.startswith("could not parse a JSON object")
+    assert "could not parse" in parse_price('{"notes": "x", "price": 9O}').error
+    assert "could not parse" in parse_price("{notes: x}").error
+    # a well-formed object without the field is still reported as missing the field
+    assert parse_message('{"notes": "x", "price": 88}').error == 'no JSON object with a "message" field was found'
+    assert parse_price("I pick 57").error == 'no JSON object with a "price" field was found'
