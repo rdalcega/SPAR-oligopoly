@@ -170,6 +170,11 @@ class Budget:
     can settle without awaiting. Outstanding reservations are persisted under `in_flight`: if the process
     dies with calls in flight, the next Budget loaded from `path` charges them in full (`recovered_usd`),
     since those requests may have been billed. Once `spent` reaches the cap, every reservation is refused.
+
+    Admission (`admit`, used by the client): a reservation that would fit the cap given what is spent but not
+    alongside the outstanding reservations waits until settlements make room, instead of failing a call that
+    the remaining money covers. It raises BudgetExceeded only on true exhaustion (`spent + amount > cap`) or
+    when nothing is in flight to wait for. The cap stays strict: spent + reserved never exceeds it.
     This recovery is safe only because one process at a time uses a run's budget file: `oligopoly.run` holds
     an exclusive lock on the run directory (`lock_run_dir`) before loading it, so any `in_flight` entries
     found on load were left by a process that has exited.
@@ -181,6 +186,7 @@ class Budget:
         self.spent = 0.0
         self.recovered_usd = 0.0
         self.in_flight: dict[str, float] = {}
+        self._settled: asyncio.Event | None = None  # set (and replaced) on every settle, waking waiting admits
         if self.path and self.path.exists():
             d = json.loads(self.path.read_text())
             self.recovered_usd = sum(map(float, (d.get("in_flight") or {}).values()))
@@ -209,11 +215,30 @@ class Budget:
         self._persist()
         return rid
 
+    async def admit(self, amount: float) -> str:
+        """Reserve `amount` USD, waiting while it fits what is left after `spent` but not alongside the other
+        outstanding reservations. Raises BudgetExceeded when `spent + amount > cap` (true exhaustion) or when
+        it does not fit and nothing is in flight."""
+        while True:
+            if self.spent >= self.cap or self.spent + amount > self.cap:
+                raise BudgetExceeded(f"cap ${self.cap:.4f} exhausted: spent ${self.spent:.4f}, reservation "
+                                     f"${amount:.6f}")
+            if self.spent + self.reserved + amount <= self.cap:
+                return self.reserve(amount)
+            if not self.in_flight:  # unreachable while reserved == 0, kept as a guard against waiting forever
+                raise BudgetExceeded(f"reservation ${amount:.6f} exceeds remaining ${self.remaining:.6f}")
+            if self._settled is None:
+                self._settled = asyncio.Event()
+            await self._settled.wait()
+
     def settle(self, rid: str, actual: float) -> None:
-        """Release reservation `rid` and charge `actual` USD."""
+        """Release reservation `rid` and charge `actual` USD. Never awaits; wakes any waiting `admit`."""
         del self.in_flight[rid]
         self.spent += max(0.0, actual)
         self._persist()
+        if self._settled is not None:
+            self._settled.set()
+            self._settled = None
 
     def _persist(self) -> None:
         if not self.path:
@@ -689,7 +714,12 @@ class OpenRouterClient:
             resp: httpx.Response | None = None
             async with self._sem:
                 try:
-                    rid = self.budget.reserve(estimate)
+                    if self.budget.spent + self.budget.reserved + estimate > self.budget.cap \
+                            and self.budget.spent + estimate <= self.budget.cap:
+                        self._log({"ts": _now(), "event": "budget_wait", "tag": base["tag"], "attempt": attempt,
+                                   "reservation_usd": estimate, "budget_spent_usd": self.budget.spent,
+                                   "budget_reserved_usd": self.budget.reserved, "cap_usd": self.budget.cap})
+                    rid = await self.budget.admit(estimate)
                 except BudgetExceeded as e:
                     self._log({**rec, **req(True), "error": f"BudgetExceeded: {e}", "retryable": False,
                                "budget_spent_usd": self.budget.spent})

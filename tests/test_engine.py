@@ -447,15 +447,28 @@ async def test_gather_prefers_budget_exceeded():
     async def retries():
         raise RetriesExhausted("x")
 
-    async def budget_on_cancel():
-        try:
-            await asyncio.sleep(10)
-        except asyncio.CancelledError:
-            raise BudgetExceeded("cap") from None
+    async def budget_later():
+        await asyncio.sleep(0.01)
+        raise BudgetExceeded("cap")
+
+    finished = []
+
+    async def sibling():
+        await asyncio.sleep(0.05)
+        finished.append(True)
+        return "ok"
 
     m = engine.Market(spec(), MockClient(), SHORT)
     with pytest.raises(BudgetExceeded):
-        await m.gather({"A": budget_on_cancel(), "B": retries()})
+        await m.gather({"A": budget_later(), "B": retries(), "C": sibling()})
+    assert finished == [True]  # a failure does not cancel the other firms' calls; they run to the end
+
+    # cancelling the gather itself still cancels the decisions
+    t = asyncio.create_task(m.gather({"A": asyncio.sleep(10), "B": asyncio.sleep(10)}))
+    await asyncio.sleep(0.01)
+    t.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await t
     nested = ExceptionGroup("g", [RetriesExhausted("a"), ExceptionGroup("h", [ValueError(), BudgetExceeded("b")])])
     assert isinstance(engine.pick_error(nested), BudgetExceeded)
     assert isinstance(engine.pick_error(ExceptionGroup("g", [ValueError(), KeyError()])), ValueError)

@@ -243,13 +243,21 @@ class Market:
         return d
 
     async def gather(self, coros: dict[str, Any]) -> dict[str, Decision]:
-        """Run the firms' decisions concurrently; the first failure cancels the rest and is re-raised as is
-        (BudgetExceeded in preference, so the runner stops scheduling markets)."""
+        """Run the firms' decisions concurrently. A failure does not cancel the other firms' calls: they run to
+        the end (their requests may already be billed, and their results are kept for a resume), then one error
+        is re-raised as is (BudgetExceeded in preference, so the runner stops scheduling markets). If this
+        coroutine itself is cancelled, the decisions are cancelled with it."""
+        tasks = {L: asyncio.ensure_future(c) for L, c in coros.items()}
         try:
-            async with asyncio.TaskGroup() as tg:
-                tasks = {L: tg.create_task(c) for L, c in coros.items()}
-        except ExceptionGroup as eg:
-            raise pick_error(eg) from None
+            await asyncio.wait(tasks.values())
+        except BaseException:
+            for t in tasks.values():
+                t.cancel()
+            await asyncio.gather(*tasks.values(), return_exceptions=True)
+            raise
+        errors = [e for t in tasks.values() if not t.cancelled() and (e := t.exception()) is not None]
+        if errors:
+            raise pick_error(BaseExceptionGroup("firm decisions failed", errors)) from None
         return {L: t.result() for L, t in tasks.items()}
 
     # ------------------------------------------------------------------ periods

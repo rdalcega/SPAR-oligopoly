@@ -448,3 +448,49 @@ async def test_rate_limit_total_attempts_capped(mock, make, tmp_path, sleeps):
         await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
     assert route.call_count == 7
     assert make().max_attempts == 60  # the default
+
+
+async def test_admit_waits_under_reservation_pressure():
+    b = Budget(1.0)
+    first = b.reserve(0.6)
+    waiter = asyncio.create_task(b.admit(0.5))  # fits after spending, not alongside the 0.6 reservation
+    await asyncio.sleep(0)
+    assert not waiter.done() and len(b.in_flight) == 1
+    b.settle(first, 0.3)  # 0.3 spent + 0.5 <= 1.0: admitted
+    rid = await asyncio.wait_for(waiter, 1)
+    assert b.in_flight == {rid: 0.5} and b.spent + b.reserved <= b.cap
+    # a waiter that turns out not to fit once the in-flight call settles is refused (true exhaustion)
+    waiter = asyncio.create_task(b.admit(0.5))
+    await asyncio.sleep(0)
+    assert not waiter.done()
+    b.settle(rid, 0.5)  # spent 0.8 + 0.5 > 1.0
+    with pytest.raises(BudgetExceeded, match="exhausted"):
+        await asyncio.wait_for(waiter, 1)
+    with pytest.raises(BudgetExceeded):  # nothing in flight: refused at once
+        await b.admit(0.3)
+    assert not b.in_flight
+
+
+async def test_near_cap_concurrent_calls_wait_instead_of_failing(mock, make, tmp_path):
+    """Two concurrent calls whose reservations do not fit together, but whose actual costs do, both succeed;
+    the cap is never exceeded by spent + reserved."""
+    release = asyncio.Event()
+    peak = []
+
+    async def slow(request):
+        peak.append(c.budget.spent + c.budget.reserved)
+        await release.wait()
+        return httpx.Response(200, json=completion(cost=0.00001))
+
+    mock.post(CHAT).mock(side_effect=slow)
+    est = estimate_cost(Endpoint.from_api(endpoint("deepinfra/fp8", "DeepInfra")), MSGS, 10)
+    c = make(cap=1.5 * est)
+    tasks = [asyncio.create_task(post(c)) for _ in range(3)]
+    for _ in range(10):
+        await asyncio.sleep(0)
+    assert len(c.budget.in_flight) == 1  # the others wait for room
+    release.set()
+    results = await asyncio.wait_for(asyncio.gather(*tasks), 5)
+    assert all(r.content == "42" for r in results) and not c.budget.in_flight
+    assert max(peak) <= c.budget.cap
+    assert any(x.get("event") == "budget_wait" for x in lines(tmp_path, events=True))
