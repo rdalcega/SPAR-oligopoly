@@ -145,12 +145,25 @@ def expected_dies(rec: dict) -> list[tuple[str, str]]:
     return [(str(t), str(d)) for sched in scheds for t, d in enumerate(sched, 1) if d is not None]
 
 
+def chat_spec(rec: dict) -> tuple[int, int]:
+    """(chat_rounds, char_limit) from the record's settings (pilot defaults 3 and 300 for records without them)."""
+    exp = (rec.get("settings") or {}).get("experiment") or {}
+    return exp.get("chat_rounds", 3), exp.get("char_limit", 300)
+
+
+def part_lengths(rec: dict) -> tuple[int, int]:
+    """Part lengths from the record's settings (the pilots' 6 and 4 for records without them)."""
+    lengths = ((rec.get("settings") or {}).get("experiment") or {}).get("part_lengths") or (6, 4)
+    return int(lengths[0]), int(lengths[1])
+
+
 def check_market(rec: dict) -> dict:
     issues: list[str] = []
     info: dict = {}
     letters = letters_of(rec)
     orders = rec["settings"]["listing_orders"]
     lengths = rec["settings"]["experiment"]["part_lengths"]
+    max_rounds, char_limit = chat_spec(rec)
     periods = rec["periods"]
     talk = rec["settings"]["talk"]
 
@@ -178,9 +191,11 @@ def check_market(rec: dict) -> dict:
             if not r["messages"] and i != len(rounds) - 1:
                 issues.append(f"chat continued after an all-pass round p{x['part']} t{x['period']} r{r['round']}")
             for L, msg in r["messages"].items():
-                if len(msg) > 300:
-                    issues.append(f"message over 300 chars p{x['part']} t{x['period']} {L}")
-        if x["talk"] and len(rounds) < 3 and rounds and rounds[-1]["messages"]:
+                if len(msg) > char_limit:
+                    issues.append(f"message over {char_limit} chars p{x['part']} t{x['period']} {L}")
+        if len(rounds) > max_rounds:
+            issues.append(f"{len(rounds)} chat rounds > {max_rounds} p{x['part']} t{x['period']}")
+        if x["talk"] and len(rounds) < max_rounds and rounds and rounds[-1]["messages"]:
             issues.append(f"chat ended early without an all-pass round p{x['part']} t{x['period']}")
     for L in letters:
         t = rec["totals"][L]
@@ -297,13 +312,26 @@ def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: d
     if f"Results of period {period} (Part {part})" in text:
         out.append("same-period results visible")
     here = (part, period, int(phase[4:]) if phase.startswith("chat") else 99)  # price: every round is visible
-    earlier = {m for k, ms in posted.items() if k < here for m in ms.values()}
+    # whole message lines as round blocks show them ("Firm X: <text>"): a firm quoting another's sentence in its
+    # own message is not a leak, and a line F already posted in an earlier round is legitimately visible
+    shown = f"\n{text}\n"
+    earlier = {(F, m) for k, ms in posted.items() if k < here for F, m in ms.items()}
     for k, ms in posted.items():
         if k >= here:
             for F, m in ms.items():
-                if F != L and len(m) > 25 and m not in earlier and m in text:
+                if F != L and (F, m) not in earlier and f"\nFirm {F}: {m}\n" in shown:
                     out.append(f"future/same-round message of {F} visible")
     return out
+
+
+def unlogged_market(rec: dict, calls: list[dict]) -> list[str]:
+    """A record with attempts but no call-log line for any of them (missing or mismatched log)."""
+    attempts = record_attempts(rec)
+    logged = {(c.get("tag") or {}).get("call_id") for c in calls}
+    if attempts and not any(a.get("call_id") in logged for _, _, a in attempts) \
+            and not (calls and "histories" in rec):  # legacy records' attempts may lack call ids
+        return [f"record has {len(attempts)} attempts but no matching call-log lines"]
+    return []
 
 
 def check_calls(rec: dict, calls: list[dict]) -> dict:
@@ -311,8 +339,10 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
     request shows other firms' notes or same-round/same-period information of other firms. Older (append-only)
     records: requests must be prefixes of the final history."""
     if "histories" in rec:
-        return check_calls_legacy(rec, calls)
-    issues: list[str] = []
+        res = check_calls_legacy(rec, calls)
+        res["issues"] = unlogged_market(rec, calls) + res["issues"]
+        return res
+    issues: list[str] = unlogged_market(rec, calls)
     all_notes = firm_notes(rec)
     posted = {(x["part"], x["period"], r["round"]): r["messages"] for x in rec["periods"] for r in x["chat"]}
     logged = defaultdict(list)
@@ -420,7 +450,7 @@ def behaviour(rec: dict) -> dict:
     out["pass_rate"] = 1 - n_msg / n_slot if n_slot else None
     out["msg_len_mean"] = mean(lens)
     out["msg_len_max"] = max(lens) if lens else None
-    out["msg_over_280"] = sum(v >= 280 for v in lens)
+    out["msg_near_limit"] = sum(v >= chat_spec(rec)[1] - 20 for v in lens)  # within 20 chars of char_limit
     out["reasks"] = dict(reasks)
     out["fallbacks"] = dict(fallbacks)
     out["warnings"] = dict(warns)
@@ -432,7 +462,8 @@ def behaviour(rec: dict) -> dict:
 # ---------------------------------------------------------------------------------------------- C: tokens
 
 
-def tokens(calls: list[dict]) -> dict:
+def tokens(calls: list[dict], lengths: tuple[int, int] = (6, 4)) -> dict:
+    """Token, cost and latency statistics of a market's calls; `lengths` are its part lengths."""
     ok = [c for c in calls if c.get("error") is None]
     errs = [c for c in calls if c.get("error") is not None]
     by_period = defaultdict(list)
@@ -473,8 +504,8 @@ def tokens(calls: list[dict]) -> dict:
     def first_phase(part, t):
         return mp.get((part, t, "chat1")) or mp.get((part, t, "price"))
 
-    p1 = [first_phase(1, t) for t in range(1, 7)]
-    p2 = [first_phase(2, t) for t in range(1, 5)]
+    p1 = [first_phase(1, t) for t in range(1, lengths[0] + 1)]
+    p2 = [first_phase(2, t) for t in range(1, lengths[1] + 1)]
     g1 = [b - a for a, b in zip(p1, p1[1:]) if a and b]
     g2 = [b - a for a, b in zip(p2, p2[1:]) if a and b]
     return {
@@ -482,7 +513,8 @@ def tokens(calls: list[dict]) -> dict:
         "err_kinds": dict(Counter(re.sub(r"\d{3,}", "#", str(c["error"]))[:80] for c in errs)),
         "timeout_retries": sum(bool(c.get("timeout_retry")) for c in calls),
         "prompt_by_period_first_call": {"part1": p1, "part2": p2},
-        "price_prompt_by_period": {f"p{p}t{t}": mp.get((p, t, "price")) for p in (1, 2) for t in range(1, 7) if mp.get((p, t, "price"))},
+        "price_prompt_by_period": {f"p{p}t{t}": mp.get((p, t, "price")) for p in (1, 2)
+                                   for t in range(1, lengths[p - 1] + 1) if mp.get((p, t, "price"))},
         "growth_talk_per_period": mean(g1), "growth_notalk_per_period": mean(g2),
         "completion_mean": {k: mean(v["completion"]) for k, v in phase.items()},
         "reasoning_mean": {k: mean(v["reasoning"]) for k, v in phase.items()},
@@ -525,7 +557,8 @@ def main(argv: list[str] | None = None) -> int:
             key = f"{run.name}/{mkey}"
             if f.name.endswith(".failed.json"):
                 report[key] = {"failed": True, "reason": rec.get("reason"), "error": rec["error"][:300],
-                               "periods_completed": rec["periods_completed"], "tokens": tokens(calls)}
+                               "periods_completed": rec["periods_completed"],
+                               "tokens": tokens(calls, part_lengths(rec))}
                 continue
             report[key] = {
                 "market": mkey,
@@ -533,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
                 "calls": check_calls(rec, calls),
                 "usage_record": rec["usage"],
                 "behaviour": behaviour(rec),
-                "tokens": tokens(calls),
+                "tokens": tokens(calls, part_lengths(rec)),
             }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=1, default=str))
@@ -548,7 +581,7 @@ def main(argv: list[str] | None = None) -> int:
         b = r["behaviour"]
         print("prices:", " | ".join(f"{p['part']}.{p['period']}:{p['prices']}" for p in b["prices"]))
         print("agreements:", [(a["period"], a["agreed"], a["support"], a["kept"], a["undercutters"], a["rounds"]) for a in b["agreements"]])
-        print({k: b[k] for k in ("pass_rate", "msg_len_mean", "msg_len_max", "msg_over_280", "reasks", "fallbacks", "warnings", "errors", "profits")})
+        print({k: b[k] for k in ("pass_rate", "msg_len_mean", "msg_len_max", "msg_near_limit", "reasks", "fallbacks", "warnings", "errors", "profits")})
         t = r["tokens"]
         print({k: v for k, v in t.items()})
     print(f"written to {out}")

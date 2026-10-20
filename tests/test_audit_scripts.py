@@ -108,3 +108,44 @@ def test_scripts_skip_checkpoints(tmp_path):
         (markets / name).write_text("{}")
     assert [f.name for f in ap.market_files(tmp_path)] == ["x__m0.json", "x__m1.failed.json"]
     assert pctx.load_samples([markets / "x__m1.failed.json", markets / "x__m2.ckpt.json"]) == {}
+
+
+async def test_audit_reads_part_lengths_and_chat_spec_from_settings(tmp_path):
+    """Lengths and chat spec come from the record: one chat round with messages is not 'ended early', and the
+    char limit and token statistics follow the settings rather than the pilots' 3 rounds, 300 chars, 6+4."""
+    from oligopoly.config import ExperimentConfig, ModelConfig
+    from oligopoly.engine import MarketSpec, environment_seed, run_market
+    from oligopoly.mock import MockClient
+
+    cfg = ModelConfig("mock", "mock", "mock", temperature=1.0, max_tokens=100)
+    s = MarketSpec("test", cfg, 2, "T-NT", 0, environment_seed(0, 2, "T-NT", 0))
+    exp = ExperimentConfig(part_lengths=(8, 3), chat_rounds=1, char_limit=300)
+    rec = json.loads((await run_market(s, MockClient(), tmp_path, exp)).read_text())
+    assert any(r["messages"] for x in rec["periods"] for r in x["chat"])
+    assert ap.check_market(rec)["issues"] == []
+    assert ap.part_lengths(rec) == (8, 3) and ap.chat_spec(rec) == (1, 300)
+    msg = next(m for x in rec["periods"] for r in x["chat"] for m in r["messages"].values())
+    rec["settings"]["experiment"]["char_limit"] = len(msg) - 1
+    assert any(f"message over {len(msg) - 1} chars" in x for x in ap.check_market(rec)["issues"])
+    calls = [{"tag": {"part": p, "period": t, "phase": "price", "attempt": 0}, "error": None,
+              "usage": {"prompt_tokens": 10 * t, "completion_tokens": 1, "reasoning_tokens": 0}}
+             for p, n in ((1, 8), (2, 3)) for t in range(1, n + 1)]
+    tok = ap.tokens(calls, (8, 3))
+    assert len(tok["prompt_by_period_first_call"]["part1"]) == 8 and len(tok["price_prompt_by_period"]) == 11
+
+    # a record with attempts but no matching call-log lines is flagged
+    assert any("no matching call-log lines" in x for x in ap.check_calls(rec, [])["issues"])
+    other = [{"tag": {"call_id": "someone-else"}, "error": None}]
+    assert any("no matching call-log lines" in x for x in ap.check_calls(rec, other)["issues"])
+
+
+def test_same_round_leak_matches_whole_message_lines():
+    """Repeating another firm's sentence inside one's own message is not a leak; the other firm's own line is."""
+    sentence = "We should all price at 100 every period from now on."
+    posted = {(1, 1, 1): {"C": "I agree. " + sentence}, (1, 2, 1): {"B": sentence}}
+    seen = "Messages posted in round 1:\nFirm A (you): [your message]\nFirm C: I agree. " + sentence
+    assert ap.leaks({}, "A", (1, 2, "chat1"), seen, {}, posted) == []
+    leaked = seen + "\nFirm B: " + sentence + "\nPart 1, period 2"
+    assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, posted) == ["future/same-round message of B visible"]
+    # B's line from an earlier round is legitimately visible
+    assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, {**posted, (1, 1, 2): {"B": sentence}}) == []
