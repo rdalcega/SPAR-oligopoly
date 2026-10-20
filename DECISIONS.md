@@ -18,4 +18,95 @@ held fixed across models. Add an entry before implementing the thing it decides.
 
 ## Design choices (§6 of the summary)
 
-None recorded yet. Each §6 item (1–14) needs an entry here before the code that depends on it is written.
+Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items not listed are still open.
+
+### Scope (extension beyond the paper)
+
+- **Market sizes:** n ∈ {2, 4, 6, 8, 10}. n = 10 is an extension; at δ = 5/6 full collusion is an equilibrium for
+  n ≤ 6 (n = 6 only marginally) and not for n = 8, 10.
+- **Orderings:** all three (NoTalk→Talk, Talk→NoTalk, NoTalk→NoTalk) at every n. Only NoTalk→Talk at n ∈
+  {2, 4, 6, 8} and the two controls at n = 4 are compared directly with the human results; the rest are
+  reported separately as extensions.
+
+### Models (§6 item 10, plus model choice)
+
+- Small open-weight reasoning models, total parameters < 30B (so they could be LoRA-fine-tuned on a budget),
+  across several families. One model per market (homogeneous groups).
+- Lineup (8): `qwen/qwen3.8-27b`, `qwen/qwen3.6-27b`, `qwen/qwen3.5-27b`, `qwen/qwen3.5-9b`,
+  `google/gemma-4-26b-a4b-it`, `openai/gpt-oss-20b`, `ibm-granite/granite-4.2-8b`, `liquid/lfm-2.5-24b-a2b`.
+  This gives one model per lab, a Qwen size axis (3.5-9B vs 3.5-27B) and a Qwen generation axis at 27B
+  (3.5, 3.6, 3.8).
+
+### §6 item 1 — chat structure
+
+Simultaneous rounds. Each Talk period has up to 3 chat rounds. In a round every firm writes one message or
+passes without seeing that round's other messages; then all messages of the round are shown to everyone. The
+chat closes early when every firm passes in a round. Messages are capped at 300 characters (longer messages are
+truncated and the truncation is logged).
+
+### §6 item 2 — simultaneous pricing
+
+All firms' prices for a period are collected independently before any is revealed. Each firm's notes and
+reasoning are private.
+
+### §6 item 3 — memory and feedback
+
+- Full history in context: every past period's results and chat messages, in one growing conversation per firm.
+- Each decision returns a short private `notes` field (about 100 words at most) besides the price or message.
+  A firm's own past notes stay in its context; other firms never see them. Native reasoning tokens are logged
+  but never fed back.
+- Per-period feedback: every firm's price and every firm's profit for that period, plus the firm's own
+  cumulative profit. Never other firms' cumulative profits.
+
+### §6 item 11 — number of markets
+
+6 independent markets per model × n × ordering cell, matching the human sample: 8 × 5 × 3 × 6 = 720 markets.
+The market is the unit of analysis.
+
+### §6 item 4 — horizon
+
+Fixed part lengths of 29 (Part 1) and 24 (Part 2) periods in every market, never revealed. Firms are told only
+"at least 20 periods, then a die is thrown after each period; a six ends the part". From period 20 on, the
+results show the die: a face from 1–5 (seeded draw) until the final period, then a 6. Period numbers restart at
+1 in Part 2.
+
+### §6 item 5 — surprise Part 2
+
+Part 1 prompts never mention Part 2 or (in NoTalk parts) communication. Part 2 instructions are shown only when
+Part 1 ends. Same group, same letters.
+
+### §6 item 6 — incentives
+
+Firms are told to maximise their firm's total profit in ECU. No £ conversion is stated.
+
+### §6 item 7 — fidelity and contamination
+
+Appendix A text with minimal edits, every edit listed in `docs/prompts-draft.md`. In Talk parts the chat rules
+also forbid revealing what kind of system or model a firm is (the analogue of the paper's no-self-identification
+rule). A separate contamination probe per model asks it to recall Fonseca & Normann's findings; it is never part
+of a game.
+
+### §6 item 8 — invalid output
+
+Re-ask up to 2 times, stating the error. If still invalid, the price falls back to the firm's own previous price
+(100 in period 1) and the case is flagged; an invalid chat message counts as a pass. Every invalid output,
+re-ask and fallback is logged as its own outcome and reported separately from deliberate choices.
+
+### §6 item 9 — sampling
+
+Each model uses its model card's recommended settings for reasoning mode (temperature, top_p), reasoning effort
+"medium", and a deterministic seed per call. Settings, the pinned provider and max_tokens are fixed per model
+across all cells and listed in `config/models.toml` once the provider probe is done.
+
+### §6 item 12 — analysis windows
+
+Report all periods; Part 1 excluding periods 1–5; Part 2 both with and without its first 5 periods.
+
+### §6 item 13 — firm identity and listing order
+
+Letters fixed across parts. The order in which a firm sees the other firms listed in results is a random
+permutation fixed per firm per market (seeded).
+
+### §6 item 14 — cost
+
+Estimated from pilot runs before the sweep; the sweep runs under a cost cap approved beforehand.
