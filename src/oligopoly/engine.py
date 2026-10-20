@@ -71,11 +71,32 @@ def fingerprint(obj: Any) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def texts_digest(exp: ExperimentConfig) -> str:
+    """Digest of the firm-facing wording under `exp` (see `prompts.texts_digest`)."""
+    return prompts.texts_digest(prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit), exp.notes)
+
+
+def _fingerprint_from(spec: dict[str, Any], model_identity: dict[str, Any], experiment: dict[str, Any],
+                      texts: str) -> str:
+    return fingerprint({**spec, "model": model_identity, "experiment": experiment, "texts": texts})
+
+
 def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig) -> str:
     """Everything that determines a market's play: its spec, the model's settings and the experiment."""
-    chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
-    return fingerprint({**spec.to_dict(), "model": spec.model.identity(), "experiment": exp.to_dict(),
-                        "texts": prompts.texts_digest(chat_spec, exp.notes)})
+    return _fingerprint_from(spec.to_dict(), spec.model.identity(), exp.to_dict(), texts_digest(exp))
+
+
+def record_texts_digest_matches(rec: dict[str, Any], digest: str) -> bool:
+    """Whether a market record was played under the firm-facing wording with digest `digest`. Records carry
+    `settings.texts_digest`; older ones are checked by recomputing their fingerprint with `digest`."""
+    st = rec.get("settings") or {}
+    if "texts_digest" in st:
+        return st["texts_digest"] == digest
+    try:
+        identity = {k: v for k, v in st["model"].items() if k not in ModelConfig.OPERATIONAL}
+        return rec.get("fingerprint") == _fingerprint_from(rec["spec"], identity, st["experiment"], digest)
+    except (KeyError, TypeError, AttributeError):
+        return False
 
 
 def is_complete(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool | None:
@@ -315,6 +336,7 @@ class Market:
             "spec": self.spec.to_dict(),
             "fingerprint": market_fingerprint(self.spec, self.exp),
             "settings": {"model": self.spec.model.to_dict(), "experiment": self.exp.to_dict(),
+                         "texts_digest": texts_digest(self.exp),
                          "pilot": self.exp.pilot, "talk": dict(zip(("part1", "part2"), self.talk)),
                          "chat_spec": asdict(self.chat_spec), "feedback_all_profits": True, "exchange_rate": None,
                          "die_schedules": self.dies, "listing_orders": {L: f.order for L, f in self.firms.items()}},

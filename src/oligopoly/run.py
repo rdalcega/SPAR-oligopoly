@@ -8,8 +8,10 @@
 Output goes to data/runs/<run-id>/: markets/<key>.json per completed market (skipped on rerun),
 markets/<key>.failed.json for failed ones (retried on rerun), calls.jsonl (every LLM call), budget.json,
 run.json (one entry per invocation) and run_config.json (the settings every market of the run shares: base
-seed, experiment and each model's settings; a rerun with different settings for a model already in the run
-is refused, while new models may be added). Part lengths below 20 are for pilots only: the instructions still
+seed, experiment, the digest of the firm-facing wording and each model's settings; a rerun with different
+settings, or with changed prompt wording, is refused before any market is scheduled, while new models may be
+added). A live invocation holds an exclusive lock on <run-dir>/.lock for its whole life, so a second
+invocation on the same run fails at once; --dry-run only reads and takes no lock. Part lengths below 20 are for pilots only: the instructions still
 say "at least 20 periods" while the die schedule shrinks to the part length.
 """
 
@@ -17,19 +19,21 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import itertools
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models
 from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failure_path, failure_reason, is_complete,
-                     market_fingerprint, run_market, write_json_atomic)
+                     market_fingerprint, record_texts_digest_matches, run_market, texts_digest, write_json_atomic)
 from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
 
@@ -49,6 +53,21 @@ def overflowed(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool:
     return rec.get("reason") == "context_overflow" and rec.get("fingerprint") == market_fingerprint(spec, exp)
 
 
+def plan(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> str:
+    """What `run_all` does with a spec: "excluded", "skipped" (complete), "mismatch" (record played under
+    other settings), "overflow" (failed with context_overflow under these settings) or "run"."""
+    if spec.model.excludes(spec.n, spec.ordering):
+        return "excluded"
+    complete = is_complete(out_dir, spec, exp)
+    if complete:
+        return "skipped"
+    if complete is None:
+        return "mismatch"
+    if overflowed(out_dir, spec, exp):  # deterministic enough that a retry would pay to fail again
+        return "overflow"
+    return "run"
+
+
 async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_dir: Path, exp: ExperimentConfig,
                   max_concurrent_markets: int = 4) -> dict[str, list[str]]:
     """Run every spec without a complete record. `clients` maps model name -> client. A failed market is
@@ -60,19 +79,19 @@ async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_d
     stop = asyncio.Event()
 
     async def one(spec: MarketSpec) -> None:
-        if spec.model.excludes(spec.n, spec.ordering):
+        action = plan(out_dir, spec, exp)
+        if action == "excluded":
             summary["excluded"].append(spec.key)
             print(f"EXCLUDED {spec.key}: cell excluded for this model (context limit; exclude_cells)", flush=True)
             return
-        complete = is_complete(out_dir, spec, exp)
-        if complete:
+        if action == "skipped":
             summary["skipped"].append(spec.key)
             return
-        if complete is None:
+        if action == "mismatch":
             summary["failed"].append(spec.key)
             print(f"MISMATCH {spec.key}: its record was played under other settings; use a new run id", flush=True)
             return
-        if overflowed(out_dir, spec, exp):  # deterministic enough that a retry would pay to fail again
+        if action == "overflow":
             summary["failed"].append(spec.key)
             print(f"OVERFLOW {spec.key}: failed earlier with context_overflow under these settings; not retried "
                   f"(add the cell to exclude_cells)", flush=True)
@@ -159,7 +178,7 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
     tot = defaultdict(float)
     for (name, n, o), ss in sorted(cells.items()):
         sim, (p, _) = sims[(n, o)], prices[name]
-        todo = sum(not is_complete(out_dir, s, exp) for s in ss)
+        todo = sum(plan(out_dir, s, exp) == "run" for s in ss)  # only what run_all would actually play
         out = sim["calls"] * (out_tokens + reasoning_tokens)
         if p:
             fresh = sim["input"] - sim["cached"]
@@ -184,21 +203,56 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
 # ---------------------------------------------------------------------------------------------- CLI
 
 
+def _records_off_digest(out_dir: Path, digest: str) -> list[str]:
+    """Completed market records of the run not played under the wording with digest `digest`."""
+    files = sorted(p for p in (out_dir / "markets").glob("*.json") if not p.name.endswith(".failed.json"))
+    return [p.stem for p in files if not record_texts_digest_matches(json.loads(p.read_text()), digest)]
+
+
 def run_config(out_dir: Path, base_seed: int, exp: ExperimentConfig, models: list[ModelConfig]) -> dict[str, Any]:
     """The run's shared settings, merged with `out_dir/run_config.json` if the run exists. Raises ConfigError
-    if the base seed, the experiment or any model already in the run differs; new models are appended."""
+    if the base seed, the experiment, the firm-facing wording (`texts_digest`) or any model already in the run
+    differs; new models are appended. A run_config.json from before the digest was recorded adopts the
+    current digest only if every completed market record of the run was played under it."""
     new = json.loads(json.dumps({"base_seed": base_seed, "experiment": exp.to_dict(),
+                                 "texts_digest": texts_digest(exp),
                                  "models": {m.name: m.identity() for m in models}}))
     path = out_dir / "run_config.json"
     if not path.exists():
         return new
     old = json.loads(path.read_text())
     diffs = [k for k in ("base_seed", "experiment") if old[k] != new[k]]
+    if "texts_digest" in old:
+        if old["texts_digest"] != new["texts_digest"]:
+            diffs.append("texts_digest: the firm-facing prompt wording changed")
+    elif bad := _records_off_digest(out_dir, new["texts_digest"]):
+        diffs.append(f"texts_digest: {len(bad)} completed market(s) were played under other prompt wording, "
+                     f"e.g. {bad[0]}")
     diffs += [f"model {n!r}" for n, cfg in new["models"].items() if old["models"].get(n, cfg) != cfg]
     if diffs:
-        raise ConfigError(f"run {out_dir.name!r} was started with different settings ({', '.join(diffs)}; see "
+        raise ConfigError(f"run {out_dir.name!r} was started with different settings ({'; '.join(diffs)}; see "
                           f"{path}); use a new --run-id")
-    return {**old, "models": {**old["models"], **new["models"]}}
+    return {**old, "texts_digest": new["texts_digest"], "models": {**old["models"], **new["models"]}}
+
+
+def lock_run_dir(out_dir: Path) -> IO[str]:
+    """Take an exclusive, non-blocking lock on `out_dir/.lock` and return the open file (the lock is held
+    until it is closed or the process exits). Raises ConfigError at once if another process holds it."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    f = open(out_dir / ".lock", "a+")
+    try:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.seek(0)
+        holder = f.read().strip() or "unknown process"
+        f.close()
+        raise ConfigError(f"run {out_dir.name!r} is in use by another invocation ({holder}); wait for it to "
+                          f"finish (two invocations on one run directory would race on its records and budget)")
+    f.seek(0)
+    f.truncate()
+    f.write(f"pid {os.getpid()} since {datetime.now(timezone.utc).isoformat()}\n")
+    f.flush()
+    return f
 
 
 async def preflight(client: OpenRouterClient, models: list[ModelConfig]) -> None:
@@ -254,9 +308,9 @@ async def main(argv: list[str] | None = None) -> int:
         exp = exp.with_part_lengths(tuple(int(x) for x in a.part_lengths.split(",")))
     out_dir = Path(a.out_root) / a.run_id
     specs = build_specs(a.run_id, models, a.n, a.orderings, a.markets_per_cell, a.seed)
-    config = run_config(out_dir, a.seed, exp, models)
 
-    if a.dry_run:
+    if a.dry_run:  # read-only: no lock
+        run_config(out_dir, a.seed, exp, models)
         if excluded := [s.key for s in specs if s.model.excludes(s.n, s.ordering)]:
             print(f"excluded (context limit, not estimated): {len(excluded)} markets: "
                   + ", ".join(sorted({k.rsplit('__m', 1)[0] for k in excluded})))
@@ -269,7 +323,16 @@ async def main(argv: list[str] | None = None) -> int:
         m.check_live()
     if live and a.budget_usd is None:
         raise ConfigError("--budget-usd is required for live models")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    lock = lock_run_dir(out_dir)  # held until exit; taken before reading run_config.json or budget.json
+    try:
+        return await _run(a, argv, out_dir, specs, models, live, exp)
+    finally:
+        lock.close()
+
+
+async def _run(a: argparse.Namespace, argv: list[str] | None, out_dir: Path, specs: list[MarketSpec],
+               models: list[ModelConfig], live: list[ModelConfig], exp: ExperimentConfig) -> int:
+    config = run_config(out_dir, a.seed, exp, models)
     log = out_dir / "calls.jsonl"
     mock = MockClient(log)
     live_client = OpenRouterClient(log, Budget(a.budget_usd, out_dir / "budget.json"),

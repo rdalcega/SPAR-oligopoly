@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 
 import pytest
@@ -478,3 +479,75 @@ async def test_preflight_aborts_before_any_market(tmp_path, monkeypatch):
                         "--models-file", models_file(tmp_path), "--out-root", str(tmp_path / "runs")])
     run = tmp_path / "runs" / "pf"
     assert not (run / "markets").exists() and not (run / "run_config.json").exists()
+
+
+def rc_args(tmp_path, *extra):
+    return ["--run-id", "rc", "--n", "2", "--orderings", "NT-NT", "--part-lengths", "2,1", "--models", "mock",
+            "--models-file", models_file(tmp_path), "--out-root", str(tmp_path / "runs"), *extra]
+
+
+async def test_second_invocation_on_a_run_fails_at_once(tmp_path):
+    from oligopoly.run import lock_run_dir
+
+    run = tmp_path / "runs" / "rc"
+    held = lock_run_dir(run)
+    try:
+        with pytest.raises(ConfigError, match=f"in use by another invocation \\(pid {os.getpid()}"):
+            await main(rc_args(tmp_path, "--markets-per-cell", "1"))
+        assert not (run / "run_config.json").exists() and not (run / "markets").exists()
+        assert await main(rc_args(tmp_path, "--markets-per-cell", "1", "--dry-run")) == 0  # read-only: no lock
+    finally:
+        held.close()
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "1")) == 0
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "1")) == 0  # the lock was released on exit
+
+
+async def test_prompt_wording_change_refused_for_run(tmp_path, monkeypatch):
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "1")) == 0
+    run = tmp_path / "runs" / "rc"
+    cfg = json.loads((run / "run_config.json").read_text())
+    [rec_path] = (run / "markets").glob("*.json")
+    assert cfg["texts_digest"] == json.loads(rec_path.read_text())["settings"]["texts_digest"]
+    monkeypatch.setattr(engine.prompts, "price_reminder", lambda notes: "Reply with JSON, please.")
+    with pytest.raises(ConfigError, match="texts_digest.*new --run-id"):
+        await main(rc_args(tmp_path, "--markets-per-cell", "2"))
+    assert len(list((run / "markets").glob("*.json"))) == 1  # nothing scheduled
+
+
+async def test_legacy_run_config_without_digest(tmp_path, monkeypatch):
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "1")) == 0
+    run = tmp_path / "runs" / "rc"
+    [rec_path] = (run / "markets").glob("*.json")
+
+    def strip_digests():
+        cfg = json.loads((run / "run_config.json").read_text())
+        del cfg["texts_digest"]
+        (run / "run_config.json").write_text(json.dumps(cfg))
+        rec = json.loads(rec_path.read_text())
+        rec["settings"].pop("texts_digest", None)
+        rec_path.write_text(json.dumps(rec))
+
+    strip_digests()  # records from before the digest was stored are checked by their fingerprint
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "2")) == 0
+    assert "texts_digest" in json.loads((run / "run_config.json").read_text())
+    strip_digests()
+    monkeypatch.setattr(engine.prompts, "price_reminder", lambda notes: "Reply with JSON, please.")
+    with pytest.raises(ConfigError, match="completed market"):
+        await main(rc_args(tmp_path, "--markets-per-cell", "3"))
+
+
+async def test_dry_run_counts_only_markets_that_would_run(tmp_path, capsys):
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "3")) == 0
+    run = tmp_path / "runs" / "rc"
+    exp = ExperimentConfig(part_lengths=(2, 1))
+    m = load_models(models_file(tmp_path))["mock"]
+    specs = build_specs("rc", [m], [2], ["NT-NT"], 4)
+    rec = json.loads(market_path(run, specs[1]).read_text())
+    rec["fingerprint"] = "other settings"  # mismatch: never replayed
+    market_path(run, specs[1]).write_text(json.dumps(rec))
+    market_path(run, specs[2]).unlink()  # overflowed under these settings: not retried
+    engine.failure_path(run, specs[2]).write_text(json.dumps(
+        {"reason": "context_overflow", "fingerprint": engine.market_fingerprint(specs[2], exp)}))
+    capsys.readouterr()
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "4", "--dry-run")) == 0
+    assert "To run: 1 markets" in capsys.readouterr().out  # only m3

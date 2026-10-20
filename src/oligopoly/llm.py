@@ -165,6 +165,9 @@ class Budget:
     can settle without awaiting. Outstanding reservations are persisted under `in_flight`: if the process
     dies with calls in flight, the next Budget loaded from `path` charges them in full (`recovered_usd`),
     since those requests may have been billed. Once `spent` reaches the cap, every reservation is refused.
+    This recovery is safe only because one process at a time uses a run's budget file: `oligopoly.run` holds
+    an exclusive lock on the run directory (`lock_run_dir`) before loading it, so any `in_flight` entries
+    found on load were left by a process that has exited.
     """
 
     def __init__(self, cap_usd: float, path: str | Path | None = None):
