@@ -291,6 +291,7 @@ class Market:
         self.partial_calls: dict[str, dict[str, Any]] = {}  # results of calls in the period in progress
         self.replay: dict[str, dict[str, Any]] = {}  # from a checkpoint: results to reuse instead of calling
         self._boundary: str | None = None  # JSON of the last checkpoint written (a period boundary)
+        self._next_boundary: str | None = None  # a boundary serialised but not yet known to be written
         self.letters = prompts.firm_letters(spec.n)
         self.talk = ORDERINGS[spec.ordering]
         self.chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
@@ -588,17 +589,29 @@ class Market:
         """At a period boundary: write the checkpoint and forget the finished period's call results. The
         snapshot is serialised once, here, and both the serialisation and the atomic write run in a worker
         thread, off the event loop. Safe because nothing in this market changes while it is awaited: the
-        market's own calls are all finished at a boundary, and other markets never touch its state."""
-        self.partial_calls, self.replay = {}, {}
+        market's own calls are all finished at a boundary, and other markets never touch its state.
+        The call results are kept until the new boundary is written and installed, so a cancellation at either
+        await loses nothing: `save_failure_checkpoint` then writes the new boundary if it was serialised, else
+        the old one plus those results."""
         if self.checkpoint is None:
+            self.partial_calls, self.replay = {}, {}
             return
-        self._boundary = await asyncio.to_thread(json.dumps, self.snapshot(), ensure_ascii=False)
-        await asyncio.to_thread(write_text_atomic, self.checkpoint, self._boundary)
+        text = await asyncio.to_thread(json.dumps, self.snapshot(), ensure_ascii=False)
+        self._next_boundary = text
+        await asyncio.to_thread(write_text_atomic, self.checkpoint, text)
+        self._boundary, self._next_boundary = text, None
+        self.partial_calls, self.replay = {}, {}
 
     def save_failure_checkpoint(self) -> None:
         """After a failure: the last boundary checkpoint plus the results of the calls already made (or still
-        unused from an earlier resume) in the period in progress."""
-        if self.checkpoint is None or self._boundary is None:
+        unused from an earlier resume) in the period in progress; or, if the failure interrupted the write of
+        a boundary already serialised, that new boundary."""
+        if self.checkpoint is None:
+            return
+        if self._next_boundary is not None:
+            write_text_atomic(self.checkpoint, self._next_boundary)
+            return
+        if self._boundary is None:
             return
         ck = json.loads(self._boundary)
         ck["partial_calls"] = {**self.replay, **self.partial_calls}

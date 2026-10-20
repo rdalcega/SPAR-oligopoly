@@ -1360,3 +1360,38 @@ def test_structured_outputs_config():
     with pytest.raises(ConfigError, match="require_parameters"):
         dataclasses.replace(on, require_parameters=False)
     assert engine.response_schema("price", False)["json_schema"]["schema"]["required"] == ["price"]
+
+
+@pytest.mark.parametrize("stage", ["dumps", "write_text_atomic"])
+async def test_cancel_during_checkpoint_save_keeps_paid_results(tmp_path, monkeypatch, stage):
+    """A cancellation at either await of save_checkpoint (here at the boundary after period 2) must leave the
+    new boundary or the old one plus every paid result of period 2: the resume makes no call twice."""
+    s = spec(3, "NT-T")
+    ref, ref_client, _ = await play(s, tmp_path / "ref")
+    real, seen = asyncio.to_thread, []
+
+    async def cancel_at(fn, *a, **k):
+        seen.append(fn.__name__)
+        if fn.__name__ == stage and seen.count(stage) == 3:  # boundaries: start, after period 1, after period 2
+            asyncio.current_task().cancel()
+            await asyncio.sleep(0)  # cancelled here: the thread's work never lands
+        return await real(fn, *a, **k)
+
+    out = tmp_path / "run"
+    c1 = MockClient(record=True)
+    monkeypatch.setattr(engine.asyncio, "to_thread", cancel_at)
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.create_task(run_market(s, c1, out, SHORT))
+    monkeypatch.undo()
+    saved = json.loads(engine.checkpoint_path(out, s).read_text())
+    period2 = {c["tag"]["call_id"] for c in c1.calls if (c["tag"]["part"], c["tag"]["period"]) == (1, 2)}
+    assert period2
+    if stage == "dumps":  # not serialised: the old boundary plus all of period 2's results
+        assert saved["periods_completed"] == 1 and set(saved["partial_calls"]) == period2
+    else:  # serialised but maybe not written: the new boundary
+        assert saved["periods_completed"] == 2 and saved["partial_calls"] == {}
+    c2 = MockClient(record=True)
+    rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
+    assert not {c["tag"]["call_id"] for c in c1.calls} & {c["tag"]["call_id"] for c in c2.calls}
+    assert len(c1.calls) + len(c2.calls) == len(ref_client.calls)
+    assert without_resume(rec) == without_resume(ref)
