@@ -42,6 +42,57 @@ async def test_context_projection_covers_the_probe():
         await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2), post_game_probe=False), 1)
 
 
+async def test_audit_rebuilds_windowed_requests_and_checks_the_log(tmp_path):
+    """On a windowed-context run, the audit rebuilds every attempt's request from the record, matches it to the
+    record's hash and to the call log's, and runs the leak checks on it; tampering is caught."""
+    import httpx
+    import respx
+
+    from oligopoly.config import ExperimentConfig, ModelConfig
+    from oligopoly.engine import MarketSpec, run_market
+    from oligopoly.llm import BASE_URL, Budget, OpenRouterClient
+
+    cfg = ModelConfig("tiny", "acme/tiny", "deepinfra/fp8", max_tokens=64)
+    ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "pricing": {"prompt": "0.000001", "completion": "0"},
+          "supported_parameters": ["seed"]}
+
+    def reply(request):
+        body = json.loads(request.content)
+        last, firm = body["messages"][-1]["content"], "A" if "You are Firm A" in str(body["messages"][0]) else "B"
+        if "Please answer these questions" in last:
+            content = json.dumps({"max_consumer_price": 100, "best_common_price": 100,
+                                  "last_period_prices": {"A": 99, "B": 99}, "deviations": "none"})
+        elif '"price": <integer' in last.splitlines()[-1]:
+            content = json.dumps({"notes": f"secret plan number {len(last)} of firm {firm}, private", "price": 99})
+        else:
+            content = json.dumps({"notes": f"chat plan {len(last)} for firm {firm} kept private", "message": "hi all"})
+        return httpx.Response(200, json={"id": "g", "model": "acme/tiny", "provider": "DeepInfra",
+                                         "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+                                         "usage": {"prompt_tokens": 5, "completion_tokens": 3, "cost": 0.0}})
+
+    run = tmp_path / "runs" / "live"
+    with respx.mock() as r:
+        r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+            return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+        r.post(f"{BASE_URL}/chat/completions").mock(side_effect=reply)
+        async with OpenRouterClient(run / "calls.jsonl", Budget(1.0), api_key="k") as client:
+            path = await run_market(MarketSpec("live", cfg, 2, "T-NT", 0, 1), client, run,
+                                    ExperimentConfig(part_lengths=(4, 2)))
+    out = tmp_path / "audit.json"
+    assert ap.main(["--runs-dir", str(tmp_path / "runs"), "--out", str(out), "live"]) == 0
+    rep = json.loads(out.read_text())["live/" + path.stem]
+    assert rep["engine"]["issues"] == [] and rep["calls"]["issues"] == []
+    assert rep["calls"]["ok_calls"] == rep["calls"]["checked_against_log"] == rep["usage_record"]["calls"]
+
+    rec = json.loads(path.read_text())
+    calls = [c for c in ap.load_calls(run / "calls.jsonl") if "event" not in c]
+    b_notes = rec["periods"][0]["decisions"]["B"]["notes"]
+    rec["transcripts"]["A"][-2]["content"] += " " + b_notes  # tamper: B's private notes in A's last turns
+    issues = ap.check_calls(rec, calls)["issues"]
+    assert any("does not match its context hash" in x for x in issues)
+    assert any("notes of B visible" in x for x in issues)
+
+
 def test_scripts_skip_checkpoints(tmp_path):
     markets = tmp_path / "markets"
     markets.mkdir()

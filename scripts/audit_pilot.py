@@ -1,13 +1,24 @@
-"""Read-only audit of the pilot1 / pilot1-q14 markets and call logs.
+"""Read-only audit of a run's markets and call logs.
 
-    uv run python scripts/audit_pilot.py            # writes data/audits/pilot1_audit.json, prints a summary
+    uv run python scripts/audit_pilot.py                      # pilot1 and pilot1-q14 (the default)
+    uv run python scripts/audit_pilot.py pilot3-n2 pilot3-n10 # any run ids under data/runs/
+    uv run python scripts/audit_pilot.py --runs-dir DIR --out FILE RUN_ID ...
 
-Checks engine/prompt invariants against the recorded markets and call logs (A), extracts per-model behaviour
-(B), and token/cost statistics (C). Never modifies run data.
+Writes data/audits/<run ids>_audit.json (or --out) and prints a summary. Checks engine/prompt invariants against
+the recorded markets and call logs (A), extracts per-market behaviour (B), and token/cost statistics (C). Never
+modifies run data.
+
+Records with windowed context (`instructions` and `transcripts`, DECISIONS.md §6 item 3, 2026-10-20): every
+attempt's request is rebuilt from the record with `llm.reconstruct_request` and its messages_sha256 checked
+against the attempt's context and against the call log's line for that call (where the log has one); the leak
+checks (no other firm's notes; no same-round messages or same-period results of others) run on the rebuilt
+requests. Older records (`histories`, append-only) keep the prefix check: every logged request must be a
+prefix of the firm's final history.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import statistics as st
@@ -20,12 +31,13 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from oligopoly import market as mk  # noqa: E402
 from oligopoly.engine import is_market_record_file  # noqa: E402
-from oligopoly.llm import reconstruct_from_log  # noqa: E402
+from oligopoly.llm import messages_sha256, reconstruct_from_log, reconstruct_request  # noqa: E402
 from oligopoly.analysis.chat import code_message, code_period  # noqa: E402
-from oligopoly.prompts import format_ecu  # noqa: E402
+from oligopoly.prompts import OWN_MESSAGE, format_ecu  # noqa: E402
 
-RUNS = [ROOT / "data/runs/pilot1", ROOT / "data/runs/pilot1-q14"]
-OUT = ROOT / "data/audits/pilot1_audit.json"
+DEFAULT_RUNS = ["pilot1", "pilot1-q14"]
+RUNS_DIR = ROOT / "data/runs"
+AUDITS_DIR = ROOT / "data/audits"
 
 
 def content_text(m: dict) -> str:
@@ -54,9 +66,11 @@ def market_files(run: Path) -> list[Path]:
                   if is_market_record_file(f) or f.name.endswith(".failed.json"))
 
 
-def request_bytes(c: dict) -> int:
+def request_bytes(c: dict) -> int | None:
     if "prompt_bytes" in c:
         return c["prompt_bytes"]
+    if "request" not in c:  # e.g. offline mock logs
+        return None
     return sum(len(content_text(m).encode()) for m in c["request"]["messages"])
 
 
@@ -77,10 +91,64 @@ def mean(xs):
 # ---------------------------------------------------------------------------------------------- A: engine
 
 
+def letters_of(rec: dict) -> list[str]:
+    return sorted(rec["totals"])
+
+
+def firm_view(rec: dict, L: str) -> dict:
+    """What firm L was shown, in one shape for both record formats: the system message, the user texts in order,
+    the index of the first user text of Part 2, the Part 2 instructions, the Part 1 text (to check it never
+    mentions Part 2) and every text the firm saw."""
+    L1 = rec["settings"]["experiment"]["part_lengths"][0]
+    if "transcripts" in rec:  # windowed context: instructions apart from the transcript
+        instr, tr = rec["instructions"][L], rec["transcripts"][L]
+        users = [m["content"] for m in tr if m["role"] == "user"]
+        periods = [m["period"] for m in tr if m["role"] == "user"]
+        p2i = next((i for i, g in enumerate(periods) if g > L1), len(users))
+        p2_instr = instr[1] if len(instr) > 1 else ""
+        return {"system": instr[0], "users": users, "p2i": p2i, "p2_instr": p2_instr,
+                "part1_text": "\n".join([instr[0], *users[:p2i]]), "roles": [m["role"] for m in tr],
+                "roles_ok": all(r == ("user", "assistant")[i % 2] for i, r in enumerate(m["role"] for m in tr)),
+                "all_text": "\n".join([*instr, *(m["content"] for m in tr)])}
+    h = rec["histories"][L]  # append-only history
+    roles = [m["role"] for m in h]
+    users = [m["content"] for m in h if m["role"] == "user"]
+    p2i = next((i for i, u in enumerate(users) if "Instructions – Part 2" in u), len(users))
+    part1_text = "\n".join([h[0]["content"], *users[:p2i]]) + (users[p2i].split("Part 1 is over.")[0]
+                                                               if p2i < len(users) else "")
+    return {"system": h[0]["content"], "users": users, "p2i": p2i, "p2_instr": users[p2i] if p2i < len(users) else "",
+            "part1_text": part1_text, "roles": roles,
+            "roles_ok": roles[0] == "system" and all(roles[i] != roles[i + 1] for i in range(len(roles) - 1)),
+            "all_text": "\n".join(m["content"] for m in h)}
+
+
+def firm_notes(rec: dict) -> dict:
+    """Every private notes text each firm wrote (chat and price decisions; the full text of truncated notes too),
+    except notes the firm also posted in the chat (public, so not a leak when others see them)."""
+    out = defaultdict(set)
+    posted = defaultdict(list)
+    for x in rec["periods"]:
+        for r in x["chat"]:
+            for L, m in r["messages"].items():
+                posted[L].append(m)
+        for d in [x["decisions"]] + [r["decisions"] for r in x["chat"]]:
+            for L, dd in d.items():
+                out[L] |= {t for t in (dd.get("notes"), dd.get("notes_full")) if t}
+    return {L: {t for t in ts if not any(t in m for m in posted[L])} for L, ts in out.items()}
+
+
+def expected_dies(rec: dict) -> list[tuple[str, str]]:
+    """(period, face) of every die line the results show: periods with a throw in the pre-drawn schedules."""
+    scheds = rec["settings"].get("die_schedules")
+    if scheds is None:  # older records: pilots showed the die only after each part's final period
+        return [(str(n), "6") for n in rec["settings"]["experiment"]["part_lengths"]]
+    return [(str(t), str(d)) for sched in scheds for t, d in enumerate(sched, 1) if d is not None]
+
+
 def check_market(rec: dict) -> dict:
     issues: list[str] = []
     info: dict = {}
-    letters = sorted(rec["histories"])
+    letters = letters_of(rec)
     orders = rec["settings"]["listing_orders"]
     lengths = rec["settings"]["experiment"]["part_lengths"]
     periods = rec["periods"]
@@ -114,11 +182,11 @@ def check_market(rec: dict) -> dict:
                     issues.append(f"message over 300 chars p{x['part']} t{x['period']} {L}")
         if x["talk"] and len(rounds) < 3 and rounds and rounds[-1]["messages"]:
             issues.append(f"chat ended early without an all-pass round p{x['part']} t{x['period']}")
-        # fallback = previous own price
     for L in letters:
         t = rec["totals"][L]
         if abs(t["profit_part1"] - cum[L][0]) > 1e-6 or abs(t["profit_part2"] - cum[L][1]) > 1e-6:
             issues.append(f"totals mismatch {L}: {t} vs {cum[L]}")
+    # fallback = previous own price
     prev = {L: 100 for L in letters}
     for x in periods:
         for L in letters:
@@ -127,44 +195,32 @@ def check_market(rec: dict) -> dict:
                 issues.append(f"fallback price {x['prices'][L]} != previous {prev[L]} ({L} p{x['part']} t{x['period']})")
             prev[L] = x["prices"][L]
 
-    # histories as the firm sees them
-    all_notes = defaultdict(set)  # firm -> its notes strings
-    for x in periods:
-        for L, d in x["decisions"].items():
-            if d["notes"]:
-                all_notes[L].add(d["notes"])
-        for r in x["chat"]:
-            for L, d in r["decisions"].items():
-                if d["notes"]:
-                    all_notes[L].add(d["notes"])
+    # what each firm was shown
+    all_notes = firm_notes(rec)
     for L in letters:
-        h = rec["histories"][L]
-        roles = [m["role"] for m in h]
-        if roles[0] != "system" or any(roles[i] == roles[i + 1] for i in range(len(roles) - 1)):
+        v = firm_view(rec, L)
+        if not v["roles_ok"]:
             issues.append(f"{L}: role alternation broken")
-        sysmsg = h[0]["content"]
-        if "Part 2" in sysmsg:
+        if "Part 2" in v["system"]:
             issues.append(f"{L}: system prompt mentions Part 2")
-        users = [m["content"] for m in h if m["role"] == "user"]
+        users = v["users"]
         full_user = "\n".join(users)
-        p2i = next(i for i, u in enumerate(users) if "Instructions – Part 2" in u)
-        part1_text = "\n".join([sysmsg, *users[:p2i]]) + users[p2i].split("Part 1 is over.")[0]
-        if re.search(r"Part 2|second part", part1_text):
+        if re.search(r"Part 2|second part", v["part1_text"]):
             issues.append(f"{L}: Part 1 text mentions Part 2")
-        p2_instr = users[p2i]
+        p2_instr = v["p2_instr"]
         if talk["part1"] and not talk["part2"]:
             if "will not be able to communicate" not in p2_instr:
                 issues.append(f"{L}: Part 2 NoTalk-after-Talk sentence missing")
             if "chat box, which you can use" in p2_instr:
                 issues.append(f"{L}: Part 2 describes a chat box")
-        after = "\n".join(users[p2i:])
-        if talk["part2"] is False and re.search(r": chat,? round|chat box has closed|Messages posted", after.split("Instructions – Part 2")[1]):
+        after = "\n".join(users[v["p2i"]:])
+        if "Instructions – Part 2" in after:  # older records: the instructions sit in the history
+            after = after.split("Instructions – Part 2", 1)[1]
+        if talk["part2"] is False and re.search(r": chat,? round|chat box has closed|Messages posted", after):
             issues.append(f"{L}: chat prompt in Part 2 NoTalk")
-        # die lines: only at the end of each part (pilot: min_periods = part length)
         dies = re.findall(r"Period (\d+) is over\. The computer threw the virtual dice and it showed (\d)", full_user)
-        exp_dies = [(str(lengths[0]), "6"), (str(lengths[1]), "6")]
-        if dies != exp_dies:
-            issues.append(f"{L}: die lines {dies} != {exp_dies}")
+        if dies != expected_dies(rec):
+            issues.append(f"{L}: die lines {dies} != {expected_dies(rec)}")
         # prompt period headers
         heads = re.findall(r"^Part (\d), period (\d+)(?::|\.)", full_user, re.M)
         info.setdefault("headers", {})[L] = len(heads)
@@ -191,34 +247,112 @@ def check_market(rec: dict) -> dict:
                 issues.append(f"{L}: cumulative total shown {ct} != {format_ecu(sum(run))}")
             if x["part"] == 1 and ct:
                 issues.append(f"{L}: experiment total shown in Part 1")
-        final = re.search(r"The sum of your firm's profits during the experiment is ([\d,\.]+) ECU", users[-1])
+        final = re.search(r"The sum of your firm's profits during the experiment is ([\d,\.]+) ECU", full_user)
         if not final or final.group(1) != format_ecu(sum(run)):
             issues.append(f"{L}: final total line wrong/missing")
-        # other firms' notes never in this firm's history
+        # other firms' notes never in anything this firm saw
         for F in letters:
-            if F == L:
-                continue
-            for nt in all_notes[F]:
-                if len(nt) > 30 and nt in "\n".join(m["content"] for m in h):
-                    issues.append(f"{L}: sees notes of {F}")
-                    break
+            if F != L and any(len(nt) > 30 and nt in v["all_text"] for nt in all_notes[F]):
+                issues.append(f"{L}: sees notes of {F}")
         # round-message blocks show exactly the previous round's posted messages, in L's listing order
         for x in periods:
             for r in x["chat"]:
-                exp_lines = [f"Firm {F}{' (you)' if F == L else ''}: {r['messages'][F]}" for F in orders[L] if F in r["messages"]]
-                block = (f"Messages posted in round {r['round']}:\n" + "\n".join(exp_lines)) if exp_lines else f"No firm posted a message in round {r['round']}."
-                if block not in full_user:
+                blocks = []  # the firm's own message as a placeholder (current) or repeated (older records)
+                for own in (OWN_MESSAGE, None):
+                    lines = [f"Firm {F} (you): {own or r['messages'][F]}" if F == L else f"Firm {F}: {r['messages'][F]}"
+                             for F in orders[L] if F in r["messages"]]
+                    blocks.append(f"Messages posted in round {r['round']}:\n" + "\n".join(lines) if lines
+                                  else f"No firm posted a message in round {r['round']}.")
+                if not any(b in full_user for b in blocks):
                     issues.append(f"{L}: round block p{x['part']} t{x['period']} r{r['round']} not shown verbatim")
+        if "totals" in rec and rec["totals"][L].get("notes_truncated"):
+            info.setdefault("notes_truncated", {})[L] = rec["totals"][L]["notes_truncated"]
     return {"issues": issues, "info": info}
 
 
+def record_attempts(rec: dict) -> list[tuple[str, tuple, dict]]:
+    """(firm, (part, period, phase), attempt) of every attempt in the record; the probe as ("probe", None, "probe")."""
+    out = []
+    for x in rec["periods"]:
+        for r in x["chat"]:
+            for L, d in r["decisions"].items():
+                out += [(L, (x["part"], x["period"], f"chat{r['round']}"), a) for a in d["attempts"]]
+        for L, d in x["decisions"].items():
+            out += [(L, (x["part"], x["period"], "price"), a) for a in d["attempts"]]
+    for L, f in ((rec.get("probe") or {}).get("firms") or {}).items():
+        out += [(L, ("probe", None, "probe"), a) for a in f["attempts"]]
+    return out
+
+
+def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: dict) -> list[str]:
+    """Information firm L must not see in a request at `where`: other firms' notes; for play calls also the
+    same period's results and other firms' messages of the current or later rounds."""
+    out = []
+    for F, notes in all_notes.items():
+        if F != L and any(len(nt) > 30 and nt in text for nt in notes):
+            out.append(f"notes of {F} visible")
+    part, period, phase = where
+    if part == "probe":  # after all play
+        return out
+    if f"Results of period {period} (Part {part})" in text:
+        out.append("same-period results visible")
+    here = (part, period, int(phase[4:]) if phase.startswith("chat") else 99)  # price: every round is visible
+    earlier = {m for k, ms in posted.items() if k < here for m in ms.values()}
+    for k, ms in posted.items():
+        if k >= here:
+            for F, m in ms.items():
+                if F != L and len(m) > 25 and m not in earlier and m in text:
+                    out.append(f"future/same-round message of {F} visible")
+    return out
+
+
 def check_calls(rec: dict, calls: list[dict]) -> dict:
-    """Request snapshots must be prefixes of the final history, and never contain same-round/same-period
-    information of other firms."""
+    """Every request is rebuilt from the record and its hash checked against the record and the call log; no
+    request shows other firms' notes or same-round/same-period information of other firms. Older (append-only)
+    records: requests must be prefixes of the final history."""
+    if "histories" in rec:
+        return check_calls_legacy(rec, calls)
     issues: list[str] = []
-    key = rec["spec"]["run_id"], None
+    all_notes = firm_notes(rec)
+    posted = {(x["part"], x["period"], r["round"]): r["messages"] for x in rec["periods"] for r in x["chat"]}
+    logged = defaultdict(list)
+    for c in calls:
+        if c.get("error") is None and "messages_sha256" in c:
+            logged[c["tag"].get("call_id")].append(c)
+    n_ok = n_log = 0
+    for L, where, a in record_attempts(rec):
+        cid, ctx = a["call_id"], a.get("context")
+        if not ctx:
+            issues.append(f"no context recorded: {cid}")
+            continue
+        try:
+            msgs = reconstruct_request(rec, L, ctx)
+        except ValueError as e:
+            issues.append(f"request not reconstructable: {cid}: {e}")
+            continue
+        n_ok += 1
+        if messages_sha256(msgs) != ctx.get("messages_sha256"):
+            issues.append(f"rebuilt request does not match its context hash: {cid}")
+        if ctx.get("merged") and any(x["role"] == y["role"] for x, y in zip(msgs, msgs[1:])):
+            issues.append(f"roles do not alternate: {cid}")
+        if msgs[-1]["role"] != "user":
+            issues.append(f"request does not end with a user turn: {cid}")
+        if lines := logged.get(cid):  # the log hashes the messages as sent (cache_control included)
+            n_log += 1
+            if not any(messages_sha256(reconstruct_request(rec, L, ctx, c.get("cache_upto"))) == c["messages_sha256"]
+                       for c in lines):
+                issues.append(f"rebuilt request does not match the call log: {cid}")
+        text = "\n".join(content_text(m) for m in msgs)
+        issues += [f"{x}: {cid}" for x in leaks(rec, L, where, text, all_notes, posted)]
+    return {"issues": issues, "ok_calls": n_ok, "checked_against_log": n_log}
+
+
+def check_calls_legacy(rec: dict, calls: list[dict]) -> dict:
+    """Append-only records: request snapshots must be prefixes of the final history, and never contain
+    same-round/same-period information of other firms."""
+    issues: list[str] = []
     hist = {L: [(m["role"], m["content"]) for m in h] for L, h in rec["histories"].items()}
-    per = {(x["part"], x["period"]): x for x in rec["periods"]}
+    all_notes = firm_notes(rec)
     posted = {(x["part"], x["period"], r["round"]): r["messages"] for x in rec["periods"] for r in x["chat"]}
     n_ok = 0
     for c in calls:
@@ -237,25 +371,8 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
         if req[-1][0] != "user":
             issues.append(f"request does not end with a user turn: {tg['call_id']}")
         text = "\n".join(t for _, t in req)
-        x = per[(tg["part"], tg["period"])]
-        others = [F for F in hist if F != L]
-        # same-period results never visible before deciding
-        if f"Results of period {tg['period']} (Part {tg['part']})" in text:
-            issues.append(f"same-period results visible: {tg['call_id']}")
-        if tg["phase"].startswith("chat"):
-            here = (tg["part"], tg["period"], int(tg["phase"][4:]))
-        else:
-            here = (tg["part"], tg["period"], 99)  # price: every round of this period is visible
-        earlier = {m for k, ms in posted.items() if k < here for m in ms.values()}
-        for k, ms in posted.items():
-            if k >= here:
-                for F, m in ms.items():
-                    if F in others and len(m) > 25 and m not in earlier and m in text:
-                        issues.append(f"future/same-round message of {F} visible: {tg['call_id']}")
-        for xx in per.values():
-            for F, d in xx["decisions"].items():
-                if F in others and d["notes"] and len(d["notes"]) > 30 and d["notes"] in text:
-                    issues.append(f"price notes of {F} visible: {tg['call_id']}")
+        issues += [f"{x}: {tg['call_id']}" for x in
+                   leaks(rec, L, (tg["part"], tg["period"], tg["phase"]), text, all_notes, posted)]
     return {"issues": issues, "ok_calls": n_ok}
 
 
@@ -263,7 +380,7 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
 
 
 def behaviour(rec: dict) -> dict:
-    letters = sorted(rec["histories"])
+    letters = letters_of(rec)
     out: dict = {"prices": [], "chat": [], "agreements": []}
     n_msg = n_slot = 0
     lens = []
@@ -332,21 +449,23 @@ def tokens(calls: list[dict]) -> dict:
     for c in ok:
         u = c["usage"]
         tg = c["tag"]
-        ph = "chat" if tg["phase"].startswith("chat") else "price"
+        ph = "chat" if tg["phase"].startswith("chat") else tg["phase"]  # price or probe
         if tg["attempt"] == 0:
             by_period[(tg["part"], tg["period"], tg["phase"])].append(u["prompt_tokens"])
         phase[ph]["completion"].append(u["completion_tokens"])
         phase[ph]["reasoning"].append(u["reasoning_tokens"])
-        phase[ph]["cost"].append(c["cost_usd"] or 0)
+        phase[ph]["cost"].append(c.get("cost_usd") or 0)
         b = request_bytes(c)
-        ratio.append(u["prompt_tokens"] / b)
-        lat.append(c["latency_s"])
-        cost.append(c["cost_usd"])
-        cached += u["cached_tokens"]
-        seed_flags[(c["seed_possibly_ignored"], c["seed_flag_reason"])] += 1
-        providers[(c["provider_requested"], c["provider_served"], c["provider_mismatch"])] += 1
-        models_served[c["model_served"]] += 1
-        finish[(c["finish_reason"], c.get("native_finish_reason"))] += 1
+        if b:
+            ratio.append(u["prompt_tokens"] / b)
+        if c.get("latency_s") is not None:
+            lat.append(c["latency_s"])
+        cost.append(c.get("cost_usd"))
+        cached += u.get("cached_tokens") or 0
+        seed_flags[(c.get("seed_possibly_ignored"), c.get("seed_flag_reason"))] += 1
+        providers[(c.get("provider_requested"), c.get("provider_served"), c.get("provider_mismatch"))] += 1
+        models_served[c.get("model_served")] += 1
+        finish[(c.get("finish_reason"), c.get("native_finish_reason"))] += 1
         reasoning_present += bool(c.get("reasoning") or c.get("reasoning_details"))
     # growth: mean prompt tokens of the round-1/price prompt per period
     mp = {k: mean(v) for k, v in by_period.items()}
@@ -382,26 +501,33 @@ def tokens(calls: list[dict]) -> dict:
     }
 
 
-def main() -> int:
-    calls_by_market = defaultdict(list)
-    for run in RUNS:
-        for c in load_calls(run / "calls.jsonl"):
-            if "event" not in c and (c.get("tag") or {}).get("market"):
-                calls_by_market[c["tag"]["market"]].append(c)
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("runs", nargs="*", default=DEFAULT_RUNS, help="run ids (directories under --runs-dir)")
+    ap.add_argument("--runs-dir", default=str(RUNS_DIR))
+    ap.add_argument("--out", help="report path (default data/audits/<run ids>_audit.json)")
+    a = ap.parse_args(argv)
+    runs = [Path(a.runs_dir) / r for r in a.runs]
+    out = Path(a.out) if a.out else AUDITS_DIR / f"{'+'.join(a.runs)}_audit.json"
+    calls_by_market = defaultdict(list)  # (run id, market key) -> its calls
+    for run in runs:
+        log = run / "calls.jsonl"
+        for c in load_calls(log) if log.exists() else []:
+            tag = c.get("tag") or {}
+            if "event" not in c and tag.get("market"):
+                calls_by_market[(tag.get("run_id", run.name), tag["market"])].append(c)
     report = {}
-    for run in RUNS:
+    for run in runs:
         for f in market_files(run):
-            if f.name.endswith(".failed.json"):
-                rec = json.loads(f.read_text())
-                key = rec["spec"]["model"]
-                report[key] = {"failed": True, "error": rec["error"][:300],
-                               "periods_completed": rec["periods_completed"],
-                               "tokens": tokens(calls_by_market[f.stem.removesuffix(".failed")])}
-                continue
             rec = json.loads(f.read_text())
-            mkey = f.stem
-            calls = calls_by_market[mkey]
-            report[rec["spec"]["model"]] = {
+            mkey = f.name.removesuffix(".json").removesuffix(".failed")
+            calls = calls_by_market[(rec["spec"]["run_id"], mkey)]
+            key = f"{run.name}/{mkey}"
+            if f.name.endswith(".failed.json"):
+                report[key] = {"failed": True, "reason": rec.get("reason"), "error": rec["error"][:300],
+                               "periods_completed": rec["periods_completed"], "tokens": tokens(calls)}
+                continue
+            report[key] = {
                 "market": mkey,
                 "engine": check_market(rec),
                 "calls": check_calls(rec, calls),
@@ -409,21 +535,23 @@ def main() -> int:
                 "behaviour": behaviour(rec),
                 "tokens": tokens(calls),
             }
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(report, indent=1, default=str))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=1, default=str))
     for m, r in report.items():
         print("=" * 30, m)
         if r.get("failed"):
-            print("FAILED", r["error"][:200], r["tokens"]["calls_ok"], r["tokens"]["calls_err"])
+            print("FAILED", r["reason"], r["error"][:200], r["tokens"]["calls_ok"], r["tokens"]["calls_err"])
             continue
         print("engine issues:", r["engine"]["issues"][:20])
-        print("call issues:", r["calls"]["issues"][:10], "ok calls", r["calls"]["ok_calls"], "usage calls", r["usage_record"]["calls"])
+        print("call issues:", r["calls"]["issues"][:10], "checked", r["calls"]["ok_calls"], "of which against the log",
+              r["calls"].get("checked_against_log"), "usage calls", r["usage_record"]["calls"])
         b = r["behaviour"]
         print("prices:", " | ".join(f"{p['part']}.{p['period']}:{p['prices']}" for p in b["prices"]))
         print("agreements:", [(a["period"], a["agreed"], a["support"], a["kept"], a["undercutters"], a["rounds"]) for a in b["agreements"]])
         print({k: b[k] for k in ("pass_rate", "msg_len_mean", "msg_len_max", "msg_over_280", "reasks", "fallbacks", "warnings", "errors", "profits")})
         t = r["tokens"]
         print({k: v for k, v in t.items()})
+    print(f"written to {out}")
     return 0
 
 
