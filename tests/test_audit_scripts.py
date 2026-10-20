@@ -139,6 +139,45 @@ async def test_audit_reads_part_lengths_and_chat_spec_from_settings(tmp_path):
     assert any("no matching call-log lines" in x for x in ap.check_calls(rec, other)["issues"])
 
 
+def test_leak_in_other_forms_fires_but_legitimately_seen_text_does_not():
+    sentence = "Let us all hold at 100 and never undercut again."
+    posted = {(1, 1, 1): {"A": "I propose: " + sentence}, (1, 2, 1): {"B": sentence}}
+    base = "Messages posted in round 1:\nFirm A (you): I propose: " + sentence
+    # a real leak embedded in results text (not a whole round-block line) fires
+    leaked = base + "\nResults of period 1 (Part 1):\nFirm B said: " + sentence + " (price 100)"
+    assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, posted) == ["future/same-round message of B visible"]
+    # the same sentence inside A's own earlier message, or A's own notes, is not a leak
+    assert ap.leaks({}, "A", (1, 2, "chat1"), base, {}, posted) == []
+    own = '{"notes": "plan: ' + sentence + '", "message": "hi"}'
+    assert ap.leaks({}, "A", (1, 2, "chat1"), own, {}, posted, own_notes={"plan: " + sentence}) == []
+    # short messages are not matched (they recur by chance)
+    assert ap.leaks({}, "A", (1, 2, "chat1"), "ok, agreed", {}, {(1, 2, 1): {"B": "ok, agreed"}}) == []
+
+
+def test_unlogged_market_handles_missing_call_ids_and_legacy_records():
+    att = {"attempts": [{"call_id": None}]}
+    rec = {"periods": [{"part": 1, "period": 1, "chat": [], "decisions": {"A": att}}]}
+    none_logged = [{"tag": {"firm": "A", "part": 1, "period": 1, "phase": "price"}}]  # no call_id in the log
+    assert ap.unlogged_market(rec, none_logged)  # windowed record: a missing call_id is unlogged
+    legacy = {**rec, "histories": {}}
+    assert ap.unlogged_market(legacy, none_logged) == []  # legacy: matched by firm and slot
+    other_slot = [{"tag": {"firm": "B", "part": 1, "period": 1, "phase": "price"}}]
+    assert ap.unlogged_market(legacy, other_slot)
+    assert ap.unlogged_market(legacy, [])
+
+
+def test_behaviour_keeps_the_msg_over_280_alias_and_tokens_requires_lengths():
+    import inspect
+
+    assert inspect.signature(ap.tokens).parameters["lengths"].default is inspect.Parameter.empty
+    d = {"value": "x" * 290, "reasks": 0, "fallback": False, "warnings": [], "errors": [], "attempts": []}
+    rec = {"totals": {"A": {"profit_total": 0}}, "settings": {"experiment": {"char_limit": 300}},
+           "periods": [{"part": 1, "period": 1, "prices": {"A": 100}, "talk": False, "decisions": {"A": d},
+                        "chat": [{"round": 1, "messages": {}, "decisions": {"A": d}}]}]}
+    b = ap.behaviour(rec)
+    assert b["msg_near_limit"] == b["msg_over_280"] == 1
+
+
 def test_same_round_leak_matches_whole_message_lines():
     """Repeating another firm's sentence inside one's own message is not a leak; the other firm's own line is."""
     sentence = "We should all price at 100 every period from now on."

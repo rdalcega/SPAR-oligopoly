@@ -99,7 +99,7 @@ def firm_view(rec: dict, L: str) -> dict:
     """What firm L was shown, in one shape for both record formats: the system message, the user texts in order,
     the index of the first user text of Part 2, the Part 2 instructions, the Part 1 text (to check it never
     mentions Part 2) and every text the firm saw."""
-    L1 = rec["settings"]["experiment"]["part_lengths"][0]
+    L1 = part_lengths(rec)[0]
     if "transcripts" in rec:  # windowed context: instructions apart from the transcript
         instr, tr = rec["instructions"][L], rec["transcripts"][L]
         users = [m["content"] for m in tr if m["role"] == "user"]
@@ -141,7 +141,7 @@ def expected_dies(rec: dict) -> list[tuple[str, str]]:
     """(period, face) of every die line the results show: periods with a throw in the pre-drawn schedules."""
     scheds = rec["settings"].get("die_schedules")
     if scheds is None:  # older records: pilots showed the die only after each part's final period
-        return [(str(n), "6") for n in rec["settings"]["experiment"]["part_lengths"]]
+        return [(str(n), "6") for n in part_lengths(rec)]
     return [(str(t), str(d)) for sched in scheds for t, d in enumerate(sched, 1) if d is not None]
 
 
@@ -162,7 +162,7 @@ def check_market(rec: dict) -> dict:
     info: dict = {}
     letters = letters_of(rec)
     orders = rec["settings"]["listing_orders"]
-    lengths = rec["settings"]["experiment"]["part_lengths"]
+    lengths = part_lengths(rec)
     max_rounds, char_limit = chat_spec(rec)
     periods = rec["periods"]
     talk = rec["settings"]["talk"]
@@ -299,9 +299,19 @@ def record_attempts(rec: dict) -> list[tuple[str, tuple, dict]]:
     return out
 
 
-def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: dict) -> list[str]:
+LEAK_MIN_CHARS = 25  # shorter messages ("ok", "agreed, 100") recur by chance
+
+
+def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: dict,
+          own_notes: set[str] | None = None) -> list[str]:
     """Information firm L must not see in a request at `where`: other firms' notes; for play calls also the
-    same period's results and other firms' messages of the current or later rounds."""
+    same period's results and other firms' messages of the current or later rounds.
+
+    A message counts as leaked if its text (over LEAK_MIN_CHARS chars) appears anywhere in the request, in any
+    form (a round-block line, results text, ...), once everything L legitimately saw is removed: every earlier
+    round's message lines ("Firm X: <text>" and "Firm X (you): <text>"), and L's own messages and notes (`own_notes`;
+    default: L's notes in the record). So a firm, or another firm earlier, quoting a sentence that someone posts
+    later is not a leak."""
     out = []
     for F, notes in all_notes.items():
         if F != L and any(len(nt) > 30 and nt in text for nt in notes):
@@ -312,24 +322,45 @@ def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: d
     if f"Results of period {period} (Part {part})" in text:
         out.append("same-period results visible")
     here = (part, period, int(phase[4:]) if phase.startswith("chat") else 99)  # price: every round is visible
-    # whole message lines as round blocks show them ("Firm X: <text>"): a firm quoting another's sentence in its
-    # own message is not a leak, and a line F already posted in an earlier round is legitimately visible
-    shown = f"\n{text}\n"
     earlier = {(F, m) for k, ms in posted.items() if k < here for F, m in ms.items()}
+    if own_notes is None:
+        own_notes = all_notes.get(L, set())
+    visible = {f"Firm {F}: {m}" for F, m in earlier} | {f"Firm {F} (you): {m}" for F, m in earlier}
+    visible |= {m for ms in posted.values() for F, m in ms.items() if F == L} | set(own_notes)
+    rest = text
+    for v in sorted((v for v in visible if v), key=len, reverse=True):  # longest first: lines before their texts
+        rest = rest.replace(v, "\n")
     for k, ms in posted.items():
         if k >= here:
             for F, m in ms.items():
-                if F != L and (F, m) not in earlier and f"\nFirm {F}: {m}\n" in shown:
+                if F != L and len(m) > LEAK_MIN_CHARS and (F, m) not in earlier and m in rest:
                     out.append(f"future/same-round message of {F} visible")
     return out
 
 
+def _slot(firm, part, period, phase) -> tuple:
+    """A decision slot: (firm, part, period, phase), or (firm, "probe") for the post-game probe."""
+    return (firm, "probe") if phase == "probe" else (firm, part, period, phase)
+
+
 def unlogged_market(rec: dict, calls: list[dict]) -> list[str]:
-    """A record with attempts but no call-log line for any of them (missing or mismatched log)."""
+    """A record with attempts but no call-log line for any of them (missing or mismatched log). An attempt is
+    logged if its call_id is among the log's; an attempt without a call_id counts as unlogged, except in a legacy
+    (append-only) record, whose attempts may lack call ids: there a log line for the same firm and decision slot
+    (part, period, phase) counts."""
     attempts = record_attempts(rec)
-    logged = {(c.get("tag") or {}).get("call_id") for c in calls}
-    if attempts and not any(a.get("call_id") in logged for _, _, a in attempts) \
-            and not (calls and "histories" in rec):  # legacy records' attempts may lack call ids
+    tags = [c.get("tag") or {} for c in calls]
+    logged_ids = {t["call_id"] for t in tags if t.get("call_id") is not None}
+    legacy = "histories" in rec
+    logged_slots = {_slot(t.get("firm"), t.get("part"), t.get("period"), t.get("phase")) for t in tags} if legacy \
+        else set()
+
+    def is_logged(L, where, a) -> bool:
+        if a.get("call_id") is not None:
+            return a["call_id"] in logged_ids
+        return legacy and _slot(L, *where) in logged_slots
+
+    if attempts and not any(is_logged(*x) for x in attempts):
         return [f"record has {len(attempts)} attempts but no matching call-log lines"]
     return []
 
@@ -411,6 +442,7 @@ def check_calls_legacy(rec: dict, calls: list[dict]) -> dict:
 
 def behaviour(rec: dict) -> dict:
     letters = letters_of(rec)
+    char_limit = chat_spec(rec)[1]
     out: dict = {"prices": [], "chat": [], "agreements": []}
     n_msg = n_slot = 0
     lens = []
@@ -450,7 +482,8 @@ def behaviour(rec: dict) -> dict:
     out["pass_rate"] = 1 - n_msg / n_slot if n_slot else None
     out["msg_len_mean"] = mean(lens)
     out["msg_len_max"] = max(lens) if lens else None
-    out["msg_near_limit"] = sum(v >= chat_spec(rec)[1] - 20 for v in lens)  # within 20 chars of char_limit
+    out["msg_near_limit"] = sum(v >= char_limit - 20 for v in lens)  # within 20 chars of char_limit
+    out["msg_over_280"] = out["msg_near_limit"]  # former name (char_limit 300), kept for older readers
     out["reasks"] = dict(reasks)
     out["fallbacks"] = dict(fallbacks)
     out["warnings"] = dict(warns)
@@ -462,8 +495,8 @@ def behaviour(rec: dict) -> dict:
 # ---------------------------------------------------------------------------------------------- C: tokens
 
 
-def tokens(calls: list[dict], lengths: tuple[int, int] = (6, 4)) -> dict:
-    """Token, cost and latency statistics of a market's calls; `lengths` are its part lengths."""
+def tokens(calls: list[dict], lengths: tuple[int, int]) -> dict:
+    """Token, cost and latency statistics of a market's calls; `lengths` are its part lengths (`part_lengths`)."""
     ok = [c for c in calls if c.get("error") is None]
     errs = [c for c in calls if c.get("error") is not None]
     by_period = defaultdict(list)
@@ -552,13 +585,14 @@ def main(argv: list[str] | None = None) -> int:
     for run in runs:
         for f in market_files(run):
             rec = json.loads(f.read_text())
+            lengths = part_lengths(rec)
             mkey = f.name.removesuffix(".json").removesuffix(".failed")
             calls = calls_by_market[(rec["spec"]["run_id"], mkey)]
             key = f"{run.name}/{mkey}"
             if f.name.endswith(".failed.json"):
                 report[key] = {"failed": True, "reason": rec.get("reason"), "error": rec["error"][:300],
                                "periods_completed": rec["periods_completed"],
-                               "tokens": tokens(calls, part_lengths(rec))}
+                               "tokens": tokens(calls, lengths)}
                 continue
             report[key] = {
                 "market": mkey,
@@ -566,7 +600,7 @@ def main(argv: list[str] | None = None) -> int:
                 "calls": check_calls(rec, calls),
                 "usage_record": rec["usage"],
                 "behaviour": behaviour(rec),
-                "tokens": tokens(calls, part_lengths(rec)),
+                "tokens": tokens(calls, lengths),
             }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=1, default=str))
