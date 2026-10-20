@@ -117,13 +117,14 @@ def build(run_ids: list[str], runs_root: str | Path,
     chat_cells = chat_mod.chat_summary(periods, t.chat)
     ff = mistakes.flag_firm_periods(t.firm_period, msgs)
     fc = mistakes.flag_chat(t.chat) if len(t.chat) else t.chat
-    mis = mistakes.rates(ff, fc)
+    ft = mistakes.flag_transition(t.transition) if len(t.transition) else None
+    mis = mistakes.rates(ff, fc, ft)
     comp = human.comparison(cells, t2, mk_summ, strat, tests, t.markets)
     ts = measures.timeseries(t.market_period)
     ns = sorted(t.markets["n"].unique())
     probe_firms = probe_mod.firm_table(recs)
     probe_cells = probe_mod.cell_table(probe_firms, probe_mod.talk_mean_sp(t.market_period))
-    mis_cells = mistakes.cell_rates(ff, fc)
+    mis_cells = mistakes.cell_rates(ff, fc, ft)
 
     tables = {
         "firm_period": ff, "market_period": t.market_period, "markets": mt, "cells": cells,

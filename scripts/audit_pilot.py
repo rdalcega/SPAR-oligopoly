@@ -34,7 +34,7 @@ from oligopoly import market as mk  # noqa: E402
 from oligopoly.engine import is_market_record_file  # noqa: E402
 from oligopoly.llm import messages_sha256, reconstruct_from_log, reconstruct_request  # noqa: E402
 from oligopoly.analysis.chat import code_message, code_period  # noqa: E402
-from oligopoly.prompts import OWN_MESSAGE, format_ecu, round_text, totals_text  # noqa: E402
+from oligopoly.prompts import OWN_MESSAGE, format_ecu, round_text, shown_message, totals_text  # noqa: E402
 
 DEFAULT_RUNS = ["pilot1", "pilot1-q14"]
 RUNS_DIR = ROOT / "data/runs"
@@ -108,12 +108,12 @@ def firm_view(rec: dict, L: str) -> dict:
         p2i = next((i for i, g in enumerate(periods) if g > L1), len(users))
         p2_instr = instr[1] if len(instr) > 1 else ""
         if tr and "kind" in tr[0]:  # summaries layout: each prompt or re-ask is answered, and only those are;
-            # the last entry may be an unanswered probe prompt (a probe skipped on context overflow)
+            # the last entry may be the probe's unanswered prompt or re-ask (a probe skipped on context overflow)
             asks = [i for i, m in enumerate(tr) if m["kind"] in ("prompt", "reask")]
             answered = [i for i in asks if i + 1 < len(tr)]
             roles_ok = all(tr[i + 1]["kind"] == "answer" for i in answered) and \
                 [i - 1 for i, m in enumerate(tr) if m["role"] == "assistant"] == answered and \
-                (answered == asks or tr[-1]["kind"] == "prompt" and tr[-1]["period"] > len(rec["periods"]))
+                (answered == asks or tr[-1]["kind"] in ("prompt", "reask") and tr[-1]["period"] > len(rec["periods"]))
         else:
             roles_ok = all(r == ("user", "assistant")[i % 2] for i, r in enumerate(m["role"] for m in tr))
         return {"system": instr[0], "users": users, "p2i": p2i, "p2_instr": p2_instr,
@@ -145,6 +145,8 @@ def firm_notes(rec: dict) -> dict:
         for d in [x["decisions"]] + [r["decisions"] for r in x["chat"]]:
             for L, dd in d.items():
                 out[L] |= {t for t in (dd.get("notes"), dd.get("notes_full")) if t}
+    for L, dd in (rec.get("transition") or {}).items():
+        out[L] |= {t for t in (dd.get("notes"), dd.get("notes_full")) if t}
     return {L: {t for t in ts if not any(t in m for m in posted[L])} for L, ts in out.items()}
 
 
@@ -242,9 +244,7 @@ def check_market(rec: dict) -> dict:
         after = "\n".join(users[v["p2i"]:])
         if "Instructions – Part 2" in after:  # older records: the instructions sit in the history
             after = after.split("Instructions – Part 2", 1)[1]
-        if talk["part2"] is False and re.search(
-                r": chat,? round|chat box has closed|Messages posted|messages posted so far|No messages have been posted",
-                after):
+        if talk["part2"] is False and re.search(r": chat,? round|chat box has closed|Messages posted", after):
             issues.append(f"{L}: chat prompt in Part 2 NoTalk")
         dies = re.findall(r"Period (\d+) is over\. The computer threw the virtual dice and it showed (\d)", full_user)
         if dies != expected_dies(rec):
@@ -349,15 +349,22 @@ def leaks(rec: dict, L: str, where: tuple, text: str, all_notes: dict, posted: d
     earlier = {(F, m) for k, ms in posted.items() if k < here for F, m in ms.items()}
     if own_notes is None:
         own_notes = all_notes.get(L, set())
+    def one_line(m: str) -> str:  # as the summaries layout shows a message (prompts.shown_message, unquoted)
+        return " ".join(m.splitlines())
+
     visible = {f"Firm {F}: {m}" for F, m in earlier} | {f"Firm {F} (you): {m}" for F, m in earlier}
-    visible |= {m for ms in posted.values() for F, m in ms.items() if F == L} | set(own_notes)
+    visible |= {f"Firm {F}: {shown_message(m)}" for F, m in earlier}
+    visible |= {f"Firm {F} (you): {shown_message(m)}" for F, m in earlier}
+    visible |= {x for ms in posted.values() for F, m in ms.items() if F == L for x in (m, one_line(m))}
+    visible |= set(own_notes)
     rest = text
     for v in sorted((v for v in visible if v), key=len, reverse=True):  # longest first: lines before their texts
         rest = rest.replace(v, "\n")
     for k, ms in posted.items():
         if k >= here:
             for F, m in ms.items():
-                if F != L and len(m) > LEAK_MIN_CHARS and (F, m) not in earlier and m in rest:
+                if F != L and len(m) > LEAK_MIN_CHARS and (F, m) not in earlier and \
+                        (m in rest or one_line(m) in rest):
                     out.append(f"future/same-round message of {F} visible")
     return out
 
@@ -431,6 +438,8 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
                 issues.append(f"rebuilt request does not match the call log: {cid}")
         text = "\n".join(content_text(m) for m in msgs)
         issues += [f"{x}: {cid}" for x in leaks(rec, L, where, text, all_notes, posted)]
+    if any(t and "kind" in t[0] for t in rec["transcripts"].values()):
+        issues += check_sections(rec)
     return {"issues": issues, "ok_calls": n_ok, "checked_against_log": n_log}
 
 
@@ -444,6 +453,58 @@ def expected_totals(rec: dict, L: str, where: tuple) -> str:
         done = [x for x in rec["periods"] if (x["part"], x["period"]) < (part, period)]
     cum = [sum(x["profits"][L] for x in done if x["part"] == p) for p in (1, 2)]
     return totals_text(part, cum[part - 1], sum(cum) if part == 2 else None)
+
+
+def decisions_in_order(rec: dict, L: str) -> list[tuple[tuple, dict]]:
+    """((part, period, phase), decision) of firm L in the order they were made (the transition call before Part 2
+    period 1; the probe last)."""
+    out = []
+    for x in rec["periods"]:
+        if (x["part"], x["period"]) == (2, 1) and rec.get("transition"):
+            out.append(((2, 0, "transition"), rec["transition"][L]))
+        out += [((x["part"], x["period"], f"chat{r['round']}"), r["decisions"][L]) for r in x["chat"]]
+        out.append(((x["part"], x["period"], "price"), x["decisions"][L]))
+    if (f := ((rec.get("probe") or {}).get("firms") or {}).get(L)) is not None:
+        out.append((("probe", None, "probe"), {**f, "notes": None, "fallback": not f["valid"]}))
+    return out
+
+
+def check_sections(rec: dict) -> list[str]:
+    """Summaries layout: each attempt's context selects what the design says. "In the transcript" no longer means
+    "shown", and a rebuilt request always matches its own hash, so the selection itself is checked: the last W
+    summaries before the call, every chat round of the call's period so far (Talk play calls only; none for the
+    transition call, the probe and NoTalk parts) and the notes of the latest valid answer that carried any."""
+    issues: list[str] = []
+    W = ((rec.get("settings") or {}).get("experiment") or {}).get("memory_window", 3)
+    talk = rec["settings"]["talk"]
+    for L in letters_of(rec):
+        tr, notes = rec["transcripts"][L], None
+        for (part, period, phase), d in decisions_in_order(rec, L):
+            for a in d["attempts"]:
+                ctx = a.get("context") or {}
+                if ctx.get("layout") is None:
+                    continue
+                lo = ctx["turns"][0]
+                summ = [i for i in range(lo) if tr[i]["kind"] == "summary"]
+                if ctx["summaries"] != summ[-W:]:
+                    issues.append(f"{L}: summaries shown {ctx['summaries']} != the last {W} {summ[-W:]}: {a['call_id']}")
+                in_talk = part in (1, 2) and phase != "transition" and talk[f"part{part}"]
+                g = tr[lo]["period"]
+                rounds = [i for i in range(lo) if tr[i]["kind"] == "chat" and tr[i]["period"] == g]
+                want = rounds if in_talk else None
+                if ctx["chat"] != want:
+                    issues.append(f"{L}: chat section {ctx['chat']} != {want}: {a['call_id']}")
+                if in_talk and len(rounds) != (int(phase[4:]) - 1 if phase.startswith("chat") else
+                                               len(next(x for x in rec["periods"]
+                                                        if (x["part"], x["period"]) == (part, period))["chat"])):
+                    issues.append(f"{L}: {len(rounds)} chat rounds shown: {a['call_id']}")
+                at = ctx.get("notes_at")
+                shown = json.loads(tr[at]["content"]).get("notes") if at is not None else None
+                if ctx.get("notes") and shown != notes:
+                    issues.append(f"{L}: notes shown are not the latest valid notes: {a['call_id']}")
+            if not d.get("fallback") and d.get("notes") is not None:
+                notes = d["notes"]
+    return issues
 
 
 def check_calls_legacy(rec: dict, calls: list[dict]) -> dict:
@@ -488,11 +549,15 @@ def behaviour(rec: dict) -> dict:
     fallbacks = Counter()
     warns = Counter()
     errors = Counter()
-    prev_agreed = None
+    prev_agreed, prev_part = None, None
     for x in rec["periods"]:
+        if x["part"] != prev_part:  # as analysis.chat.code_periods: agreements are coded within a part
+            prev_agreed, prev_part = None, x["part"]
         out["prices"].append({"part": x["part"], "period": x["period"],
                               "prices": "/".join(str(x["prices"][L]) for L in letters)})
         decs = [("price", d) for d in x["decisions"].values()]
+        if (x["part"], x["period"]) == (2, 1):
+            decs += [("transition", d) for d in (rec.get("transition") or {}).values()]
         msgs = []
         for r in x["chat"]:
             for L, d in r["decisions"].items():

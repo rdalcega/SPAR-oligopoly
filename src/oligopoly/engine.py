@@ -115,11 +115,9 @@ def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
     """OpenRouter `response_format` for a structured-outputs call (`structured_outputs` in models.toml): a strict
     JSON schema with `notes` (if the run uses notes) and `message` (string or null) or `price` (integer 0-100)."""
     props: dict[str, Any] = {"notes": {"type": "string"}} if notes or kind == "transition" else {}
-    if kind == "transition":
-        pass
-    elif kind == "price":
+    if kind == "price":
         props["price"] = {"type": "integer", "minimum": 0, "maximum": market.P_MAX}
-    else:
+    elif kind == "message":
         props["message"] = {"type": ["string", "null"]}
     return {"type": "json_schema", "json_schema": {
         "name": {"price": "price_decision", "message": "chat_turn", "transition": "transition_notes"}[kind],
@@ -482,7 +480,7 @@ class Market:
         d.fallback = True
         d.value = self.prev_price[L] if kind == "price" else None
         if kind == "price":  # a chat fallback shows in the firm's own line of that round instead
-            firm.tell(prompts.fallback_text(d.value))
+            firm.tell(prompts.fallback_text(d.value, period))
         return d
 
     async def run_transition(self) -> None:
@@ -767,7 +765,7 @@ class Market:
             "periods": self.periods,
             "totals": totals,
             "usage": self.usage,
-            # every turn of every firm (not windowed); each attempt's `context` gives the window it was sent
+            # everything each firm was shown or answered; each attempt's `context` selects what one request held
             "instructions": {L: f.instructions for L, f in self.firms.items()},
             "transcripts": {L: f.transcript for L, f in self.firms.items()},
             "resumed_from_period": self.resumed_from,

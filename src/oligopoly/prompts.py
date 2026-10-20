@@ -463,7 +463,7 @@ def summaries_text(summaries: Sequence[str], totals: str) -> str:
 
 def totals_text(part: int, cumulative_part: float, cumulative_total: float | None = None) -> str:
     """The firm's own cumulative profit at the time of the request (Part 2 also shows the experiment total)."""
-    lines = [f"Your total profit in this part so far: {format_ecu(cumulative_part)} ECU"]
+    lines = [f"Your total profit in Part {part} so far: {format_ecu(cumulative_part)} ECU"]
     if part == 2:
         if cumulative_total is None:
             raise ValueError("Part 2 shows the total over the experiment")
@@ -471,11 +471,14 @@ def totals_text(part: int, cumulative_part: float, cumulative_total: float | Non
     return "\n".join(lines)
 
 
+NOTES_START, NOTES_END = "[start of your notes]", "[end of your notes]"  # the notes are free text: mark their extent
+
+
 def notes_text(notes: str | None) -> str:
     """The firm's latest private notes."""
     if notes is None:
         return NO_NOTES_YET
-    return f"Your most recent notes:\n{notes if notes.strip() else '(empty)'}"
+    return f"Your most recent notes:\n{NOTES_START}\n{notes if notes.strip() else '(empty)'}\n{NOTES_END}"
 
 
 def chat_text(rounds: Sequence[str]) -> str:
@@ -490,16 +493,23 @@ OWN_FAILED = "(no message: your response could not be used)"
 OWN_MESSAGE = "[your message above]"  # older records only: the firm's own message was its answer just above
 
 
+def shown_message(text: str) -> str:
+    """A chat message as other firms see it: on one line (line breaks become spaces) and in double quotes, so it
+    cannot pass for a round header or for another firm's line."""
+    return '"' + " ".join(text.splitlines()) + '"'
+
+
 def round_text(round_: int, posted: Mapping[str, str], order: Sequence[str], firm_letter: str,
                own_failed: bool = False) -> str:
-    """Chat round `round_` as `firm_letter` sees it: every firm in its listing order `order`, with its message or
-    NO_MESSAGE (OWN_FAILED for the firm's own turn when its answer could not be used)."""
+    """Chat round `round_` as `firm_letter` sees it: every firm in its listing order `order`, with its message
+    (shown_message) or NO_MESSAGE (OWN_FAILED for the firm's own turn when its answer could not be used)."""
     lines = [f"Round {round_}:"]
     for f in order:
-        if f == firm_letter:
-            lines.append(f"Firm {f} (you): " + (OWN_FAILED if own_failed else posted.get(f, NO_MESSAGE)))
+        who = f"Firm {f} (you)" if f == firm_letter else f"Firm {f}"
+        if f == firm_letter and own_failed:
+            lines.append(f"{who}: {OWN_FAILED}")
         else:
-            lines.append(f"Firm {f}: {posted.get(f, NO_MESSAGE)}")
+            lines.append(f"{who}: " + (shown_message(posted[f]) if f in posted else NO_MESSAGE))
     return "\n".join(lines)
 
 
@@ -587,9 +597,9 @@ def part_over_text(part: int, last_period: int, final_part: bool, total_profit: 
     return s
 
 
-def fallback_text(value: int) -> str:
+def fallback_text(value: int, period: int) -> str:
     """Tells a firm, in that period's summary, that its price answer was still unusable after the last re-ask."""
-    return f"Your price response in this period could not be used, so your price was set to {value}."
+    return f"Your price response in period {period} could not be used, so your price in that period was set to {value}."
 
 
 CHAT_PRICE_ERROR = 'a price was given on a chat turn (no "message" field)'
@@ -617,8 +627,16 @@ def transition_prompt(notes_words: int = NOTES_WORDS) -> str:
     return f"{TRANSITION_LINE}\nRespond with JSON only, in this format: {transition_format(notes_words)}"
 
 
+# backstop: the error stated in a re-ask is cut to this many characters (the parser already shortens the values
+# it quotes, so real errors, the probe's list of several included, stay whole)
+REASK_ERROR_CHARS = 1000
+
+
 def reask_text(error: str, expected_format: str) -> str:
-    """Re-ask after an unusable answer (unparseable JSON, out-of-range price, over-long message...)."""
+    """Re-ask after an unusable answer (unparseable JSON, out-of-range price, over-long message...). The error is
+    cut to REASK_ERROR_CHARS characters, a backstop that keeps the request bounded."""
+    if len(error) > REASK_ERROR_CHARS:
+        error = error[:REASK_ERROR_CHARS - 1] + "…"
     return (
         f"Your previous response could not be used: {error}. Please respond again with JSON only, in this "
         f"format: {expected_format}"
@@ -667,8 +685,9 @@ def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = N
         chat_prompt(1, 5, chat_spec.max_rounds, chat_spec, notes=notes),
         results_text(2, 3, "A", {"A": 90, "B": 80}, {"A": 0, "B": 24000}, ["B", "A"]),
         die_line(21, 3), part_over_text(2, 22, final_part=True, total_profit=10),
-        fallback_text(7),
+        fallback_text(7, 3),
         reask_text("e", price_format(notes, notes_words)), reask_text("e", message_format(chat_spec, notes, notes_words)),
+        reask_text("e" * (REASK_ERROR_CHARS + 1), "F"),
         chat_price_reask_text(chat_spec, notes, notes_words),
         summaries_text([], totals_text(1, 0)), summaries_text(["s1", "s2"], totals_text(2, 1.5, 2.5)),
         notes_text(None), notes_text("x"), chat_text([]), chat_text(rounds),

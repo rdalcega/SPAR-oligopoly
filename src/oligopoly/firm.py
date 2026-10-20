@@ -64,12 +64,32 @@ def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[M
     return merge_roles(out) if merge else out
 
 
+def _check_context(transcript: Sequence[Message], ctx: dict[str, Any]) -> None:
+    """ValueError unless every index of `ctx` points into `transcript` at an entry of the right kind, before the
+    decision's turns: summaries, chat rounds, the answer carrying the notes, and turns [lo, hi) opening on a prompt."""
+    n = len(transcript)
+    lo, hi = ctx["turns"]
+
+    def kinds(ixs: Sequence[int], kind: str, what: str) -> None:
+        if any(not (isinstance(i, int) and 0 <= i < lo) or transcript[i].get("kind") != kind for i in ixs):
+            raise ValueError(f"context {what} {list(ixs)} do not point at earlier {kind} entries")
+
+    if not (isinstance(lo, int) and isinstance(hi, int) and 0 <= lo < hi <= n) or transcript[lo].get("kind") != "prompt":
+        raise ValueError(f"context turns [{lo}, {hi}) do not fit a transcript of {n} entries opening on a prompt")
+    kinds(ctx["summaries"], "summary", "summaries")
+    if ctx["chat"] is not None:
+        kinds(ctx["chat"], "chat", "chat rounds")
+    if ctx["notes"] and ctx["notes_at"] is not None:
+        kinds([ctx["notes_at"]], "answer", "notes_at")
+
+
 def section_messages(instructions: Sequence[str], transcript: Sequence[Message], ctx: dict[str, Any]) -> list[Message]:
     """The messages of one request in the summaries layout, from the firm's instructions, transcript and the
     request's context record."""
     k = ctx["instructions"]
     if not 1 <= k <= len(instructions):
         raise ValueError(f"context has {k} instruction messages, the firm {len(instructions)}")
+    _check_context(transcript, ctx)
     body = [prompts.summaries_text([transcript[i]["content"] for i in ctx["summaries"]], ctx["totals"])]
     if ctx["notes"]:
         i = ctx["notes_at"]

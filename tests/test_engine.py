@@ -69,9 +69,7 @@ def check_contexts(rec, client, exp):
     sent = {c["tag"]["call_id"]: c for c in client.calls}
     all_notes = {F: {d["notes"] for d in firm_decisions(rec, F) if d["notes"]} for F in letters}
     talk = engine.ORDERINGS[rec["spec"]["ordering"]]
-    order = {L: [line[5] for s in rec["transcripts"][L] if s["kind"] == "summary"
-                 for line in s["content"].split("\n")[1:] if line.startswith("Firm ")][:rec["spec"]["n"]]
-             for L in letters}
+    order = rec["settings"]["listing_orders"]
     checked = 0
     for L in letters:
         tr, instr = rec["transcripts"][L], rec["instructions"][L]
@@ -256,7 +254,8 @@ async def test_fallbacks(tmp_path):
     hist = rec["transcripts"]["A"]
     assert sum("could not be used: no JSON object" in m["content"] for m in hist) == 4  # 2 re-asks x 2
     assert sum(m["content"] == "I refuse to answer in JSON." for m in hist) == 6  # failed attempts kept
-    notice = f"Your price response in this period could not be used, so your price was set to {p13['prices']['A']}."
+    notice = (f"Your price response in period 3 could not be used, so your price in that period was set to "
+              f"{p13['prices']['A']}.")
     assert [m["period"] for m in hist if notice in m["content"]] == [3]
     assert next(m for m in hist if m["kind"] == "summary" and m["period"] == 3)["content"].count(notice) == 1
     # A's failed chat turn shows in its own line of that round, in A's view of the round only
@@ -1303,7 +1302,7 @@ async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
     assert "notes_truncated" not in rec["periods"][0]["decisions"]["B"]
     assert rec["totals"]["A"]["notes_truncated"] == 4 and rec["totals"]["B"]["notes_truncated"] == 0  # 3 + transition
     blob = json.dumps([c["messages"] for c in client.calls if c["tag"]["firm"] == "A"], ensure_ascii=False)
-    assert long not in blob and json.dumps(f"Your most recent notes:\n{capped}")[1:-1] in blob
+    assert long not in blob and json.dumps(f"Your most recent notes:\n[start of your notes]\n{capped}")[1:-1] in blob
     a_answers = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
     assert a_answers[0] == {"notes": capped, "price": 100}
 
@@ -1357,7 +1356,7 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
             latest = f"memo-{t['firm']}-{cur}-chat" if t["part"] == 1 and t["phase"] == "price" else \
                 f"memo-{t['firm']}-transition" if g == 9 and t["phase"] != "transition" else \
                 f"memo-{t['firm']}-{prev}"
-            assert f"Your most recent notes:\n{latest}\n" in c["messages"][1]["content"]
+            assert f"Your most recent notes:\n[start of your notes]\n{latest}\n" in c["messages"][1]["content"]
             assert f"memo-{t['firm']}-{prev}-chat" not in text
             assert f"memo-{'B' if t['firm'] == 'A' else 'A'}-" not in text
     assert max(sizes[len(sizes) // 2:]) < 1.5 * max(sizes[:len(sizes) // 2])  # does not grow with the market
@@ -1380,8 +1379,8 @@ async def test_answer_without_notes_keeps_memory(tmp_path):
     # Part 2 period 1, after the chat: A's empty notes replaced its memory; B's chat answer had none
     p2 = {c["tag"]["firm"]: c for c in client.calls if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"])
           == (2, 1, "price")}
-    assert "\n\nYour most recent notes:\n(empty)\n\n" in p2["A"]["messages"][1]["content"]
-    assert "\n\nYour most recent notes:\nodd-B-1-3\n\n" in p2["B"]["messages"][1][
+    assert "\n\nYour most recent notes:\n[start of your notes]\n(empty)\n[end" in p2["A"]["messages"][1]["content"]
+    assert "\n\nYour most recent notes:\n[start of your notes]\nodd-B-1-3\n[end" in p2["B"]["messages"][1][
         "content"]
 
 
@@ -1586,12 +1585,12 @@ async def test_transition_call(tmp_path, ordering):
         assert body.endswith(prompts.transition_prompt())
         assert f"Results of period {L1} (Part 1)" in body and "showed 6, so this part of the experiment is over" in body
         assert "Chat messages posted" not in body and prompts.NO_MESSAGES_YET not in body
-        assert "Your total profit in this part so far: 0 ECU" in body  # Part 2's totals: it has not started
+        assert "Your total profit in Part 2 so far: 0 ECU" in body  # Part 2's totals: it has not started
         d = rec["transition"][L]
         assert d["valid"] and d["value"] is None and d["notes"].endswith("(for Part 2)")
         # Part 2's first request shows the transition notes
         first = next(x for x in client.calls if x["tag"]["firm"] == L and (x["tag"]["part"], x["tag"]["period"]) == (2, 1))
-        assert f"Your most recent notes:\n{d['notes']}\n" in first["messages"][1]["content"]
+        assert f"Your most recent notes:\n[start of your notes]\n{d['notes']}\n" in first["messages"][1]["content"]
     for L, tr in rec["transcripts"].items():  # the transition opens Part 2 in the transcript
         t = [m for m in tr if m["kind"] == "prompt" and m["content"].startswith(prompts.TRANSITION_LINE)]
         assert len(t) == 1 and t[0]["period"] == L1 + 1
@@ -1613,8 +1612,8 @@ async def test_transition_fallback_keeps_notes_and_switch_off(tmp_path):
     assert not b["fallback"] and b["notes"] == "B-t" and any("ignored" in w for w in b["warnings"])
     first = {c["tag"]["firm"]: c["messages"][1]["content"] for c in client.calls
              if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"]) == (2, 1, "price")}
-    assert "Your most recent notes:\nA-1-6\n" in first["A"]  # unchanged after the fallback
-    assert "Your most recent notes:\nB-t\n" in first["B"]
+    assert "Your most recent notes:\n[start of your notes]\nA-1-6\n" in first["A"]  # unchanged after the fallback
+    assert "Your most recent notes:\n[start of your notes]\nB-t\n" in first["B"]
     assert "could not be used" not in json.dumps(rec["transcripts"]["A"][-12:])  # no fallback notice is told
     check_contexts(rec, client, SHORT)
 

@@ -24,7 +24,8 @@ PHRASES = ["Shall we all set 100?", "I will keep my price at 100.", "Let's not u
 
 class MockClient:
     def __init__(self, log_path: str | Path | None = None, malformed_rate: float = 0.06,
-                 record: bool = False):
+                 record: bool = False, notes_words: int = 0):
+        self.notes_words = notes_words
         self.log_path = Path(log_path) if log_path else None
         if self.log_path:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -46,6 +47,8 @@ class MockClient:
                     ""] if kind == "price" else ['{"msg": "hi"}', '{"message": ["a"]}', "Sure, I will write.", ""])
             return rng.choice(bad)
         notes = f"note #{seed}: " + rng.choice(["watching rivals", "keep high", "test a cut", "match lowest"])
+        if self.notes_words:  # notes at the stated length (dry-run projections)
+            notes += " memo" * max(0, self.notes_words - len(notes.split()))
         if kind == "transition":
             obj: dict[str, Any] = {"notes": notes + " (for Part 2)"}
         elif kind == "price":

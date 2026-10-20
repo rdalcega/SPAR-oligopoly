@@ -130,7 +130,7 @@ reasoning are private.
   W = `memory_window` completed periods (exactly W; results of every firm, any price-fallback notice, and the
   die or end-of-part line of that period), counted across the part boundary, followed by the firm's own
   cumulative profit as of the call; (2) the firm's latest notes; (3) in Talk parts only, the chat messages of
-  the current period so far (every round, every firm, in the firm's listing order, its own message in full,
+  the current period so far (every round, every firm, in the firm's listing order, its own message as posted,
   passes as "(no message)"; a placeholder before any round); (4) the prompt. The firm's earlier answers and
   earlier periods' chat are never shown again; only the current decision's failed answers and re-asks follow
   as assistant/user messages. In Talk parts, an agreement therefore survives past its period only through the
@@ -160,6 +160,33 @@ reasoning are private.
   supported). An extension with no human benchmark: it is not among the paper's cells (`oligopoly.run` plays it
   only as a grid cell, e.g. `--grid --n 4 --orderings T-T`), and its results stay apart from the human comparison.
   Part 2's instructions say "As in Part 1, you will be able to communicate…" and repeat the chat rules.
+- **2026-10-20: final review fixes** (Claude/Codex review of the branch; firm-facing wording changes in the first
+  four points):
+  - Own cumulative profit names the part ("Your total profit in Part 2 so far"): "this part" right after a summary
+    saying "this part of the experiment is over" read as Part 1's profit at the transition and early in Part 2.
+  - The notes sit between "[start of your notes]" and "[end of your notes]": they are free text that can contain
+    lines like "Round 1: …" or "Period 18: …".
+  - A price fallback names its period ("Your price response in period t could not be used, so your price in that
+    period was set to X."), since the summary stays visible in later periods.
+  - A chat message is shown on one line and in double quotes (`prompts.shown_message`): a firm could otherwise post
+    line breaks forging "Firm A (you): …" or "Round 2:" lines in every other firm's chat section. Stored messages
+    are unchanged.
+  - Errors quote at most 60 characters of an invalid value, and a re-ask cuts the stated error at 1,000
+    characters (a backstop), so re-asks stay bounded without losing the reason.
+  - With structured outputs on, the transition call sends a strict `transition_notes` schema (notes only).
+  - Boolean settings (`notes`, `post_game_probe`, `transition`) must be true or false (a TOML string is refused).
+  - Analysis: a `transition` table (one row per firm and market) feeds the mistakes tables (re-ask, fallback and
+    misread rates of the transition call); markets record the `transition` setting, and every human-comparison row
+    of a model whose markets had the call carries a caveat. The audit checks what each request selected (the
+    last W summaries, this period's chat rounds, the latest valid notes) and counts the transition call.
+  - Projections: `oligopoly.run --dry-run` writes mock notes at the stated length and adds them to the output
+    estimate (80 + 4/3 token per word); `project_cost.py` replays notes at the stated length and adds their extra
+    output tokens; `project_context.py --synthetic` (ASCII worst case) and `--utf8-max` (every capped field in
+    4-byte characters, a strict bound; the only synthetic mode `--write` accepts). Results 2026-10-20 (grid
+    n = 2-10, all four orderings, 3 replays): ASCII worst case within every model's limit (tightest qwen3-14b,
+    ~19.6k of 32.8k incl. max_tokens); the strict bound exceeds qwen3-14b's limit in Talk cells from n = 6
+    (paper cells NT-T n = 6, 8 included). Not applied as exclusions: no real run writes 4-byte text throughout,
+    and the runtime guard refuses any request over the limit before it is sent.
 
 ### §6 item 11 — number of markets
 
@@ -269,13 +296,15 @@ sampling rule and reading notes saved alongside the analysis.
    models face identical draws in a cell. Per-call sampling seeds hash all call coordinates plus that seed.
 2. Chat messages of a round are shown in the reader's own listing order, once, at the top of the next prompt.
    **2026-10-20 (summaries layout):** every round of the current period is shown in each request of that period
-   (every firm listed, passes as "(no message)", the reader's own message in full); earlier periods' chat never.
+   (every firm listed, passes as "(no message)", the reader's own message as posted, i.e. after truncation to the
+   character limit); earlier periods' chat never.
 3. Own cumulative profit: Part 1 shows the part total; Part 2 shows the Part-2 total and the overall total.
 4. After the final failed re-ask the firm is told the fallback (price set to X / no message posted). The fallback
    price is the firm's last price, carried across parts; 100 only in Part 1 period 1.
    **2026-10-20 (summaries layout):** a price fallback is told in that period's summary ("Your price response in
-   this period could not be used, so your price was set to X."); a chat fallback shows in the firm's own line of
-   that round, "(no message: your response could not be used)".
+   period t could not be used, so your price in that period was set to X."; it names the period because the summary
+   stays visible in later periods); a chat fallback shows in the firm's own line of that round, "(no message: your
+   response could not be used)".
 5. Failed attempts stay in the firm's history (raw content with think blocks stripped); valid answers are stored
    as the extracted JSON, re-serialised.
 6. Parsing accepts numeric strings and integral floats (logged); other floats, booleans and out-of-range prices
@@ -338,10 +367,12 @@ sampling rule and reading notes saved alongside the analysis.
     round as this firm sees it, `round_text`), `prompt`, `answer`, `reask`. A request in global period t is:
     (1) system: Part 1 instructions; (2) one user message joining with blank lines: Part 2 instructions (from
     Part 2 on), `summaries_text` of the last W summary entries (periods t−W..t−1; "No periods have been played
-    yet." before any) followed by `totals_text` (own cumulative profit for the part, and in Part 2 for the
-    experiment, as of the call), `notes_text` (if the run uses notes: "Your most recent notes:" and the notes on
-    the next line (the latest answer with a `notes` field, which may be older than the last answer), "(empty)" for empty notes, or "You have not written any notes
-    yet."), `chat_text` of this period's chat entries (Talk parts only, including the price call; "No messages
+    yet." before any) followed by `totals_text` (own cumulative profit for the part, named: "Your total profit
+    in Part k so far", and in Part 2 for the experiment, as of the call; the transition call shows Part 2's),
+    `notes_text` (if the run uses notes: "Your most recent notes:", then the notes between the lines "[start of
+    your notes]" and "[end of your notes]", since they are free text that could pass for results or chat; the
+    latest answer with a `notes` field, which may be older than the last answer; "(empty)" for empty notes; or
+    "You have not written any notes yet."), `chat_text` of this period's chat entries (Talk parts only, including the price call; "No messages
     have been posted in this period yet." before round 1), and the prompt; (3) for a re-ask, the decision's
     failed answers and re-asks, alternating. Prompts no longer carry the die or chat messages. Answers are
     stored as their extracted JSON with the notes as the firm carries them (coerced to text, capped), and the

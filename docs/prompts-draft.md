@@ -39,11 +39,12 @@ fresh from the firm's transcript (`firm.section_messages`):
    1. the Part 2 instructions, from Part 2 period 1 on;
    2. the summaries of the last 3 completed periods (`memory_window`), counted across the part boundary, oldest
       first ("No periods have been played yet." before any), then the firm's own cumulative profit
-      (`totals_text`: the part, and in Part 2 also the experiment);
-   3. the firm's latest private notes (`notes_text`: "Your most recent notes:" and
-      the notes, or "You have not written any notes yet.");
+      (`totals_text`: "Your total profit in Part k so far", and in Part 2 also the experiment);
+   3. the firm's latest private notes (`notes_text`: "Your most recent notes:", then the notes between
+      "[start of your notes]" and "[end of your notes]" lines, or "You have not written any notes yet.");
    4. in Talk parts, the chat rounds of the current period so far (`chat_text` of `round_text` entries): every
-      firm in the viewer's listing order, its own message shown in full, a pass as "(no message)", its own
+      firm in the viewer's listing order, each message on one line in double quotes (`shown_message`; the
+      firm's own message in full), a pass as "(no message)", its own
       unusable chat answer as "(no message: your response could not be used)"; before round 1, "No messages
       have been posted in this period yet.";
    5. the prompt (`chat_prompt`, `period_prompt` or, in the transition call, `transition_prompt`);
@@ -52,7 +53,7 @@ fresh from the firm's transcript (`firm.section_messages`):
 The firm's earlier answers and earlier periods' chat are never shown again; older play survives only in the
 firm's own notes. The transition call is built the same way, without a chat section, even when Part 2 is a
 Talk part: the Part 2 instructions, the summaries of Part 1's last 3 periods (the last ending with the part-over
-line), Part 2's totals ("Your total profit in this part so far: 0 ECU" and the experiment total), the notes and
+line), Part 2's totals ("Your total profit in Part 2 so far: 0 ECU" and the experiment total), the notes and
 the transition prompt. The post-game probe is built the same way after the last period, without a chat section: the
 last 3 summaries of Part 2 (the last ending with the end-of-experiment text), the totals, the notes and the
 probe. Native reasoning is never fed back. The prompt-cache breakpoint goes on the system message only.
@@ -85,10 +86,12 @@ Firm C (you): price 99, profit 7,425 ECU
 Firm B: price 99, profit 7,425 ECU
 Period 22 is over. The computer threw the virtual dice and it showed 5, so this part of the experiment continues.
 
-Your total profit in this part so far: 159,825 ECU
+Your total profit in Part 1 so far: 159,825 ECU
 
 Your most recent notes:
+[start of your notes]
 Periods 1-19: all four at 100. B cut to 99 in 20 and won the market; A and I matched 99 in 21, D in 22. Plan: stay at 99 while the others do; go back to 100 if anyone else does first.
+[end of your notes]
 
 Part 1, period 23.
 Choose your selling price for this period.
@@ -118,28 +121,30 @@ Firm A: price 95, profit 7,125 ECU
 Firm C (you): price 95, profit 7,125 ECU
 Firm B: price 95, profit 7,125 ECU
 
-Your total profit in this part so far: 22,125 ECU
+Your total profit in Part 2 so far: 22,125 ECU
 Your total profit in the experiment so far: 209,625 ECU
 
 Your most recent notes:
+[start of your notes]
 Part 1: all four at 100 every period. Part 2: we agreed on 100 in chat. B promised 100 in period 3 but set 95; A, D and I matched 95 in period 4. I said I stay at 95 unless all four confirm 100.
+[end of your notes]
 
 Chat messages posted so far in this period:
 
 Round 1:
-Firm D: Confirmed, 100.
+Firm D: "Confirmed, 100."
 Firm A: (no message)
-Firm C (you): Only if all four of us confirm 100.
-Firm B: Sorry about period 3. Back to 100 from now on?
+Firm C (you): "Only if all four of us confirm 100."
+Firm B: "Sorry about period 3. Back to 100 from now on?"
 
 Round 2:
 Firm D: (no message)
-Firm A: 100.
+Firm A: "100."
 Firm C (you): (no message: your response could not be used)
-Firm B: 100, promise.
+Firm B: "100, promise."
 
 Round 3:
-Firm D: See you at 100.
+Firm D: "See you at 100."
 Firm A: (no message)
 Firm C (you): (no message)
 Firm B: (no message)
@@ -175,11 +180,13 @@ Firm C (you): price 99, profit 7,425 ECU
 Firm B: price 99, profit 7,425 ECU
 Period 25 is over. The computer threw the virtual dice and it showed 6, so this part of the experiment is over.
 
-Your total profit in this part so far: 0 ECU
+Your total profit in Part 2 so far: 0 ECU
 Your total profit in the experiment so far: 179,925 ECU
 
 Your most recent notes:
+[start of your notes]
 Periods 1-23: all four at 100. B cut to 99 in 24 and won the market; all four at 99 in 25. Plan: stay at 99 while the others do; go back to 100 if anyone else does first.
+[end of your notes]
 
 Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take it into account.
 Respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>"}
@@ -514,16 +521,16 @@ Reply with JSON: {"notes": ..., "message": "<your message, at most 300 character
 Chat messages posted so far in this period:
 
 Round 1:
-Firm D: What price is everyone setting?
+Firm D: "What price is everyone setting?"
 Firm A: (no message)
-Firm C (you): Hi. 100 again this period?
-Firm B: Hi all.
+Firm C (you): "Hi. 100 again this period?"
+Firm B: "Hi all."
 
 Round 2:
-Firm D: Yes.
+Firm D: "Yes."
 Firm A: (no message)
 Firm C (you): (no message: your response could not be used)
-Firm B: 100 again?
+Firm B: "100 again?"
 ```
 
 ### Sample period summary (listing order D, A, C, B)
@@ -537,7 +544,7 @@ Firm D: price 45, profit 0 ECU
 Firm A: price 40, profit 0 ECU
 Firm C (you): price 38, profit 5,700 ECU
 Firm B: price 38, profit 5,700 ECU
-Your price response in this period could not be used, so your price was set to 38.
+Your price response in period 22 could not be used, so your price in that period was set to 38.
 Period 22 is over. The computer threw the virtual dice and it showed 4, so this part of the experiment continues.
 ```
 
@@ -690,11 +697,15 @@ texts.
     every market's fingerprint, so a resumed run never mixes wordings.
 27. Engine wiring (added with `src/oligopoly/engine.py`; summaries layout since 2026-10-20, see 32): in Talk
     parts the current period's chat rounds so far form a section of every chat and price request ("Chat messages
-    posted so far in this period:", then "Round k:" with one line per firm in the viewer's listing order, the
-    firm's own message in full as posted, after any truncation; "(no message)" for a pass). A chat answer still
-    unusable after the last re-ask shows in the firm's own line as "(no message: your response could not be
-    used)". A price answer still unusable after the last re-ask is noted in that period's summary with
-    `fallback_text` ("Your price response in this period could not be used, so your price was set to X.").
+    posted so far in this period:", then "Round k:" with one line per firm in the viewer's listing order, each
+    message on one line in double quotes, e.g. `Firm B: "Hi all."`, the firm's own in full as posted, after any
+    truncation; "(no message)" for a pass). A chat answer still unusable after the last re-ask shows in the
+    firm's own line as "(no message: your response could not be used)". A price answer still unusable after the
+    last re-ask is noted in that period's summary with `fallback_text` ("Your price response in period t could
+    not be used, so your price in that period was set to X."). The cumulative-profit lines name the part ("Your
+    total profit in Part k so far"), and the notes are shown between "[start of your notes]" and "[end of your
+    notes]" lines (2026-10-20, final review fixes). Re-asks cut the error at 1,000 characters (a backstop), and
+    the parser quotes at most 60 characters of an invalid value.
     (Older records, from the rolling-window layout, showed each round once, at the head of the next prompt, with
     the firm's own message as "[your message above]".)
 28. Round labels (2026-10-20, after pilot 1, where all 15 invalid outputs were price JSON sent to a chat
@@ -732,8 +743,10 @@ texts.
 33. Transition call (2026-10-20, DECISIONS.md §6 item 3; config `transition`, default on, needs notes): before
     Part 2 period 1, one notes-only request (sample above) asks: "Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take it into account." It departs from the
     paper: human subjects only read the Part 2 sheet before playing on, with no separate step. It lets a firm
-    whose memory is its own notes take in the new instructions once, outside a price or chat decision. It names
-    no behaviour: it asks what changes, not what to do about it.
+    whose memory is its own notes take in the new instructions once, outside a price or chat decision. The
+    wording asks the firm how it will take the change into account, which goes beyond restating mechanics; it
+    names no particular behaviour, and Rodrigo approved it as a departure. With structured outputs the call uses
+    a strict `transition_notes` schema (notes only).
 34. Talk → Talk ordering (2026-10-20, `T-T`): an extension with no published counterpart and no human benchmark;
     keep it out of the comparison with the human results. Part 1 is the Talk → NoTalk Part 1 (chat paragraphs
     after the examples, deviation 18). Part 2 says "As in Part 1, you will be able to communicate with the

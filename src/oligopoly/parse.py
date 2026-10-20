@@ -179,6 +179,14 @@ def _no_object(content: str | None, key: str) -> str:
     return f'no JSON object with a "{key}" field was found'
 
 
+QUOTE_CHARS = 60  # a value quoted in an error (shown to the firm in the re-ask) is cut to this many characters
+
+
+def _quote(v: Any) -> str:
+    s = json.dumps(v, ensure_ascii=False)
+    return s if len(s) <= QUOTE_CHARS else s[:QUOTE_CHARS - 1] + "…"
+
+
 def parse_price(content: str | None, p_max: int = 100) -> Parsed:
     """Price: an integer 0..p_max. Numeric strings and floats with no fractional part are accepted with a
     warning; anything else (other floats, bools, out of range) is an error."""
@@ -188,7 +196,7 @@ def parse_price(content: str | None, p_max: int = 100) -> Parsed:
     p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
     v = obj["price"]
     if isinstance(v, bool) or v is None:
-        p.error = f"price {json.dumps(v)} is not a whole number"
+        p.error = f"price {_quote(v)} is not a whole number"
     elif isinstance(v, int):
         p.value = v
     elif isinstance(v, float) and v.is_integer():
@@ -198,7 +206,7 @@ def parse_price(content: str | None, p_max: int = 100) -> Parsed:
         p.value = int(float(v))
         p.warnings.append(f"price coerced from string {v!r}")
     else:
-        p.error = f"price {json.dumps(v, ensure_ascii=False)} is not a whole number"
+        p.error = f"price {_quote(v)} is not a whole number"
     if p.error is None and not 0 <= p.value <= p_max:
         p.error, p.value = f"price {p.value} is outside 0-{p_max}", None
     _notes(obj, p)

@@ -145,6 +145,9 @@ class ExperimentConfig:
     transition: bool = True
 
     def __post_init__(self) -> None:
+        for name in ("notes", "post_game_probe", "transition"):  # a TOML string such as "false" must not pass
+            if not isinstance(getattr(self, name), bool):
+                raise ConfigError(f"{name} must be true or false, got {getattr(self, name)!r}")
         for name, low in (("memory_window", 1), ("notes_words", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
             w = getattr(self, name)
             if isinstance(w, bool) or not isinstance(w, int) or w < low:

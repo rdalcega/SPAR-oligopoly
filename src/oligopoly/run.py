@@ -166,7 +166,7 @@ async def simulate_tokens(n: int, ordering: str, exp: ExperimentConfig, chars_pe
     """Calls and input tokens (total, and cacheable: the messages a call shares as a prefix with the same firm's
     previous call, which under the rolling window is mostly the instructions) of one mock market."""
     mock = ModelConfig("mock", "mock", "mock")
-    client = MockClient(record=True)
+    client = MockClient(record=True, notes_words=exp.notes_words if exp.notes else 0)  # notes at the stated length
     with tempfile.TemporaryDirectory() as tmp:
         await run_market(MarketSpec("dry-run", mock, n, ordering, 0, environment_seed(0, n, ordering, 0)),
                          client, Path(tmp), exp)
@@ -355,7 +355,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--part-lengths", default=None, help="e.g. 29,24 (default from config); <20 = pilot only")
     ap.add_argument("--seed", type=int, default=0, help="base seed of the environment draws")
     ap.add_argument("--dry-run", action="store_true", help="print the cells and a cost estimate; no calls")
-    ap.add_argument("--assume-output-tokens", type=int, default=80, help="dry run: content tokens per call")
+    ap.add_argument("--assume-output-tokens", type=int, default=None,
+                    help="dry run: content tokens per call (default 80, plus the notes at their stated length: "
+                         "4/3 token per word)")
     ap.add_argument("--assume-reasoning-tokens", type=int, default=1000, help="dry run: reasoning tokens per call")
     ap.add_argument("--chars-per-token", type=float, default=4.0)
     ap.add_argument("--models-file", default=str(ROOT / "config" / "models.toml"))
@@ -384,7 +386,9 @@ async def main(argv: list[str] | None = None) -> int:
             print(f"excluded (context limit, not estimated): {len(excluded)} markets: "
                   + ", ".join(sorted({k.rsplit('__m', 1)[0] for k in excluded})))
         specs = [s for s in specs if not s.model.excludes(s.n, s.ordering)]
-        await dry_run(specs, out_dir, exp, a.assume_output_tokens, a.assume_reasoning_tokens, a.chars_per_token)
+        out_tokens = a.assume_output_tokens if a.assume_output_tokens is not None else \
+            80 + (round(exp.notes_words * 4 / 3) if exp.notes else 0)
+        await dry_run(specs, out_dir, exp, out_tokens, a.assume_reasoning_tokens, a.chars_per_token)
         return 0
 
     live = [m for m in models if not m.is_mock]
