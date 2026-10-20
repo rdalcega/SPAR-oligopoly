@@ -152,6 +152,16 @@ Re-ask up to 2 times, stating the error. If still invalid, the price falls back 
 (100 in period 1) and the case is flagged; an invalid chat message counts as a pass. Every invalid output,
 re-ask and fallback is logged as its own outcome and reported separately from deliberate choices.
 
+**2026-10-20: optional structured outputs.** Per-model switch `structured_outputs` (default false, in
+`config/models.toml`, part of the model's fingerprint). When true, chat calls send OpenRouter
+`response_format = {"type": "json_schema", "json_schema": {"name": "chat_turn", "strict": true, "schema": ...}}`
+(`notes` string, `message` string or null) and price calls the `price_decision` schema (`notes` string, `price`
+integer 0–100), with `require_parameters` true so the pinned provider must honour it. The probe call sends no
+schema. Parsing and re-asks are unchanged (an answer is still validated as before). Live check
+(`scripts/probe_structured.py`, 2 calls per model on a realistic Part 2 chat-turn request, $0.003): DeepInfra
+accepted the schema for both gpt-oss-20b and qwen3-14b and all 4 answers were valid JSON matching it. Whether to
+turn it on for the sweep is a separate decision; it changes the decoding, so hold it fixed across a run.
+
 ### §6 item 9 — sampling
 
 Each model uses its model card's recommended settings for reasoning mode (temperature, top_p), reasoning effort

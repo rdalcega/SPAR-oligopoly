@@ -97,6 +97,19 @@ def fingerprint(obj: Any) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
+    """OpenRouter `response_format` for a structured-outputs call (`structured_outputs` in models.toml): a strict
+    JSON schema with `notes` (if the run uses notes) and `message` (string or null) or `price` (integer 0-100)."""
+    props: dict[str, Any] = {"notes": {"type": "string"}} if notes else {}
+    if kind == "price":
+        props["price"] = {"type": "integer", "minimum": 0, "maximum": market.P_MAX}
+    else:
+        props["message"] = {"type": ["string", "null"]}
+    return {"type": "json_schema", "json_schema": {
+        "name": "price_decision" if kind == "price" else "chat_turn", "strict": True,
+        "schema": {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}}}
+
+
 def texts_digest(exp: ExperimentConfig) -> str:
     """Digest of the firm-facing wording under `exp` (see `prompts.texts_digest`)."""
     return prompts.texts_digest(prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit), exp.notes,
@@ -328,7 +341,9 @@ class Market:
             if cached is not None and cached["messages_sha256"] == msha:  # paid for before a failure: reuse
                 r = result_from_dict(cached["result"])
             else:
-                r = await self.client.chat(messages, seed=seed, tag=tag, cache_upto=cache, **cfg.chat_kwargs())
+                r = await self.client.chat(messages, seed=seed, tag=tag, cache_upto=cache, **cfg.chat_kwargs(),
+                                           **({"response_format": response_schema(kind, self.exp.notes)}
+                                              if cfg.structured_outputs else {}))
             self.partial_calls[call_id] = {"messages_sha256": msha, "result": result_to_dict(r)}
             self._account(r)
             p = parse(r.content)

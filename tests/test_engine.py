@@ -1147,3 +1147,82 @@ async def test_answer_without_notes_keeps_memory(tmp_path):
           == (2, 1, "price")}
     assert p2["A"]["messages"][2]["content"].startswith("Your notes (written by you at your last decision): \n")
     assert p2["B"]["messages"][2]["content"].startswith("Your notes (written by you at your last decision): odd-B-1-3")
+
+
+# ---------------------------------------------------------------- structured outputs
+
+
+@pytest.mark.parametrize("structured", [False, True])
+async def test_structured_outputs_payload(tmp_path, structured):
+    """With structured_outputs, chat and price calls send a strict json_schema response_format (and
+    require_parameters); the probe and the default send none."""
+    import httpx
+    import respx
+
+    from oligopoly.llm import BASE_URL, Budget, OpenRouterClient
+
+    cfg = ModelConfig("tiny", "acme/tiny", "deepinfra/fp8", max_tokens=64, structured_outputs=structured)
+    ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "pricing": {"prompt": "0.000001", "completion": "0"},
+          "supported_parameters": ["seed", "response_format", "structured_outputs"]}
+    bodies = []
+
+    def reply(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        last = body["messages"][-1]["content"]
+        if "Please answer these questions" in last:
+            content = json.dumps({"max_consumer_price": 100, "best_common_price": 100,
+                                  "last_period_prices": {"A": 99, "B": 99}, "deviations": "no"})
+        elif '"price": <integer' in last.splitlines()[-1]:
+            content = '{"notes": "n", "price": 99}'
+        else:
+            content = '{"notes": "n", "message": null}'
+        return httpx.Response(200, json={"id": "g", "model": "acme/tiny", "provider": "DeepInfra",
+                                         "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+                                         "usage": {"prompt_tokens": 5, "completion_tokens": 3, "cost": 0.0}})
+
+    with respx.mock() as r:
+        r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+            return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+        r.post(f"{BASE_URL}/chat/completions").mock(side_effect=reply)
+        async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="k") as client:
+            s = MarketSpec("live", cfg, 2, "T-NT", 0, 1)
+            await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(1, 1)))
+    kinds = {"chat": [], "price": [], "probe": []}
+    for b in bodies:
+        last = b["messages"][-1]["content"]
+        kind = ("probe" if "Please answer these questions" in last else
+                "price" if '"price": <integer' in last.splitlines()[-1] else "chat")
+        kinds[kind].append(b)
+    assert all(kinds.values())
+    for b in bodies:
+        assert b["provider"]["require_parameters"] is True
+    if not structured:
+        assert not any("response_format" in b for b in bodies)
+        return
+    assert not any("response_format" in b for b in kinds["probe"])
+    for b in kinds["chat"]:
+        assert b["response_format"] == {"type": "json_schema", "json_schema": {
+            "name": "chat_turn", "strict": True, "schema": {
+                "type": "object", "properties": {"notes": {"type": "string"}, "message": {"type": ["string", "null"]}},
+                "required": ["notes", "message"], "additionalProperties": False}}}
+    for b in kinds["price"]:
+        assert b["response_format"] == {"type": "json_schema", "json_schema": {
+            "name": "price_decision", "strict": True, "schema": {
+                "type": "object", "properties": {"notes": {"type": "string"},
+                                                 "price": {"type": "integer", "minimum": 0, "maximum": 100}},
+                "required": ["notes", "price"], "additionalProperties": False}}}
+    log = [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    assert {x["response_format"]["json_schema"]["name"] for x in log if x.get("response_format")} == \
+        {"chat_turn", "price_decision"}
+
+
+def test_structured_outputs_config():
+    base = ModelConfig("m", "acme/m", "p", max_tokens=10)
+    on = dataclasses.replace(base, structured_outputs=True)
+    assert base.structured_outputs is False and load_models()["gpt-oss-20b"].structured_outputs is False
+    s0, s1 = (MarketSpec("r", m, 2, "NT-NT", 0, 1) for m in (base, on))
+    assert engine.market_fingerprint(s0, SHORT) != engine.market_fingerprint(s1, SHORT)
+    with pytest.raises(ConfigError, match="require_parameters"):
+        dataclasses.replace(on, require_parameters=False)
+    assert engine.response_schema("price", False)["json_schema"]["schema"]["required"] == ["price"]

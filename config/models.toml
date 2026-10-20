@@ -9,6 +9,8 @@
 # max_tokens is required for live models: the budget reserves its cost before every call.
 #
 # extra (optional): other sampling parameters sent as-is (presence_penalty, repetition_penalty, ...).
+# structured_outputs (optional, default false): send a strict json_schema response_format on chat and price calls
+#   (needs require_parameters = true); part of the model's fingerprint. Checked live by scripts/probe_structured.py.
 #
 # Context limits (DECISIONS.md, 2026-10-20; neither key affects play or fingerprints):
 # exclude_cells (optional): cells the model skips, e.g. [["NT-T", 10], ["T-NT", 10]] (ordering, n); written by

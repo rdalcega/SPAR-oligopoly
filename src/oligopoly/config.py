@@ -33,6 +33,9 @@ class ModelConfig:
     reasoning: dict[str, Any] | None = None
     require_parameters: bool = True
     cache_control: bool = True
+    # OpenRouter structured outputs (json_schema, strict) for chat and price calls; needs require_parameters so
+    # the pinned provider must honour it (DECISIONS.md, 2026-10-20). Part of the model's identity (fingerprints).
+    structured_outputs: bool = False
     pricing: dict[str, float] | None = None  # USD per million tokens, dry-run only
     timeout_s: float | None = None  # HTTP timeout per call (client default 900 s)
     # Context limits (DECISIONS.md, 2026-10-20): cells this model skips, as (ordering, n) pairs, and the lowest
@@ -53,6 +56,8 @@ class ModelConfig:
                                   f"ordering in {list(ORDERINGS)} and integer n >= 2")
             cells.append((c[0], c[1]))
         object.__setattr__(self, "exclude_cells", tuple(cells))  # TOML gives lists
+        if self.structured_outputs and not self.require_parameters:
+            raise ConfigError(f"model {self.name!r}: structured_outputs needs require_parameters = true")
         b = self.bytes_per_token_min
         if isinstance(b, bool) or not isinstance(b, (int, float)) or not b > 0:
             raise ConfigError(f"model {self.name!r}: bytes_per_token_min must be a positive number, got {b!r}")
