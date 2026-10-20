@@ -93,6 +93,14 @@ async def test_audit_rebuilds_windowed_requests_and_checks_the_log(tmp_path):
     assert any("notes of B visible" in x for x in issues)
 
 
+def test_worst_case_note_is_exactly_at_the_cap():
+    from oligopoly.engine import cap_notes
+
+    for words, chars in ((200, 1400), (200, 1000), (10, 1400)):
+        note = pctx.cap_note(words, chars)
+        assert len(note.split()) == words and len(note) == chars and not cap_notes(note, words, chars)[1]
+
+
 def test_scripts_skip_checkpoints(tmp_path):
     markets = tmp_path / "markets"
     markets.mkdir()

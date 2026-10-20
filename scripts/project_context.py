@@ -13,12 +13,16 @@ guard uses (`llm.prompt_token_bound`, with the model's `bytes_per_token_min`). A
 --markets replays plus the model's max_tokens is at most --threshold (80%) of the pinned endpoint's
 context_length; otherwise EXCLUDE. Cells not projected in a call keep their current exclude_cells setting, and a
 model whose context length is unknown is reported and left unchanged.
+
+--notes-at-cap: worst case for the notes cap (DECISIONS.md engine details 12): every notes field the replay writes
+is exactly at the cap (notes_max_words words, notes_max_chars characters, ASCII) instead of a pilot sample.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import random
 import re
@@ -142,6 +146,14 @@ class ReplayClient:
                           seed_possibly_ignored=False, provider_mismatch=False)
 
 
+def cap_note(max_words: int, max_chars: int) -> str:
+    """ASCII notes at the cap: `max_words` words, `max_chars` characters if that many words can fill them (never
+    over either, so the engine keeps them whole)."""
+    per = max(1, (max_chars + 1) // max_words - 1)  # word length so that the words and spaces fit
+    text = " ".join(["x" * per] * max_words)
+    return text + "x" * max(0, max_chars - len(text))  # the last word takes up any slack
+
+
 async def project(cfg: ModelConfig, sample: Sample, n: int, ordering: str, exp: ExperimentConfig,
                   markets: int) -> int:
     """Largest prompt-token bound over `markets` replays of the cell (played in memory, nothing written)."""
@@ -209,6 +221,8 @@ async def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--models-file", default=str(ROOT / "config" / "models.toml"))
     ap.add_argument("--experiment-file", default=str(ROOT / "config" / "experiment.toml"))
     ap.add_argument("--write", action="store_true", help="write exclude_cells into the models file")
+    ap.add_argument("--notes-at-cap", action="store_true",
+                    help="worst case: every notes field at the cap (notes_max_words / notes_max_chars)")
     a = ap.parse_args(argv)
 
     registry = load_models(a.models_file)
@@ -228,6 +242,8 @@ async def main(argv: list[str] | None = None) -> int:
         cfg = registry[name]
         own = samples.get(name)
         sample = own if own and own.usable else samples["*"]
+        if a.notes_at_cap:
+            sample = dataclasses.replace(sample, notes=[cap_note(exp.notes_max_words, exp.notes_max_chars)])
         src = f"{own.markets} pilot market(s)" if own and own.usable else "no usable pilot of its own: all pooled"
         length, problem = ctx[name]
         limit = int(length * a.threshold) if length else None
