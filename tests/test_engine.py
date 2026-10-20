@@ -286,6 +286,66 @@ async def test_market_with_openrouter_client(tmp_path):
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
 
 
+async def test_context_overflow_fails_market(tmp_path):
+    """A prompt that outgrows the pinned endpoint's context stops the market before the call is sent."""
+    import httpx
+    import respx
+
+    from oligopoly.llm import BASE_URL, Budget, ContextOverflow, OpenRouterClient
+
+    cfg = ModelConfig("tiny", "acme/tiny", "deepinfra/fp8", max_tokens=64)
+    ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "context_length": 2600,
+          "pricing": {"prompt": "0.000001", "completion": "0"}, "supported_parameters": ["seed"]}
+    reply = httpx.Response(200, json={"id": "g", "model": "acme/tiny", "provider": "DeepInfra",
+                                      "choices": [{"message": {"content": '{"notes": "n", "price": 99}'}}],
+                                      "usage": {"prompt_tokens": 5, "completion_tokens": 3, "cost": 0.0}})
+    with respx.mock() as r:
+        r.get(f"{BASE_URL}/models/acme/tiny/endpoints").mock(
+            return_value=httpx.Response(200, json={"data": {"endpoints": [ep]}}))
+        post = r.post(f"{BASE_URL}/chat/completions").mock(return_value=reply)
+        async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="k") as client:
+            s = MarketSpec("live", cfg, 2, "NT-NT", 0, 1)
+            with pytest.raises(ContextOverflow):
+                await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(6, 4)))
+    fail = json.loads(engine.failure_path(tmp_path, s).read_text())
+    assert fail["reason"] == "context_overflow" and fail["periods_completed"] >= 1
+    log = [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    overflows = [x for x in log if (x.get("error") or "").startswith("ContextOverflow")]
+    assert overflows and post.call_count == len(log) - len(overflows)  # overflowing calls were never sent
+    # a rerun does not pay to overflow again
+    summary = await run_all([s], {"tiny": MockClient()}, tmp_path, ExperimentConfig(part_lengths=(6, 4)))
+    assert summary["failed"] == [s.key] and not summary["done"]
+
+
+def test_pick_error_prefers_context_overflow():
+    from oligopoly.llm import ContextOverflow
+
+    eg = ExceptionGroup("x", [RetriesExhausted("r"), ContextOverflow("c")])
+    assert isinstance(engine.pick_error(eg), ContextOverflow)
+    assert isinstance(engine.pick_error(ExceptionGroup("x", [ContextOverflow("c"), BudgetExceeded("b")])),
+                      BudgetExceeded)
+
+
+async def test_excluded_cells_are_skipped(tmp_path):
+    f = tmp_path / "models.toml"
+    f.write_text('[mock]\nmodel = "mock"\nprovider = "mock"\nmax_tokens = 100\n'
+                 'exclude_cells = [["NT-T", 4], ["NT-NT", 2]]\nbytes_per_token_min = 2.2\n')
+    m = load_models(f)["mock"]
+    assert m.exclude_cells == (("NT-T", 4), ("NT-NT", 2)) and m.bytes_per_token_min == 2.2
+    assert m.excludes(4, "NT-T") and not m.excludes(4, "T-NT")
+    assert m.identity() == MOCK.identity() | {"max_tokens": 100, "temperature": None, "reasoning": None}
+    specs = build_specs("x", [m], [2], ["NT-T", "NT-NT"], 1)
+    s = await run_all(specs, {"mock": MockClient()}, tmp_path, SHORT)
+    assert s["excluded"] == [specs[1].key] and s["done"] == [specs[0].key] and not s["failed"]
+    assert not market_path(tmp_path, specs[1]).exists() and not engine.failure_path(tmp_path, specs[1]).exists()
+    for bad in ('exclude_cells = [["X", 4]]', 'exclude_cells = [["NT-T", "4"]]', 'exclude_cells = [["NT-T", 1]]',
+                'exclude_cells = [["NT-T", 4, 6]]', 'exclude_cells = [["NT-T"]]', 'exclude_cells = [4]',
+                'bytes_per_token_min = "2.4"', 'bytes_per_token_min = true', 'bytes_per_token_min = 0'):
+        f.write_text(f'[mock]\nmodel = "mock"\nprovider = "mock"\n{bad}\n')
+        with pytest.raises(ConfigError):
+            load_models(f)
+
+
 # ---------------------------------------------------------------- review regressions
 
 

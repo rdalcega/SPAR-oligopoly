@@ -47,6 +47,12 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   at most 80% of its pinned endpoint's context length. Excluded cells are listed in `config/models.toml`
   and reported as missing, not imputed. A runtime guard also stops any market whose prompt would overflow and
   records it as a failure.
+  Implementation: the guard bounds prompt tokens as content bytes / `bytes_per_token_min` + 8 per message + 256,
+  checked with max_tokens against the pinned endpoint's `context_length` before every call (failure reason
+  `context_overflow`, nothing sent). `bytes_per_token_min` is 2.5 (2.4 for Qwen3.8-27B), below the lowest
+  marginal ratio seen in the pilots (2.69–3.3 bytes/token on results text; whole prompts 3.2–3.8); on pilot
+  calls actual prompt tokens were 64–72% of the bound. `scripts/project_context.py` projects each cell's peak
+  with the same bound and writes `exclude_cells`.
 - **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
   supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
 

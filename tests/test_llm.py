@@ -26,7 +26,7 @@ MSGS = [{"role": "system", "content": "You are firm A."}, {"role": "user", "cont
 
 def endpoint(tag, name, seed=True, prompt="0.000001", completion="0.000002"):
     params = ["temperature", "max_tokens"] + (["seed"] if seed else [])
-    return {"tag": tag, "provider_name": name, "context_length": 1000, "max_completion_tokens": 500,
+    return {"tag": tag, "provider_name": name, "context_length": 200_000, "max_completion_tokens": 500,
             "quantization": "fp8", "pricing": {"prompt": prompt, "completion": completion},
             "supported_parameters": params, "status": 0}
 
@@ -332,3 +332,31 @@ async def test_unknown_provider_tag_logged(mock, make, tmp_path):
         await make().chat(MSGS, model=MODEL, provider="nope", max_tokens=10, tag={"firm": "A"})
     [rec] = lines(tmp_path)
     assert "nope" in rec["error"] and rec["tag"] == {"firm": "A"} and rec["retryable"] is False
+
+
+def test_prompt_token_bound():
+    from oligopoly.llm import TEMPLATE_TOKENS_PER_MESSAGE, prompt_token_bound
+
+    msgs = [{"role": "system", "content": "x" * 1000},
+            {"role": "user", "content": [{"type": "text", "text": "é" * 50}]}]  # 1000 + 100 UTF-8 bytes
+    extra = 2 * TEMPLATE_TOKENS_PER_MESSAGE + PROMPT_SLACK_TOKENS
+    assert prompt_token_bound(msgs) == 440 + extra
+    assert prompt_token_bound(msgs, 2.0) == 550 + extra
+
+
+async def test_context_overflow_is_not_sent(mock, make, tmp_path):
+    from oligopoly.llm import ContextOverflow, prompt_token_bound
+
+    route = mock.post(CHAT).mock(return_value=httpx.Response(200, json=completion()))
+    big = [{"role": "user", "content": "x" * 400_000}]  # bound ~160,000 tokens; the context is 200,000
+    assert prompt_token_bound(big) + 30_000 < 200_000
+    await make().chat(big, model=MODEL, provider="deepinfra/fp8", max_tokens=30_000)
+    assert route.call_count == 1
+    with pytest.raises(ContextOverflow):  # the same prompt no longer fits with a larger completion allowance
+        await make().chat(big, model=MODEL, provider="deepinfra/fp8", max_tokens=40_000)
+    with pytest.raises(ContextOverflow):  # nor under a lower bytes-per-token assumption
+        await make().chat(big, model=MODEL, provider="deepinfra/fp8", max_tokens=30_000, bytes_per_token_min=2.0)
+    assert route.call_count == 1
+    logged = lines(tmp_path)
+    assert [x["error"].startswith("ContextOverflow") for x in logged if x.get("error")] == [True, True]
+    assert logged[-1]["context_guard"]["context_length"] == 200_000 and "status_code" not in logged[-1]

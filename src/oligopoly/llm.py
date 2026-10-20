@@ -19,6 +19,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import math
 import os
 import random
 import re
@@ -55,6 +56,10 @@ class RetriesExhausted(OpenRouterError):
 
 class BudgetExceeded(OpenRouterError):
     """The call would exceed, or the run has reached, the USD cap."""
+
+
+class ContextOverflow(OpenRouterError):
+    """The prompt's token bound plus max_tokens exceeds the pinned endpoint's context length (not sent)."""
 
 
 # ---------------------------------------------------------------- endpoint metadata
@@ -287,6 +292,32 @@ def _sha256(obj: Any) -> str:
 
 PROMPT_SLACK_TOKENS = 256  # chat-template and provider-added tokens not in the serialised messages
 
+# Context guard. Calibrated on the 2026-10-20 pilots (data/runs/pilot1*/calls.jsonl, ~800 calls): whole prompts
+# ran at 3.2-3.8 UTF-8 content bytes per prompt token by model, and the marginal ratio of the numeric
+# results-and-prices text that dominates long NoTalk histories at 2.7-3.3 (lowest: qwen3.8-27b 2.69, granite
+# 2.82, qwen3-14b 2.85), template tokens included. 2.5 bytes/token is below every model's lowest observed
+# marginal ratio; a model whose tokenizer runs closer to it sets a lower `bytes_per_token_min` in models.toml.
+DEFAULT_BYTES_PER_TOKEN_MIN = 2.5
+TEMPLATE_TOKENS_PER_MESSAGE = 8  # role markers and separators the chat template adds per message
+
+
+def _content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(b.get("text") or "") for b in content if isinstance(b, dict))
+    return ""
+
+
+def prompt_token_bound(messages: Sequence[dict[str, Any]],
+                       bytes_per_token_min: float = DEFAULT_BYTES_PER_TOKEN_MIN) -> int:
+    """Conservative upper estimate of a prompt's tokens for the context guard: UTF-8 bytes of the message
+    contents / bytes_per_token_min, plus TEMPLATE_TOKENS_PER_MESSAGE per message and PROMPT_SLACK_TOKENS.
+    (estimate_cost uses the looser one-token-per-byte bound, which is safe for money but would refuse
+    prompts that fit.)"""
+    nbytes = sum(len(_content_text(m.get("content")).encode()) for m in messages)
+    return math.ceil(nbytes / bytes_per_token_min) + TEMPLATE_TOKENS_PER_MESSAGE * len(messages) + PROMPT_SLACK_TOKENS
+
 
 def estimate_cost(endpoint: Endpoint, messages: Sequence[dict[str, Any]], completion_tokens: int) -> float:
     """Upper bound on a call's cost, reserved before it is sent.
@@ -439,6 +470,7 @@ class OpenRouterClient:
         tag: dict[str, Any] | None = None,
         extra_body: dict[str, Any] | None = None,
         timeout_s: float | None = None,
+        bytes_per_token_min: float = DEFAULT_BYTES_PER_TOKEN_MIN,
     ) -> ChatResult:
         """One chat completion pinned to endpoint tag `provider` with fallbacks off.
 
@@ -446,7 +478,10 @@ class OpenRouterClient:
         {"effort": "medium"}, {"max_tokens": 2000} or {"enabled": False}. `cache_upto` adds cache_control
         breakpoints (see `with_cache_control`). `tag` is caller metadata (market, firm, period, phase, ...)
         copied into every log line. `timeout_s` overrides the client's HTTP timeout for this call.
-        Raises PermanentError, RetriesExhausted or BudgetExceeded.
+        Context guard: if `prompt_token_bound(messages, bytes_per_token_min)` plus the completion allowance
+        exceeds the pinned endpoint's context_length, the attempt is logged and ContextOverflow raised without
+        sending anything.
+        Raises PermanentError, RetriesExhausted, BudgetExceeded or ContextOverflow.
         """
         if max_tokens is None:
             raise ValueError("max_tokens is required: the budget reserves its cost before each call")
@@ -483,7 +518,18 @@ class OpenRouterClient:
         except PermanentError as e:
             self._log({"ts": _now(), "attempt": 0, **base, "error": f"PermanentError: {e}", "retryable": False})
             raise
-        estimate = estimate_cost(ep, msgs, max_tokens + int((reasoning or {}).get("max_tokens") or 0))
+        completion = max_tokens + int((reasoning or {}).get("max_tokens") or 0)  # cost bound: upper side
+        bound = prompt_token_bound(msgs, bytes_per_token_min)
+        # the context holds prompt + max_tokens; a reasoning budget is part of max_tokens, not extra
+        completion_ctx = max_tokens
+        base["context_guard"] = {"prompt_tokens_bound": bound, "bytes_per_token_min": bytes_per_token_min,
+                                 "max_tokens": completion_ctx, "context_length": ep.context_length}
+        if ep.context_length and bound + completion_ctx > ep.context_length:
+            err = (f"prompt bound {bound} + max_tokens {completion_ctx} exceeds the context length "
+                   f"{ep.context_length} of {model} at {provider!r}")
+            self._log({"ts": _now(), "attempt": 0, **base, "error": f"ContextOverflow: {err}", "retryable": False})
+            raise ContextOverflow(err)
+        estimate = estimate_cost(ep, msgs, completion)
 
         last_error: str | None = None
         timeout_retry = False

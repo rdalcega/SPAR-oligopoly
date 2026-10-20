@@ -28,7 +28,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models
-from .engine import ORDERINGS, ChatClient, MarketSpec, environment_seed, is_complete, run_market, write_json_atomic
+from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failure_path, failure_reason, is_complete,
+                     market_fingerprint, run_market, write_json_atomic)
 from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
 
@@ -39,16 +40,30 @@ def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings
             for m, n, o, i in itertools.product(models, ns, orderings, range(markets_per_cell))]
 
 
+def overflowed(out_dir: Path, spec: MarketSpec, exp: ExperimentConfig) -> bool:
+    """Whether the market's failure record says it hit the context guard under the current settings."""
+    path = failure_path(out_dir, spec)
+    if not path.exists():
+        return False
+    rec = json.loads(path.read_text())
+    return rec.get("reason") == "context_overflow" and rec.get("fingerprint") == market_fingerprint(spec, exp)
+
+
 async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_dir: Path, exp: ExperimentConfig,
                   max_concurrent_markets: int = 4) -> dict[str, list[str]]:
     """Run every spec without a complete record. `clients` maps model name -> client. A failed market is
     recorded and the others continue; BudgetExceeded stops new markets from starting. A record played under
-    other settings (fingerprint mismatch) counts as failed and is left untouched."""
-    summary: dict[str, list[str]] = {"done": [], "skipped": [], "failed": [], "not_started": []}
+    other settings (fingerprint mismatch) counts as failed and is left untouched. Cells a model excludes
+    (`exclude_cells` in models.toml: its context limit) are not played and are listed as excluded, not failed."""
+    summary: dict[str, list[str]] = {"done": [], "skipped": [], "excluded": [], "failed": [], "not_started": []}
     sem = asyncio.Semaphore(max_concurrent_markets)
     stop = asyncio.Event()
 
     async def one(spec: MarketSpec) -> None:
+        if spec.model.excludes(spec.n, spec.ordering):
+            summary["excluded"].append(spec.key)
+            print(f"EXCLUDED {spec.key}: cell excluded for this model (context limit; exclude_cells)", flush=True)
+            return
         complete = is_complete(out_dir, spec, exp)
         if complete:
             summary["skipped"].append(spec.key)
@@ -56,6 +71,11 @@ async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_d
         if complete is None:
             summary["failed"].append(spec.key)
             print(f"MISMATCH {spec.key}: its record was played under other settings; use a new run id", flush=True)
+            return
+        if overflowed(out_dir, spec, exp):  # deterministic enough that a retry would pay to fail again
+            summary["failed"].append(spec.key)
+            print(f"OVERFLOW {spec.key}: failed earlier with context_overflow under these settings; not retried "
+                  f"(add the cell to exclude_cells)", flush=True)
             return
         async with sem:
             if stop.is_set():
@@ -71,7 +91,7 @@ async def run_all(specs: list[MarketSpec], clients: dict[str, ChatClient], out_d
                 print(f"BUDGET  {spec.key}: {e}; no new markets will start", flush=True)
             except Exception as e:  # recorded in <key>.failed.json by run_market
                 summary["failed"].append(spec.key)
-                print(f"FAILED  {spec.key}: {type(e).__name__}: {e}", flush=True)
+                print(f"FAILED  {spec.key}: {failure_reason(e)}: {type(e).__name__}: {e}", flush=True)
 
     await asyncio.gather(*(one(s) for s in specs))
     return summary
@@ -235,6 +255,10 @@ async def main(argv: list[str] | None = None) -> int:
     config = run_config(out_dir, a.seed, exp, models)
 
     if a.dry_run:
+        if excluded := [s.key for s in specs if s.model.excludes(s.n, s.ordering)]:
+            print(f"excluded (context limit, not estimated): {len(excluded)} markets: "
+                  + ", ".join(sorted({k.rsplit('__m', 1)[0] for k in excluded})))
+        specs = [s for s in specs if not s.model.excludes(s.n, s.ordering)]
         await dry_run(specs, out_dir, exp, a.assume_output_tokens, a.assume_reasoning_tokens, a.chars_per_token)
         return 0
 
@@ -258,7 +282,8 @@ async def main(argv: list[str] | None = None) -> int:
         entries = json.loads(manifest.read_text()) if manifest.exists() else []
         entries.append({"started": datetime.now(timezone.utc).isoformat(),
                         "argv": sys.argv[1:] if argv is None else argv, "git": _git(), "experiment": exp.to_dict(),
-                        "models": {m.name: m.to_dict() for m in models}, "budget_usd": a.budget_usd})
+                        "models": {m.name: m.to_dict() for m in models}, "budget_usd": a.budget_usd,
+                        "excluded": [s.key for s in specs if s.model.excludes(s.n, s.ordering)]})
         manifest.write_text(json.dumps(entries, indent=1))
         clients = {m.name: (mock if m.is_mock else live_client) for m in models}
         summary = await run_all(specs, clients, out_dir, exp, a.max_concurrent_markets)

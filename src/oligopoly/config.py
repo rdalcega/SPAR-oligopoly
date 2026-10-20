@@ -7,7 +7,11 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from .llm import DEFAULT_BYTES_PER_TOKEN_MIN
+
 ROOT = Path(__file__).resolve().parents[2]
+# part orderings: name -> (part 1 has chat, part 2 has chat)
+ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
 CONFIG_DIR = ROOT / "config"
 MOCK_PROVIDER = "mock"
 
@@ -31,8 +35,30 @@ class ModelConfig:
     cache_control: bool = True
     pricing: dict[str, float] | None = None  # USD per million tokens, dry-run only
     timeout_s: float | None = None  # HTTP timeout per call (client default 900 s)
+    # Context limits (DECISIONS.md, 2026-10-20): cells this model skips, as (ordering, n) pairs, and the lowest
+    # UTF-8 bytes per prompt token assumed by the runtime context guard (llm.prompt_token_bound).
+    exclude_cells: tuple[tuple[str, int], ...] = ()
+    bytes_per_token_min: float = DEFAULT_BYTES_PER_TOKEN_MIN
 
-    OPERATIONAL = ("pricing", "timeout_s")  # settings that do not affect play; left out of fingerprints
+    # settings that do not affect play; left out of fingerprints
+    OPERATIONAL = ("pricing", "timeout_s", "exclude_cells", "bytes_per_token_min")
+
+    def __post_init__(self) -> None:
+        cells = []
+        for c in self.exclude_cells if isinstance(self.exclude_cells, (list, tuple)) else [self.exclude_cells]:
+            ok = (isinstance(c, (list, tuple)) and len(c) == 2 and c[0] in ORDERINGS and isinstance(c[1], int)
+                  and not isinstance(c[1], bool) and c[1] >= 2)
+            if not ok:
+                raise ConfigError(f"model {self.name!r}: bad exclude_cells entry {c!r}; use [ordering, n] with "
+                                  f"ordering in {list(ORDERINGS)} and integer n >= 2")
+            cells.append((c[0], c[1]))
+        object.__setattr__(self, "exclude_cells", tuple(cells))  # TOML gives lists
+        b = self.bytes_per_token_min
+        if isinstance(b, bool) or not isinstance(b, (int, float)) or not b > 0:
+            raise ConfigError(f"model {self.name!r}: bytes_per_token_min must be a positive number, got {b!r}")
+
+    def excludes(self, n: int, ordering: str) -> bool:
+        return (ordering, n) in self.exclude_cells
 
     @property
     def is_mock(self) -> bool:
@@ -56,6 +82,7 @@ class ModelConfig:
             "require_parameters": self.require_parameters,
             "extra_body": extra_body or None,
             "timeout_s": self.timeout_s,
+            "bytes_per_token_min": self.bytes_per_token_min,
         }
 
     def identity(self) -> dict[str, Any]:

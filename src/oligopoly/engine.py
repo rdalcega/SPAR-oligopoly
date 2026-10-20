@@ -19,12 +19,11 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from . import market, prompts
-from .config import ExperimentConfig, ModelConfig
+from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
-from .llm import BudgetExceeded, ChatResult
+from .llm import BudgetExceeded, ChatResult, ContextOverflow
 from .parse import Parsed, parse_message, parse_price, strip_reasoning
 
-ORDERINGS: dict[str, tuple[bool, bool]] = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
 Kind = Literal["price", "message"]
 
 
@@ -131,11 +130,12 @@ class Decision:
 
 
 def pick_error(eg: BaseExceptionGroup) -> BaseException:
-    """The first BudgetExceeded among the (possibly nested) members of `eg`, else its first leaf."""
+    """The first BudgetExceeded among the (possibly nested) members of `eg`, else the first ContextOverflow,
+    else its first leaf."""
     def leaves(e: BaseException) -> list[BaseException]:
         return [x for sub in e.exceptions for x in leaves(sub)] if isinstance(e, BaseExceptionGroup) else [e]
     errs = leaves(eg)
-    return next((e for e in errs if isinstance(e, BudgetExceeded)), errs[0])
+    return next((e for kind in (BudgetExceeded, ContextOverflow) for e in errs if isinstance(e, kind)), errs[0])
 
 
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
@@ -325,6 +325,15 @@ class Market:
         }
 
 
+def failure_reason(e: BaseException) -> str:
+    """Short reason recorded with a failed market: context_overflow, budget or error."""
+    if isinstance(e, ContextOverflow):
+        return "context_overflow"
+    if isinstance(e, BudgetExceeded):
+        return "budget"
+    return "error"
+
+
 async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
                      exp: ExperimentConfig | None = None) -> Path:
     """Play one market and write its JSON record atomically; returns the path. On failure, writes a
@@ -336,7 +345,8 @@ async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
         m = Market(spec, client, exp)
         await m.run()
     except BaseException as e:
-        write_json_atomic(fail, {"spec": spec.to_dict(), "error_type": type(e).__name__, "error": str(e),
+        write_json_atomic(fail, {"spec": spec.to_dict(), "reason": failure_reason(e),
+                                 "error_type": type(e).__name__, "error": str(e),
                                  "traceback": traceback.format_exc(), "periods_completed": len(m.periods) if m else 0,
                                  **({k: v for k, v in m.record().items() if k != "spec"} if m else {})})
         raise
