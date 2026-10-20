@@ -53,63 +53,81 @@ def results_label(q, exp):
 
 
 def check_contexts(rec, client, exp):
-    """Every recorded request is the windowed context of DECISIONS.md §6 item 3 (2026-10-20): the instructions
-    (Part 2's from Part 2 on), the memory block with the firm's latest notes and own cumulative profit, then the
-    verbatim turns of the last `memory_window` completed periods and of the current period. Each request is
-    rebuilt exactly from the record."""
+    """Every recorded request is the summaries layout of DECISIONS.md §6 item 3: the instructions (Part 2's from
+    Part 2 on), then one user message with the summaries of the last `memory_window` completed periods and the
+    firm's own cumulative profit, its latest notes, in Talk parts the current period's chat rounds so far, and the
+    prompt; then only the decision's own re-asks. Each request is rebuilt independently here from the record, and
+    by `reconstruct_request`."""
+    from oligopoly import prompts
     from oligopoly.llm import messages_sha256, reconstruct_request
-    from oligopoly.prompts import memory_text
 
     W, L1 = exp.memory_window, exp.part_lengths[0]
     letters = sorted(rec["transcripts"])
     sent = {c["tag"]["call_id"]: c for c in client.calls}
     all_notes = {F: {d["notes"] for d in firm_decisions(rec, F) if d["notes"]} for F in letters}
+    talk = engine.ORDERINGS[rec["spec"]["ordering"]]
+    order = {L: [line[5] for s in rec["transcripts"][L] if s["kind"] == "summary"
+                 for line in s["content"].split("\n")[1:] if line.startswith("Firm ")][:rec["spec"]["n"]]
+             for L in letters}
     checked = 0
     for L in letters:
         tr, instr = rec["transcripts"][L], rec["instructions"][L]
         assert len(instr) == 2 and instr[1].startswith("Part 1 is over.")
-        notes, profit = None, [0.0, 0.0]
-        done = 0  # periods completed before the decision
+        summaries = [m for m in tr if m["kind"] == "summary"]
+        assert [m["period"] for m in summaries] == list(range(1, len(rec["periods"]) + 1))
+        # each summary: the period's results in the firm's listing order, then the die or end-of-part line
+        for p, s in zip(rec["periods"], summaries):
+            min_p = exp.part_min_periods(p["part"])
+            results = prompts.results_text(p["part"], p["period"], L, p["prices"], p["profits"], order[L])
+            assert s["content"].startswith(results + "\n") or s["content"] == results
+            last = p["period"] == exp.part_lengths[p["part"] - 1]
+            if last:
+                assert prompts.die_line(p["period"], 6, min_p) in s["content"]
+            elif p["period"] >= min_p:
+                assert s["content"].endswith(prompts.die_line(p["period"], p["die"], min_p))
+            else:
+                assert "dice" not in s["content"]
+            assert ("could not be used" in s["content"]) == p["decisions"][L]["fallback"]
+        notes, profit, done = None, [0.0, 0.0], 0
         for d in firm_decisions(rec, L):
             for a in d["attempts"]:
                 c, ctx = sent[a["call_id"]], a["context"]
                 msgs, tag = c["messages"], c["tag"]
                 if tag["phase"] == "probe":
                     assert (tag["part"], tag["period"]) == ("probe", None)
-                    g = sum(exp.part_lengths) + 1
+                    g, part, chat = sum(exp.part_lengths) + 1, 2, None
                 else:
-                    g = tag["period"] if tag["part"] == 1 else L1 + tag["period"]
-                assert messages_sha256(msgs) == ctx["messages_sha256"] and ctx["merged"] is True
+                    g, part = (tag["period"], 1) if tag["part"] == 1 else (L1 + tag["period"], 2)
+                    p = rec["periods"][g - 1]
+                    upto = int(tag["phase"][4:]) - 1 if tag["phase"].startswith("chat") else len(p["chat"])
+                    chat = [prompts.round_text(r["round"], r["messages"], order[L], L,
+                                               own_failed=r["decisions"][L]["fallback"])
+                            for r in p["chat"][:upto]] if talk[part - 1] else None
+                assert g == done + 1 or tag["phase"] == "probe"
+                assert messages_sha256(msgs) == ctx["messages_sha256"] and ctx["layout"] == "sections"
                 assert reconstruct_request(rec, L, ctx) == msgs
-                # roles alternate strictly: system, user, assistant, user, ..., user
+                # roles: system, one user message, then only this decision's failed answers and re-asks
                 assert [m["role"] for m in msgs] == ["system"] + ["user", "assistant"] * ((len(msgs) - 2) // 2) + [
                     "user"]
-                # instructions always present; Part 2's only from Part 2 on
+                assert len(msgs) == 2 + 2 * int(a["call_id"].rsplit("/a", 1)[1])
                 k = 2 if g > L1 else 1
-                assert ctx["instructions"] == k and msgs[0] == {"role": "system", "content": instr[0]}
-                # memory = the latest notes written before this decision, and the firm's own profit so far
-                part = 1 if g <= L1 else 2
-                mem = memory_text(exp.notes, notes, part, profit[part - 1], sum(profit) if part == 2 else None)
-                assert ctx["memory"] == mem
-                # the window: every turn of periods g - W .. g, verbatim, ending with this request's prompt
-                lo, hi = ctx["window"]
-                assert [m["period"] for m in tr[lo:hi]] == sorted(m["period"] for m in tr[lo:hi])
-                assert all(g - W <= m["period"] <= g for m in tr[lo:hi])
-                assert lo == 0 or tr[lo - 1]["period"] < g - W
-                assert hi == len(tr) or tr[hi]["role"] == "assistant"
-                assert tr[lo]["role"] == "user"
-                # Part 2's instructions, the memory block and the window's opening turn form one user message
-                opening = [*instr[1:k], mem, tr[lo]["content"]]
-                assert msgs[1] == {"role": "user", "content": "\n\n".join(opening)}
-                assert msgs[2:] == [{"role": m["role"], "content": m["content"]} for m in tr[lo + 1:hi]]
-                assert msgs[-1]["role"] == "user" and tr[hi - 1]["period"] == g
-                # results visible: those of the W windowed periods and the most recent; none older than g - W - 1
-                text = "\n".join(m["content"] for m in tr[lo:hi])
-                for q in range(max(1, g - W - 1), g):
-                    assert results_label(q, exp) in text, (L, g, q)
-                for q in range(1, g - W - 1):
-                    assert results_label(q, exp) not in text, (L, g, q)
-                # no other firm's notes
+                assert msgs[0] == {"role": "system", "content": instr[0]}
+                shown = [s["content"] for s in summaries[max(0, done - W):done]]
+                totals = prompts.totals_text(part, profit[part - 1], sum(profit) if part == 2 else None)
+                body = [*instr[1:k], prompts.summaries_text(shown, totals)]
+                if exp.notes:
+                    body.append(prompts.notes_text(notes))
+                if chat is not None:
+                    body.append(prompts.chat_text(chat))
+                prompt = tr[ctx["turns"][0]]
+                assert prompt["kind"] == "prompt" and prompt["period"] == g
+                body.append(prompt["content"])
+                assert msgs[1] == {"role": "user", "content": "\n\n".join(body)}
+                # results visible: exactly those of the last W completed periods
+                text = "\n".join(m["content"] for m in msgs)
+                for q in range(1, g):
+                    assert (results_label(q, exp) in text) == (q >= g - W), (L, g, q)
+                # no other firm's notes, and none of the firm's own earlier answers
                 blob = json.dumps(msgs, ensure_ascii=False)
                 assert not any(x in blob for F, xs in all_notes.items() if F != L for x in xs)
                 checked += 1
@@ -160,7 +178,7 @@ async def test_mock_market(tmp_path, n, ordering):
                         if not talk[0]:
                             assert not any(w in low for w in COMM), m["content"]
         # the transcript keeps every turn, each request sent once
-        assert sum(m["role"] == "user" for m in tr) == len(calls) + (rec["probe"] is None)
+        assert sum(m["kind"] in ("prompt", "reask") for m in tr) == len(calls)
         assert all(m["role"] != "assistant" or "mock reasoning" not in m["content"] for m in tr)
     check_contexts(rec, client, SHORT)
 
@@ -230,7 +248,13 @@ async def test_fallbacks(tmp_path):
     hist = rec["transcripts"]["A"]
     assert sum("could not be used: no JSON object" in m["content"] for m in hist) == 4  # 2 re-asks x 2
     assert sum(m["content"] == "I refuse to answer in JSON." for m in hist) == 6  # failed attempts kept
-    assert any(f"your price for this period was set to {p13['prices']['A']}" in m["content"] for m in hist)
+    notice = f"Your price response in this period could not be used, so your price was set to {p13['prices']['A']}."
+    assert [m["period"] for m in hist if notice in m["content"]] == [3]
+    assert next(m for m in hist if m["kind"] == "summary" and m["period"] == 3)["content"].count(notice) == 1
+    # A's failed chat turn shows in its own line of that round, in A's view of the round only
+    failed = [m for m in hist if m["kind"] == "chat" and "your response could not be used" in m["content"]]
+    assert [m["period"] for m in failed] == [8]
+    assert "your response could not be used" not in json.dumps(rec["transcripts"]["B"])
     attempts = [c for c in client.calls if c["tag"]["firm"] == "A" and c["tag"]["period"] == 3
                 and c["tag"]["part"] == 1]
     assert [c["tag"]["attempt"] for c in attempts] == [0, 1, 2] and len({c["seed"] for c in attempts}) == 3
@@ -256,8 +280,10 @@ async def test_full_horizon_die(tmp_path):
     assert "Period 20 is over. The computer threw the virtual dice" in text
     assert "Period 22 is over. The computer threw the virtual dice and it showed 6" in text
     assert "Period 21 is over. The computer threw the virtual dice and it showed 6" in text
-    probe = next(m for m in rec["transcripts"]["A"] if "Please answer these questions" in m["content"])
-    assert "The experiment is over. The sum of your firm's profits" in probe["content"]  # before the probe
+    tr = rec["transcripts"]["A"]
+    i = next(i for i, m in enumerate(tr) if "Please answer these questions" in m["content"])
+    assert tr[i - 1]["kind"] == "summary"  # the final summary comes before the probe
+    assert "The experiment is over. The sum of your firm's profits" in tr[i - 1]["content"]
     assert not {"21", "22"} & set(re.findall(r"(?<![\d,])\d+(?![\d,])", rec["instructions"]["A"][0]))
 
 
@@ -412,7 +438,7 @@ async def test_market_with_openrouter_client(tmp_path):
         assert all(a["role"] != c["role"] for a, c in zip(x["messages"], x["messages"][1:]))  # roles alternate
     # Part 2: its instructions, the memory block and the opening turn are one user message
     p2 = next(x for x in bodies if x["messages"][1]["content"].startswith("Part 1 is over."))
-    assert "\n\nYour notes" in p2["messages"][1]["content"] or "\n\nYou have not written" in p2["messages"][1][
+    assert "\n\nYour most recent notes:" in p2["messages"][1]["content"] or "\n\nYou have not written" in p2["messages"][1][
         "content"]
     assert rec["usage"]["calls"] == len(bodies) == 2 * (2 + 1 + 1)  # 2 firms x (2 NoTalk + 1 chat + 1 price)
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
@@ -591,7 +617,7 @@ async def test_history_stores_value_used(tmp_path):
     b = [json.loads(m["content"]) for m in rec["transcripts"]["B"] if m["role"] == "assistant"]
     assert a[0] == {"notes": "hi", "message": "x" * 300}  # truncated as posted
     assert b[0] == {"message": None}  # "pass" stored as a pass
-    assert a[1] == {"notes": {"plan": 1}, "price": 99}  # coerced price; notes as returned
+    assert a[1] == {"notes": '{"plan": 1}', "price": 99}  # coerced price; notes as carried (coerced to text)
 
 
 async def test_gather_prefers_budget_exceeded():
@@ -1057,10 +1083,11 @@ async def test_probe_does_not_change_play(tmp_path, ordering):
     assert pr["truth"] == {"max_consumer_price": 100, "best_common_price": 100,
                            "last_period_prices": on["periods"][-1]["prices"]}
     for L, f in pr["firms"].items():
-        # the probe extends the history that play left: final results and part-over text, then the questions
-        n_play = len(off["transcripts"][L]) - 1  # the probe-off history ends with the flushed final texts
-        assert on["transcripts"][L][:n_play] == off["transcripts"][L][:n_play]
-        assert on["transcripts"][L][n_play]["content"].startswith(off["transcripts"][L][n_play]["content"])
+        # the probe extends the transcript that play left (ending with the final summary) with its questions
+        n_play = len(off["transcripts"][L])
+        assert off["transcripts"][L][-1]["kind"] == "summary"
+        assert on["transcripts"][L][:n_play] == off["transcripts"][L]
+        assert on["transcripts"][L][n_play]["kind"] == "prompt"
         assert "Please answer these questions" in on["transcripts"][L][n_play]["content"]
         assert set(f["score"]) >= {"max_consumer_price", "best_common_price", "last_period_share"}
 
@@ -1216,11 +1243,13 @@ async def test_window_sizes(tmp_path, window, ordering):
     exp = dataclasses.replace(SHORT, memory_window=window)
     rec, client, _ = await play(spec(3, ordering), tmp_path, exp=exp)
     check_contexts(rec, client, exp)
-    if window == 12:  # wider than the market: every request holds the whole transcript so far
+    if window == 12:  # wider than the market: every request holds the summaries of every completed period
         for c in client.calls:
-            ctx = next(a["context"] for d in firm_decisions(rec, c["tag"]["firm"]) for a in d["attempts"]
+            L = c["tag"]["firm"]
+            ctx = next(a["context"] for d in firm_decisions(rec, L) for a in d["attempts"]
                        if a["call_id"] == c["tag"]["call_id"])
-            assert ctx["window"][0] == 0
+            tr = rec["transcripts"][L][:ctx["turns"][0]]
+            assert ctx["summaries"] == [i for i, m in enumerate(tr) if m["kind"] == "summary"]
 
 
 def test_cap_notes():
@@ -1239,9 +1268,9 @@ def test_cap_notes():
 
 
 async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
-    """Notes over 200 words / 1,400 characters are cut at a word boundary and marked; the firm sees only the cut
-    version (memory and its windowed answer); the record counts truncations and keeps the full text."""
-    long = " ".join(f"w{i}" for i in range(400))
+    """Notes over the cap (notes_max_words / notes_max_chars) are cut at a word boundary and marked; the firm sees
+    only the cut version; the record counts truncations and keeps the full text."""
+    long = " ".join(f"w{i}" for i in range(1000))
 
     def answer(tag):
         if tag["phase"] == "price":
@@ -1251,15 +1280,16 @@ async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
     exp = ExperimentConfig(part_lengths=(2, 1), post_game_probe=False)
     rec, client, _ = await play(spec(2, "NT-NT"), tmp_path, exp=exp, client=Scripted(answer))
     check_contexts(rec, client, exp)
-    capped, _ = engine.cap_notes(long, 200, 1400)
-    assert capped.endswith(" [truncated]") and len(capped) <= 1400 and len(capped.split()) <= 201
+    capped, _ = engine.cap_notes(long, exp.notes_max_words, exp.notes_max_chars)
+    assert capped.endswith(" [truncated]") and len(capped) <= exp.notes_max_chars
+    assert len(capped.split()) <= exp.notes_max_words + 1
     d = rec["periods"][0]["decisions"]["A"]
     assert d["notes"] == capped and d["notes_truncated"] and d["notes_full"] == long
     assert any("notes truncated" in w for w in d["warnings"])
     assert "notes_truncated" not in rec["periods"][0]["decisions"]["B"]
     assert rec["totals"]["A"]["notes_truncated"] == 3 and rec["totals"]["B"]["notes_truncated"] == 0
     blob = json.dumps([c["messages"] for c in client.calls if c["tag"]["firm"] == "A"], ensure_ascii=False)
-    assert long not in blob and f"Your notes (written by you at your last decision): {capped}" in blob
+    assert long not in blob and json.dumps(f"Your most recent notes:\n{capped}")[1:-1] in blob
     a_answers = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
     assert a_answers[0] == {"notes": capped, "price": 100}
 
@@ -1299,15 +1329,18 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
         g = 17 if t["phase"] == "probe" else t["period"] if t["part"] == 1 else 8 + t["period"]
         text = "\n".join(m["content"] for m in c["messages"])
         sizes.append(len(text))
-        for q in range(1, 9):  # chat messages of Part 1 periods older than g - 3 are gone
-            if q < g - 3:
+        for q in range(1, 9):  # chat messages of earlier periods are never shown again
+            if q < g:
                 assert f"msg-A-P1T{q}" not in text and f"msg-B-P1T{q}" not in text
         if g > 1 and t["phase"] != "probe":
             prev = f"P{1 if g - 1 <= 8 else 2}T{g - 1 if g - 1 <= 8 else g - 9}"
-            # memory = this firm's latest notes (the previous period's price notes, or this period's chat notes)
-            assert f"Your notes (written by you at your last decision): memo-{t['firm']}-" in c["messages"][1][
-                "content"]
-            assert f"memo-{t['firm']}-{prev}" in text
+            # memory = this firm's latest notes only: this period's chat notes for a Talk price, else the
+            # previous period's price notes
+            cur = f"P{t['part']}T{t['period']}"
+            latest = f"memo-{t['firm']}-{cur}-chat" if t["part"] == 1 and t["phase"] == "price" else \
+                f"memo-{t['firm']}-{prev}"
+            assert f"Your most recent notes:\n{latest}\n" in c["messages"][1]["content"]
+            assert f"memo-{t['firm']}-{prev}-chat" not in text
             assert f"memo-{'B' if t['firm'] == 'A' else 'A'}-" not in text
     assert max(sizes[len(sizes) // 2:]) < 1.5 * max(sizes[:len(sizes) // 2])  # does not grow with the market
 
@@ -1325,12 +1358,13 @@ async def test_answer_without_notes_keeps_memory(tmp_path):
     check_contexts(rec, client, exp)
     mem = {c["tag"]["call_id"]: c["messages"][1]["content"] for c in client.calls if c["tag"]["part"] == 1}
     assert "odd-B-1-1" in mem["mock__n2__NT-T__m0/B/p1/t3/price/a0"]  # period 2's answer had no notes
-    assert mem["mock__n2__NT-T__m0/A/p1/t1/price/a0"].startswith("You have not written any notes yet.")
+    assert "\n\nYou have not written any notes yet.\n\n" in mem["mock__n2__NT-T__m0/A/p1/t1/price/a0"]
     # Part 2 period 1, after the chat: A's empty notes replaced its memory; B's chat answer had none
     p2 = {c["tag"]["firm"]: c for c in client.calls if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"])
           == (2, 1, "price")}
-    assert "\n\nYour notes (written by you at your last decision): \n" in p2["A"]["messages"][1]["content"]
-    assert "\n\nYour notes (written by you at your last decision): odd-B-1-3" in p2["B"]["messages"][1]["content"]
+    assert "\n\nYour most recent notes:\n(empty)\n\n" in p2["A"]["messages"][1]["content"]
+    assert "\n\nYour most recent notes:\nodd-B-1-3\n\n" in p2["B"]["messages"][1][
+        "content"]
 
 
 # ---------------------------------------------------------------- structured outputs

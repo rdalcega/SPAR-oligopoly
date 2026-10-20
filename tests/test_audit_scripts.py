@@ -188,3 +188,14 @@ def test_same_round_leak_matches_whole_message_lines():
     assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, posted) == ["future/same-round message of B visible"]
     # B's line from an earlier round is legitimately visible
     assert ap.leaks({}, "A", (1, 2, "chat1"), leaked, {}, {**posted, (1, 1, 2): {"B": sentence}}) == []
+
+
+def test_probe_model_request_builders_run_offline():
+    """scripts/probe_models.py builds its requests from the prompt functions: they must keep working (no calls)."""
+    import probe_models as pm
+
+    for build in (pm.price_messages, pm.chat_messages, pm.long_messages):
+        msgs = build()
+        assert msgs[0]["role"] == "system" and msgs[-1]["role"] == "user"
+    long = "\n".join(m["content"] for m in pm.long_messages())
+    assert "The computer threw the virtual dice" in long and "Round 1:" in long

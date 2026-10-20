@@ -1,34 +1,43 @@
-"""One firm's transcript and the bounded context built from it for each call (DECISIONS.md §6 item 3, 2026-10-20).
+"""One firm's transcript and the request built from it for each call (DECISIONS.md §6 item 3, summaries layout).
 
-The firm keeps every turn it has had (`transcript`: user and assistant messages exactly as they occurred, each
-tagged with the global period it belongs to), but each request is built fresh by `context_messages`:
+The firm keeps everything it has been shown or has answered (`transcript`), each entry tagged with the global
+period it belongs to and its `kind`:
 
-1. the instructions: Part 1's as the system message; Part 2's as the next (user) message once Part 2 has started;
-2. a memory block (user message): the firm's latest private notes and its own cumulative profit;
-3. the verbatim turns of the last `window` completed periods (counted across the part boundary) and of the
-   current period so far, ending with the new prompt.
+- "summary": the system-generated summary of a completed period (its results, any fallback notice, and the
+  die or end-of-part line), written when the period ends;
+- "chat": one chat round of the current period as this firm sees it (every firm, in its listing order);
+- "prompt": the prompt of a decision; "answer": the firm's answer; "reask": a re-ask after an unusable answer.
 
-Consecutive messages of the same role (Part 2's instructions, the memory block and the window's opening user
-turn) are merged into one message, joined by a blank line, so the request's roles alternate system, user,
-assistant, user, ... as strict chat templates require. The context record says so (`merged`), and
-`llm.reconstruct_request` rebuilds the merged messages; records from before the merge have no `merged` key.
+Each request is built fresh by `section_messages`: the Part 1 instructions as the system message, then one user
+message holding, in order,
+
+1. Part 2's instructions, once Part 2 has started;
+2. the summaries of the last `window` completed periods (counted across the part boundary), oldest first, and
+   the firm's own cumulative profit;
+3. the firm's latest private notes (if the run uses notes);
+4. in Talk parts, the chat rounds of the current period so far (or a placeholder before any);
+5. the prompt.
+
+The firm's earlier answers are not shown again. Within a decision, each unusable answer and its re-ask follow
+as assistant and user messages. The context record (`ctx`, layout "sections") holds transcript indices and the
+cumulative-profit text, so `llm.reconstruct_request` rebuilds every request; records without a layout used
+the earlier verbatim-window layout (`context_messages`).
 
 Periods are numbered globally: Part 1 period t is t, Part 2 period t is (Part 1 length) + t, and the post-game
-probe is (total periods) + 1. A period's turns start with the user message that opens it, which carries the
-results of the period before. So a call in period g sees the turns of periods g - window .. g: the results of
-periods g - window - 1 .. g - 1, the chat and answers of periods g - window .. g - 1, and period g so far.
-
-Text the firm must see before its next decision (results, end of part, fallback notices) is queued with `tell`
-and sent together with the next prompt in a single user message.
+probe is (total periods) + 1.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import prompts
+
 Message = dict[str, Any]
+LAYOUT = "sections"
 
 
 def merge_roles(messages: Sequence[Message]) -> list[Message]:
@@ -44,9 +53,8 @@ def merge_roles(messages: Sequence[Message]) -> list[Message]:
 
 def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[Message],
                      merge: bool = True) -> list[Message]:
-    """The messages of one request: instructions, memory block, then the windowed turns (role and content
-    only), with consecutive same-role messages merged (`merge`; False rebuilds requests made before the
-    merge)."""
+    """Earlier layout (records without `layout`): instructions, memory block, then the windowed turns, with
+    consecutive same-role messages merged (`merge`; False rebuilds requests made before the merge)."""
     if not instructions:
         raise ValueError("a request needs the Part 1 instructions")
     out: list[Message] = [{"role": "system", "content": instructions[0]}]
@@ -56,20 +64,37 @@ def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[M
     return merge_roles(out) if merge else out
 
 
-def window_start(transcript: Sequence[Message], period: int, window: int) -> int:
-    """Index of the first transcript turn of period `period - window` or later."""
-    return next((i for i, m in enumerate(transcript) if m["period"] >= period - window), len(transcript))
+def section_messages(instructions: Sequence[str], transcript: Sequence[Message], ctx: dict[str, Any]) -> list[Message]:
+    """The messages of one request in the summaries layout, from the firm's instructions, transcript and the
+    request's context record."""
+    k = ctx["instructions"]
+    if not 1 <= k <= len(instructions):
+        raise ValueError(f"context has {k} instruction messages, the firm {len(instructions)}")
+    body = [prompts.summaries_text([transcript[i]["content"] for i in ctx["summaries"]], ctx["totals"])]
+    if ctx["notes"]:
+        i = ctx["notes_at"]
+        body.append(prompts.notes_text(None if i is None else json.loads(transcript[i]["content"])["notes"]))
+    if ctx["chat"] is not None:
+        body.append(prompts.chat_text([transcript[i]["content"] for i in ctx["chat"]]))
+    lo, hi = ctx["turns"]
+    body.append(transcript[lo]["content"])
+    out: list[Message] = [{"role": "system", "content": instructions[0]},
+                          {"role": "user", "content": "\n\n".join([*instructions[1:k], *body])}]
+    out += [{"role": m["role"], "content": m["content"]} for m in transcript[lo + 1:hi]]
+    return out
 
 
 @dataclass
 class Firm:
     letter: str
-    order: list[str]  # listing order of all firms in this firm's results (fixed per market)
-    window: int = 3  # completed periods shown verbatim
+    order: list[str]  # listing order of all firms in this firm's results and chat rounds (fixed per market)
+    window: int = 3  # completed periods whose summaries each request shows
     instructions: list[str] = field(default_factory=list)  # [Part 1] or [Part 1, Part 2]
-    transcript: list[Message] = field(default_factory=list)  # {"role", "content", "period"}
-    pending: list[str] = field(default_factory=list)
+    transcript: list[Message] = field(default_factory=list)  # {"role", "kind", "content", "period"}
+    pending: list[str] = field(default_factory=list)  # notices for the summary of the period in progress
     notes: str | None = None  # the firm's latest private notes (its memory); None until it writes any
+    notes_at: int | None = None  # transcript index of the answer that carried `notes`
+    _ctx: dict[str, Any] | None = field(default=None, repr=False)  # the open decision's context
 
     def start(self, instructions: str) -> None:
         if self.instructions:
@@ -83,30 +108,65 @@ class Firm:
         self.instructions.append(text)
 
     def tell(self, text: str) -> None:
-        """Queue text for the next user message."""
+        """Queue a notice for the summary of the period in progress."""
         self.pending.append(text)
 
-    def ask(self, prompt: str, period: int, memory: str) -> tuple[list[Message], dict[str, Any]]:
-        """Append a user message (queued text + prompt) in global period `period`; return the request's messages
-        and its context record (number of instruction messages, memory text, transcript window [lo, hi), and
-        `merged`: same-role messages merged)."""
-        if self.transcript and self.transcript[-1]["role"] == "user":
-            raise RuntimeError("two user turns in a row")
+    def _append(self, role: str, kind: str, content: str, period: int) -> None:
         if self.transcript and period < self.transcript[-1]["period"]:
             raise RuntimeError("periods go forward")
-        self.transcript.append({"role": "user", "content": "\n\n".join([*self.pending, prompt]), "period": period})
+        self.transcript.append({"role": role, "kind": kind, "content": content, "period": period})
+
+    def ask(self, prompt: str, period: int, totals: str, notes: bool, chat: bool) -> tuple[list[Message],
+                                                                                          dict[str, Any]]:
+        """Open a decision with `prompt` in global period `period`; return the request's messages and its context
+        record: number of instruction messages, transcript indices of the summaries shown, the cumulative-profit
+        text `totals`, whether notes are shown and the index of the answer carrying them, the indices of this
+        period's chat rounds (None: no chat section) and the decision's turns [lo, hi)."""
+        if self._ctx is not None:
+            raise RuntimeError("the previous decision is still open")
+        summaries = [i for i, m in enumerate(self.transcript) if m["kind"] == "summary"]
+        rounds = [i for i, m in enumerate(self.transcript) if m["kind"] == "chat" and m["period"] == period]
+        self._append("user", "prompt", prompt, period)
+        lo = len(self.transcript) - 1
+        self._ctx = {"layout": LAYOUT, "instructions": len(self.instructions),
+                     "summaries": summaries[-self.window:],
+                     "totals": totals, "notes": notes, "notes_at": self.notes_at if notes else None,
+                     "chat": rounds if chat else None, "turns": [lo, lo + 1]}
+        return section_messages(self.instructions, self.transcript, self._ctx), dict(self._ctx)
+
+    def reask(self, text: str) -> tuple[list[Message], dict[str, Any]]:
+        """Re-ask within the open decision, after an unusable answer."""
+        if self._ctx is None or self.transcript[-1]["kind"] != "answer":
+            raise RuntimeError("a re-ask follows an answer within an open decision")
+        self._append("user", "reask", text, self.transcript[-1]["period"])
+        self._ctx = {**self._ctx, "turns": [self._ctx["turns"][0], len(self.transcript)]}
+        return section_messages(self.instructions, self.transcript, self._ctx), dict(self._ctx)
+
+    def answer(self, content: str, notes: str | None = None) -> None:
+        """Record the firm's answer to the open request; `notes` (the capped notes it carried, if any) become its
+        memory. Call `close` once the decision is over."""
+        if self._ctx is None or self.transcript[-1]["kind"] not in ("prompt", "reask"):
+            raise RuntimeError("an answer must follow a prompt or re-ask")
+        self._append("assistant", "answer", content, self.transcript[-1]["period"])
+        if notes is not None:
+            self.notes, self.notes_at = notes, len(self.transcript) - 1
+
+    def close(self) -> None:
+        if self._ctx is None or self.transcript[-1]["kind"] != "answer":
+            raise RuntimeError("a decision closes after an answer")
+        self._ctx = None
+
+    def add_chat(self, period: int, text: str) -> None:
+        """A chat round of global period `period` as this firm sees it (prompts.round_text)."""
+        if self._ctx is not None:
+            raise RuntimeError("a decision is still open")
+        self._append("user", "chat", text, period)
+
+    def summarise(self, period: int, results: str, closing: str | None = None) -> None:
+        """The summary of completed global period `period`: its results, the queued notices, then `closing` (the
+        die or end-of-part line)."""
+        if self._ctx is not None:
+            raise RuntimeError("a decision is still open")
+        self._append("user", "summary", "\n".join([results, *self.pending, *([closing] if closing else [])]),
+                     period)
         self.pending.clear()
-        lo, hi = window_start(self.transcript, period, self.window), len(self.transcript)
-        ctx = {"instructions": len(self.instructions), "memory": memory, "window": [lo, hi], "merged": True}
-        return context_messages(self.instructions, memory, self.transcript[lo:hi]), ctx
-
-    def answer(self, content: str) -> None:
-        if not self.transcript or self.transcript[-1]["role"] != "user":
-            raise RuntimeError("an assistant turn must follow a user turn")
-        self.transcript.append({"role": "assistant", "content": content, "period": self.transcript[-1]["period"]})
-
-    def flush(self, period: int) -> None:
-        """Append any queued text as a final user message (end of the experiment; never sent)."""
-        if self.pending:
-            self.transcript.append({"role": "user", "content": "\n\n".join(self.pending), "period": period})
-            self.pending.clear()

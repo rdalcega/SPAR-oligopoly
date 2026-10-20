@@ -1,3 +1,4 @@
+# PILOT ONLY: the 2026-10-20 window A/B (verbatim-window layout). Rerunning it now uses the summaries layout.
 # Market design held fixed across models (DECISIONS.md). The runner's --part-lengths overrides
 # part_lengths for pilots only.
 
@@ -8,6 +9,7 @@ char_limit = 300
 max_reasks = 2           # §6 item 8
 notes = true             # §6 item 3: private notes field on every decision
 memory_window = 60  # PILOT ONLY: A/B check vs the 3-period window (effectively full history)
+notes_words = 150        # the A/B ran with 150-word notes (before the summaries layout)
 notes_max_words = 200    # engine details 12: hard cap on the notes carried as memory (instructions say ~150 words)
 notes_max_chars = 1400
 post_game_probe = true   # DECISIONS.md 2026-10-20: comprehension questions after the last period (after all play)

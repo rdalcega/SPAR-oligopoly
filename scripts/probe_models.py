@@ -16,8 +16,8 @@ from pathlib import Path
 
 from oligopoly.llm import Budget, OpenRouterClient, OpenRouterError
 from oligopoly.market import payoffs
-from oligopoly.prompts import (ChatMessage, ChatSpec, chat_prompt, firm_letters, part_instructions,
-                               period_prompt, results_text)
+from oligopoly.prompts import (ChatSpec, chat_prompt, die_line, firm_letters, part_instructions, period_prompt,
+                               results_text, round_text)
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "probes"
@@ -90,7 +90,7 @@ def chat_messages() -> list[dict]:
         if not nxt:
             msgs[-1]["content"] += "\n\n[...]\n\n" + part_instructions(N, FIRM, 2, talk=True, previous_talk=False,
                                                                         chat_spec=CHAT)
-            msgs[-1]["content"] += "\n\n" + chat_prompt(2, 1, 1, FIRM, [], CHAT)
+            msgs[-1]["content"] += "\n\n" + chat_prompt(2, 1, 1, CHAT)
     return msgs
 
 
@@ -105,7 +105,7 @@ def long_messages(target_chars: int = 240_000) -> list[dict]:
         prices = {f: 40 + (i * 7 + t * 3) % 50 for i, f in enumerate(L)}
         msgs.append({"role": "assistant", "content": json.dumps({"price": prices[me]})})
         msgs.append({"role": "user", "content": results_text(1, t, me, prices, payoffs(prices), L)
-                     + "\n\n" + period_prompt(1, t + 1, die_roll=3 if t >= 20 else None)})
+                     + ("\n" + die_line(t, 3) if t >= 20 else "") + "\n\n" + period_prompt(1, t + 1)})
     msgs[-1]["content"] = msgs[-1]["content"].split("\n\nPart 1, period")[0] + "\n\n" + part_instructions(
         n, me, 2, talk=True, previous_talk=False, chat_spec=CHAT)
     filler = ("I propose we all hold at {p} again this period; last time {f} undercut and everyone lost. "
@@ -114,17 +114,17 @@ def long_messages(target_chars: int = 240_000) -> list[dict]:
     while sum(len(m["content"]) for m in msgs) < target_chars:
         t += 1
         for r in range(1, 4):
-            posted = [ChatMessage(f, filler.format(p=90 + t % 10, f=L[(t + i) % n]), r) for i, f in enumerate(L)
-                      if f < me]
-            msgs[-1]["content"] += "\n\n" + chat_prompt(2, t, r, me, posted, CHAT)
+            posted = {f: filler.format(p=90 + t % 10, f=L[(t + i) % n]) for i, f in enumerate(L) if f < me}
+            msgs[-1]["content"] += "\n\n" + round_text(r, posted, L, me) + "\n\n" + chat_prompt(2, t, r, CHAT)
             msgs.append({"role": "assistant", "content": json.dumps({"message": filler.format(p=95, f="A")})})
             msgs.append({"role": "user", "content": f"Round {r} messages after you: " + " | ".join(
                 f"Firm {f}: " + filler.format(p=92, f="B") for f in L if f > me)})
-        msgs[-1]["content"] += "\n\n" + period_prompt(2, t, talk=True, die_roll=3 if t > 20 else None)
+        msgs[-1]["content"] += "\n\n" + period_prompt(2, t, talk=True)
         prices = {f: 90 + (i + t) % 8 for i, f in enumerate(L)}
         msgs.append({"role": "assistant", "content": json.dumps({"price": prices[me]})})
-        msgs.append({"role": "user", "content": results_text(2, t, me, prices, payoffs(prices), L)})
-    msgs[-1]["content"] += "\n\n" + period_prompt(2, t + 1, talk=True, die_roll=3 if t >= 20 else None)
+        msgs.append({"role": "user", "content": results_text(2, t, me, prices, payoffs(prices), L)
+                     + ("\n" + die_line(t, 3) if t >= 20 else "")})
+    msgs[-1]["content"] += "\n\n" + period_prompt(2, t + 1, talk=True)
     return msgs
 
 

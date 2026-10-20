@@ -129,19 +129,23 @@ class ExperimentConfig:
     # post-game comprehension probe after the final period (DECISIONS.md, 2026-10-20); adds calls and the
     # record's "probe" entry, never changes play
     post_game_probe: bool = True
-    # completed periods each request shows verbatim; older play survives only in the firm's own notes
-    # (DECISIONS.md §6 item 3, 2026-10-20)
+    # completed periods whose summaries each request shows; older play survives only in the firm's own notes
+    # (DECISIONS.md §6 item 3, summaries layout)
     memory_window: int = 3
-    # hard cap on the notes a firm carries as memory and in its windowed answers (DECISIONS.md engine details
-    # 12): longer notes are cut at a word boundary and marked " [truncated]"; the instructions ask for ~150 words
-    notes_max_words: int = 200
-    notes_max_chars: int = 1400
+    # the notes length stated to firms ("at most about N words")
+    notes_words: int = 500
+    # hard cap on the notes a firm carries as memory (DECISIONS.md engine details 12): longer notes are cut at a
+    # word boundary and marked " [truncated]"; at least notes_words
+    notes_max_words: int = 650
+    notes_max_chars: int = 4500
 
     def __post_init__(self) -> None:
-        for name, low in (("memory_window", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
+        for name, low in (("memory_window", 1), ("notes_words", 1), ("notes_max_words", 1), ("notes_max_chars", 50)):
             w = getattr(self, name)
             if isinstance(w, bool) or not isinstance(w, int) or w < low:
                 raise ConfigError(f"{name} must be an integer >= {low}, got {w!r}")
+        if self.notes and self.notes_max_words < self.notes_words:
+            raise ConfigError(f"notes_max_words ({self.notes_max_words}) is below notes_words ({self.notes_words})")
 
     @property
     def pilot(self) -> bool:

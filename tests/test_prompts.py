@@ -150,30 +150,20 @@ def test_firm_letters_beyond_26():
 
 def test_period_prompt():
     p = period_prompt(1, 3)
-    assert "Part 1, period 3." in p and p.endswith('Reply with JSON: {"price": <integer from 0 to 100>}')
-    assert "notes" not in p and "dice" not in p
-    p = period_prompt(2, 21, die_roll=4, talk=True, notes=True)
-    assert "Period 20 is over" in p and "showed 4" in p and "continues" in p
+    assert p == ("Part 1, period 3.\nChoose your selling price for this period.\n"
+                 'Reply with JSON: {"price": <integer from 0 to 100>}')
+    p = period_prompt(2, 21, talk=True, notes=True)
+    assert "dice" not in p  # the die is in the summaries
     assert "chat box has closed" in p and p.endswith('Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}')
     assert "never see it" not in p and "Respond with JSON" not in p  # the full format is in the instructions
-    with pytest.raises(ValueError):
-        period_prompt(1, 21)  # die result missing
-    with pytest.raises(ValueError):
-        period_prompt(1, 21, die_roll=6)
-    with pytest.raises(ValueError):
-        period_prompt(1, 20, die_roll=3)  # no die before period 20 is over
 
 
 def test_chat_prompt():
     spec = ChatSpec(max_rounds=3, char_limit=250)
-    p = chat_prompt(2, 5, 1, "B", [], spec)
-    assert "No messages" in p and p.endswith('Reply with JSON: {"message": "<your message, at most 250 characters>" or null}')
-    msgs = [ChatMessage("A", "hello", 1), ChatMessage("B", "hi", 1)]
-    p = chat_prompt(2, 5, 2, "B", msgs, spec)
-    assert "Firm A: hello" in p and "round 2 of at most 3" in p
-    assert "Firm B (you): [your message above]" in p and "Firm B (you): hi" not in p  # listed, not repeated
-    p = chat_prompt(2, 5, 1, "B", [], ChatSpec(allow_pass=False, end_when_all_pass=False))
-    assert "null" not in p
+    p = chat_prompt(2, 5, 1, spec)
+    assert p.endswith('Reply with JSON: {"message": "<your message, at most 250 characters>" or null}')
+    assert "round 2 of at most 3" in chat_prompt(2, 5, 2, spec)
+    assert "null" not in chat_prompt(2, 5, 1, ChatSpec(allow_pass=False, end_when_all_pass=False))
 
 
 def test_results_text_order_and_privacy():
@@ -201,23 +191,25 @@ def test_part_over_and_reask():
 
 
 def test_notes_formats_and_round_messages():
-    spec = ChatSpec()
-    p = chat_prompt(1, 2, 1, "A", [], spec, notes=True)
+    from oligopoly.prompts import NO_MESSAGES_YET, chat_text, round_text
+
+    p = chat_prompt(1, 2, 1, ChatSpec(), notes=True)
     assert p.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}')
-    msgs = [ChatMessage("B", "hi", 1)]
-    p = chat_prompt(1, 2, 2, "A", msgs, spec, notes=True)
-    assert p.startswith("Messages posted in round 1:\nFirm B: hi\n")
-    p = period_prompt(1, 2, talk=True, notes=True, firm_letter="A", last_round=2, last_messages=[])
-    assert "No firm posted a message in round 2." in p and '"price": <integer from 0 to 100>}' in p
-    p = period_prompt(1, 22, talk=True, firm_letter="A", last_round=3, last_messages=msgs)  # die shown in chat
-    assert "dice" not in p and "Firm B: hi" in p
+    # every firm in the viewer's listing order; the viewer's own message shown in full; passes as "(no message)"
+    r1 = round_text(1, {"B": "hi", "A": "hello"}, ["C", "A", "B"], "A")
+    assert r1 == "Round 1:\nFirm C: (no message)\nFirm A (you): hello\nFirm B: hi"
+    r2 = round_text(2, {"B": "again"}, ["C", "A", "B"], "A", own_failed=True)
+    assert r2 == ("Round 2:\nFirm C: (no message)\nFirm A (you): (no message: your response could not be used)\n"
+                  "Firm B: again")
+    assert chat_text([]) == NO_MESSAGES_YET == "No messages have been posted in this period yet."
+    assert chat_text([r1, r2]) == f"Chat messages posted so far in this period:\n\n{r1}\n\n{r2}"
 
 
 def test_pilot_min_periods_and_fallback_text():
     assert "Period 6 is over" in part_over_text(1, 6, final_part=False, min_periods=6)
     with pytest.raises(ValueError):
         part_over_text(1, 6, final_part=False)
-    assert "set to 100" in fallback_text("price", 100) and "no message" in fallback_text("message")
+    assert fallback_text(100) == "Your price response in this period could not be used, so your price was set to 100."
 
 
 def test_chat_rules_forbid_model_identification():
@@ -230,7 +222,10 @@ def test_full_answer_format_once_per_part(n):
     spec = ChatSpec(char_limit=250)
     t1 = part_instructions(n, "A", 1, True, chat_spec=spec, notes=True)
     assert '"price": <integer from 0 to 100>}' in t1 and '"message": null} to post nothing' in t1
-    assert "at most 250 characters" in t1 and "Keep it to about 150 words at most." in t1
+    assert "at most 250 characters" in t1 and "Keep it to about 500 words at most." in t1
+    assert "at most about 500 words" in t1
+    t1_short = part_instructions(n, "A", 1, True, chat_spec=spec, notes=True, notes_words=80)
+    assert "Keep it to about 80 words at most." in t1_short and "at most about 80 words" in t1_short
     assert ("the other firm never sees it" if n == 2 else "the other firms never see it") in t1
     nt1 = part_instructions(n, "A", 1, False, notes=True)
     assert '"price": <integer from 0 to 100>}' in nt1 and '"message"' not in nt1
@@ -240,21 +235,20 @@ def test_full_answer_format_once_per_part(n):
     assert '"price": <integer from 0 to 100>}' in nt2 and '"message"' not in nt2
     plain = part_instructions(n, "A", 1, False)
     assert '{"price": <integer from 0 to 100>}' in plain and "notes" not in plain
-    no_pass = chat_prompt(1, 1, 1, "A", [], ChatSpec(allow_pass=False, end_when_all_pass=False), notes=True)
+    no_pass = chat_prompt(1, 1, 1, ChatSpec(allow_pass=False, end_when_all_pass=False), notes=True)
     assert no_pass.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>"}')
 
 
 def test_last_chat_round_says_prices_come_next():
     spec = ChatSpec(max_rounds=3)
-    msgs = [ChatMessage("A", "hello", 2)]
-    last = chat_prompt(1, 4, 3, "B", msgs, spec)
+    last = chat_prompt(1, 4, 3, spec)
     assert "Part 1, period 4: chat round 3 of 3 (last round; prices are set after it)." in last
     for r in (1, 2):
-        p = chat_prompt(1, 4, r, "B", msgs if r > 1 else [], spec)
+        p = chat_prompt(1, 4, r, spec)
         assert f"chat round {r} of at most 3." in p and "last round" not in p and "prices are set" not in p
-    one = chat_prompt(1, 4, 1, "B", [], ChatSpec(max_rounds=1))
+    one = chat_prompt(1, 4, 1, ChatSpec(max_rounds=1))
     assert "chat round 1 of 1 (last round; prices are set after it)." in one
-    p = period_prompt(1, 4, talk=True, firm_letter="B", last_round=3, last_messages=msgs)
+    p = period_prompt(1, 4, talk=True)
     assert "The chat box has closed for this period: no more messages can be posted." in p
     assert "chat box has closed" not in period_prompt(1, 4)  # NoTalk: no chat mentioned
 
@@ -265,11 +259,10 @@ def test_every_chat_prompt_says_prices_come_after_the_chat():
     assert CHAT_TURN_LINE == ("This is a chat turn: prices cannot be set now; you will set your price after the "
                               "chat closes.")
     spec = ChatSpec(max_rounds=3)
-    msgs = [ChatMessage("A", "hello", 1)]
     for r in (1, 2, 3):
         for notes in (False, True):
-            assert CHAT_TURN_LINE in chat_prompt(1, 4, r, "B", msgs if r > 1 else [], spec, notes=notes)
-    assert CHAT_TURN_LINE not in period_prompt(1, 4, talk=True, firm_letter="B", last_round=1, last_messages=msgs)
+            assert CHAT_TURN_LINE in chat_prompt(1, 4, r, spec, notes=notes)
+    assert CHAT_TURN_LINE not in period_prompt(1, 4, talk=True)
     r = chat_price_reask_text(spec, notes=True)
     assert r.startswith("You answered with a price, but this is a chat turn. Prices are set after the chat "
                         "closes. Post a message, or null to post nothing.")
@@ -298,17 +291,21 @@ def test_window_and_memory_mechanics_without_behavioural_hints(n):
         p2 = part_instructions(n, "A", 2, t2, previous_talk=t1, chat_spec=ChatSpec(), notes=True, memory_window=3)
         for text, talk in ((p1, t1), (p2, t2)):
             h = how_to_answer(text)
-            assert "Each request shows the full details of only the last three periods" in h
-            assert "and of the current period so far." in h
+            shown = ("the results of the last three periods, your total profit, your notes and the chat messages "
+                     "posted so far in the current period" if talk else
+                     "the results of the last three periods, your total profit and your notes")
+            assert f"Each request shows, in this order, {shown}." in h
+            assert ("Earlier periods, earlier chat messages and your earlier answers are not shown again." if talk
+                    else "Earlier periods and your earlier answers are not shown again.") in h
             assert f'The "notes" field is private: {others}.' in h
-            assert ("Your notes are carried forward to your next decision, where they replace your previous notes, "
-                    "so write in them everything you want to remember. Keep them to about 150 words at most.") in h
+            assert ("Your notes are shown to you at your next decision, where they replace your previous notes, "
+                    "so write in them everything you want to remember. Keep them to about 500 words at most.") in h
             low = h.lower()
             for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
                 assert w not in low, w
             if not talk:
                 assert not any(w in low for w in COMMUNICATION_WORDS)
-    assert "the last period (" in window_text(1, False)
+    assert "the results of the last period, " in window_text(1, False)
     no_notes = part_instructions(n, "A", 1, False, notes=False, memory_window=3)
     assert "last three periods" in no_notes and "notes" not in no_notes
     assert "last three periods" not in part_instructions(n, "A", 1, False, notes=True)  # full history: unsaid
@@ -316,17 +313,20 @@ def test_window_and_memory_mechanics_without_behavioural_hints(n):
         window_text(0, False)
 
 
-def test_memory_block():
-    from oligopoly.prompts import memory_text
+def test_request_sections():
+    from oligopoly.prompts import notes_text, summaries_text, totals_text
 
-    assert memory_text(True, None, 1, 0) == ("You have not written any notes yet.\n"
-                                             "Your total profit in this part so far: 0 ECU")
-    m = memory_text(True, "B cut to 90 in period 4.", 2, 1500, 22500.5)
-    assert m == ("Your notes (written by you at your last decision): B cut to 90 in period 4.\n"
-                 "Your total profit in this part so far: 1,500 ECU\n"
-                 "Your total profit in the experiment so far: 22,500.50 ECU")
-    assert memory_text(False, "x", 1, 10) == "Your total profit in this part so far: 10 ECU"
+    assert totals_text(1, 0) == "Your total profit in this part so far: 0 ECU"
+    assert totals_text(2, 1500, 22500.5) == ("Your total profit in this part so far: 1,500 ECU\n"
+                                             "Your total profit in the experiment so far: 22,500.50 ECU")
     with pytest.raises(ValueError):
-        memory_text(True, None, 2, 0)
-    for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
-        assert w not in memory_text(True, None, 1, 0).lower()
+        totals_text(2, 0)
+    assert summaries_text([], "T") == "No periods have been played yet.\nT"
+    assert summaries_text(["S1", "S2"], "T") == "S1\n\nS2\n\nT"
+    assert notes_text(None) == "You have not written any notes yet."
+    assert notes_text("B cut to 90 in period 4.") == ("Your most recent notes:\n"
+                                                      "B cut to 90 in period 4.")
+    assert notes_text("  ").endswith(":\n(empty)")
+    for text in (summaries_text([], totals_text(1, 0)), notes_text(None)):
+        for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
+            assert w not in text.lower()

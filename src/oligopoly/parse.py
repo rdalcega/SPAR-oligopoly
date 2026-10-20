@@ -23,7 +23,7 @@ from typing import Any
 # Version of the parsing rules, part of every market fingerprint and of run_config.json, so a run never mixes
 # markets parsed under different rules. Bump it whenever a change can turn an invalid answer valid or change
 # the value read from an answer. 1: initial rules; 2: structural typographic quotes straightened (2026-10-20).
-PARSER_VERSION = 2
+PARSER_VERSION = 3  # 3: no "notes long" warning (the stated length is a setting; the engine caps notes)
 
 _THINK = re.compile(r"<(think|thinking|reasoning)>.*?</\1>", re.S | re.I)
 _THINK_CLOSE = re.compile(r"</(think|thinking|reasoning)>", re.I)
@@ -160,8 +160,6 @@ def _notes(obj: dict[str, Any], p: Parsed) -> None:
         p.warnings.append(f"notes coerced from {type(n).__name__}")
         n = json.dumps(n, ensure_ascii=False)
     p.notes = n
-    if len(n.split()) > 150:
-        p.warnings.append(f"notes long ({len(n.split())} words)")
 
 
 def _no_object(content: str | None, key: str) -> str:

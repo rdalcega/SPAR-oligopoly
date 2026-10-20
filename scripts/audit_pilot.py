@@ -8,7 +8,8 @@ Writes data/audits/<run ids>_audit.json (or --out) and prints a summary. Checks 
 the recorded markets and call logs (A), extracts per-market behaviour (B), and token/cost statistics (C). Never
 modifies run data.
 
-Records with windowed context (`instructions` and `transcripts`, DECISIONS.md §6 item 3, 2026-10-20): every
+Records with windowed or summaries-layout context (`instructions` and `transcripts`, DECISIONS.md §6 item 3;
+the summaries layout's transcript entries carry a `kind`): every
 attempt's request is rebuilt from the record with `llm.reconstruct_request` and its messages_sha256 checked
 against the attempt's context and against the call log's line for that call (where the log has one); the leak
 checks (no other firm's notes; no same-round messages or same-period results of others) run on the rebuilt
@@ -33,7 +34,7 @@ from oligopoly import market as mk  # noqa: E402
 from oligopoly.engine import is_market_record_file  # noqa: E402
 from oligopoly.llm import messages_sha256, reconstruct_from_log, reconstruct_request  # noqa: E402
 from oligopoly.analysis.chat import code_message, code_period  # noqa: E402
-from oligopoly.prompts import OWN_MESSAGE, format_ecu  # noqa: E402
+from oligopoly.prompts import OWN_MESSAGE, format_ecu, round_text, totals_text  # noqa: E402
 
 DEFAULT_RUNS = ["pilot1", "pilot1-q14"]
 RUNS_DIR = ROOT / "data/runs"
@@ -100,15 +101,25 @@ def firm_view(rec: dict, L: str) -> dict:
     the index of the first user text of Part 2, the Part 2 instructions, the Part 1 text (to check it never
     mentions Part 2) and every text the firm saw."""
     L1 = part_lengths(rec)[0]
-    if "transcripts" in rec:  # windowed context: instructions apart from the transcript
+    if "transcripts" in rec:  # windowed or summaries layout: instructions apart from the transcript
         instr, tr = rec["instructions"][L], rec["transcripts"][L]
         users = [m["content"] for m in tr if m["role"] == "user"]
         periods = [m["period"] for m in tr if m["role"] == "user"]
         p2i = next((i for i, g in enumerate(periods) if g > L1), len(users))
         p2_instr = instr[1] if len(instr) > 1 else ""
+        if tr and "kind" in tr[0]:  # summaries layout: each prompt or re-ask is answered, and only those are;
+            # the last entry may be an unanswered probe prompt (a probe skipped on context overflow)
+            asks = [i for i, m in enumerate(tr) if m["kind"] in ("prompt", "reask")]
+            answered = [i for i in asks if i + 1 < len(tr)]
+            roles_ok = all(tr[i + 1]["kind"] == "answer" for i in answered) and \
+                [i - 1 for i, m in enumerate(tr) if m["role"] == "assistant"] == answered and \
+                (answered == asks or tr[-1]["kind"] == "prompt" and tr[-1]["period"] > len(rec["periods"]))
+        else:
+            roles_ok = all(r == ("user", "assistant")[i % 2] for i, r in enumerate(m["role"] for m in tr))
         return {"system": instr[0], "users": users, "p2i": p2i, "p2_instr": p2_instr,
                 "part1_text": "\n".join([instr[0], *users[:p2i]]), "roles": [m["role"] for m in tr],
-                "roles_ok": all(r == ("user", "assistant")[i % 2] for i, r in enumerate(m["role"] for m in tr)),
+                "roles_ok": roles_ok, "sections": bool(tr) and "kind" in tr[0],
+                "chat_rounds": [m["content"] for m in tr if m.get("kind") == "chat"],
                 "all_text": "\n".join([*instr, *(m["content"] for m in tr)])}
     h = rec["histories"][L]  # append-only history
     roles = [m["role"] for m in h]
@@ -117,7 +128,7 @@ def firm_view(rec: dict, L: str) -> dict:
     part1_text = "\n".join([h[0]["content"], *users[:p2i]]) + (users[p2i].split("Part 1 is over.")[0]
                                                                if p2i < len(users) else "")
     return {"system": h[0]["content"], "users": users, "p2i": p2i, "p2_instr": users[p2i] if p2i < len(users) else "",
-            "part1_text": part1_text, "roles": roles,
+            "part1_text": part1_text, "roles": roles, "sections": False, "chat_rounds": [],
             "roles_ok": roles[0] == "system" and all(roles[i] != roles[i + 1] for i in range(len(roles) - 1)),
             "all_text": "\n".join(m["content"] for m in h)}
 
@@ -231,7 +242,9 @@ def check_market(rec: dict) -> dict:
         after = "\n".join(users[v["p2i"]:])
         if "Instructions – Part 2" in after:  # older records: the instructions sit in the history
             after = after.split("Instructions – Part 2", 1)[1]
-        if talk["part2"] is False and re.search(r": chat,? round|chat box has closed|Messages posted", after):
+        if talk["part2"] is False and re.search(
+                r": chat,? round|chat box has closed|Messages posted|messages posted so far|No messages have been posted",
+                after):
             issues.append(f"{L}: chat prompt in Part 2 NoTalk")
         dies = re.findall(r"Period (\d+) is over\. The computer threw the virtual dice and it showed (\d)", full_user)
         if dies != expected_dies(rec):
@@ -256,6 +269,10 @@ def check_market(rec: dict) -> dict:
                 if int(pr) != x["prices"][F] or pf != format_ecu(x["profits"][F]):
                     issues.append(f"{L}: results text wrong for {F} p{p} t{t}")
             run[x["part"] - 1] += x["profits"][L]
+            if v["sections"]:  # cumulative profit follows the summaries in each request, not each results text
+                if cp or ct:
+                    issues.append(f"{L}: cumulative profit inside a period summary p{p} t{t}")
+                continue
             if cp != format_ecu(run[x["part"] - 1]):
                 issues.append(f"{L}: cumulative part profit shown {cp} != {format_ecu(run[x['part'] - 1])} p{p} t{t}")
             if x["part"] == 2 and ct != format_ecu(sum(run)):
@@ -270,7 +287,12 @@ def check_market(rec: dict) -> dict:
             if F != L and any(len(nt) > 30 and nt in v["all_text"] for nt in all_notes[F]):
                 issues.append(f"{L}: sees notes of {F}")
         # round-message blocks show exactly the previous round's posted messages, in L's listing order
-        for x in periods:
+        if v["sections"]:  # each chat round as the firm saw it: every firm in its listing order
+            want = [round_text(r["round"], r["messages"], orders[L], L, own_failed=r["decisions"][L]["fallback"])
+                    for x in periods for r in x["chat"]]
+            if v["chat_rounds"] != want:
+                issues.append(f"{L}: chat rounds shown differ from the record")
+        for x in periods if not v["sections"] else []:
             for r in x["chat"]:
                 blocks = []  # the firm's own message as a placeholder (current) or repeated (older records)
                 for own in (OWN_MESSAGE, None):
@@ -394,10 +416,12 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
         n_ok += 1
         if messages_sha256(msgs) != ctx.get("messages_sha256"):
             issues.append(f"rebuilt request does not match its context hash: {cid}")
-        if ctx.get("merged") and any(x["role"] == y["role"] for x, y in zip(msgs, msgs[1:])):
+        if (ctx.get("merged") or ctx.get("layout")) and any(x["role"] == y["role"] for x, y in zip(msgs, msgs[1:])):
             issues.append(f"roles do not alternate: {cid}")
         if msgs[-1]["role"] != "user":
             issues.append(f"request does not end with a user turn: {cid}")
+        if ctx.get("layout") and ctx.get("totals") != expected_totals(rec, L, where):
+            issues.append(f"cumulative profit shown {ctx.get('totals')!r} != record: {cid}")
         if lines := logged.get(cid):  # the log hashes the messages as sent (cache_control included)
             n_log += 1
             if not any(messages_sha256(reconstruct_request(rec, L, ctx, c.get("cache_upto"))) == c["messages_sha256"]
@@ -406,6 +430,18 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
         text = "\n".join(content_text(m) for m in msgs)
         issues += [f"{x}: {cid}" for x in leaks(rec, L, where, text, all_notes, posted)]
     return {"issues": issues, "ok_calls": n_ok, "checked_against_log": n_log}
+
+
+def expected_totals(rec: dict, L: str, where: tuple) -> str:
+    """Firm L's cumulative-profit text for a call at `where` ((part, period, phase), or the probe): the profits of
+    the periods completed before it."""
+    if where[0] == "probe":
+        done, part = rec["periods"], 2
+    else:
+        part, period = where[0], where[1]
+        done = [x for x in rec["periods"] if (x["part"], x["period"]) < (part, period)]
+    cum = [sum(x["profits"][L] for x in done if x["part"] == p) for p in (1, 2)]
+    return totals_text(part, cum[part - 1], sum(cum) if part == 2 else None)
 
 
 def check_calls_legacy(rec: dict, calls: list[dict]) -> dict:
