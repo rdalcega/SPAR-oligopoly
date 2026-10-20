@@ -22,11 +22,18 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
 
 ### Scope (extension beyond the paper)
 
-- **Market sizes:** n ∈ {2, 4, 6, 8, 10}. n = 10 is an extension; at δ = 5/6 full collusion is an equilibrium for
+- ~~**Market sizes:** n ∈ {2, 4, 6, 8, 10}.~~ *(superseded 2026-10-20, below)* n = 10 is an extension; at δ = 5/6 full collusion is an equilibrium for
   n ≤ 6 (n = 6 only marginally) and not for n = 8, 10.
-- **Orderings:** all three (NoTalk→Talk, Talk→NoTalk, NoTalk→NoTalk) at every n. Only NoTalk→Talk at n ∈
+- ~~**Orderings:** all three (NoTalk→Talk, Talk→NoTalk, NoTalk→NoTalk) at every n.~~ *(superseded 2026-10-20, below)* Only NoTalk→Talk at n ∈
   {2, 4, 6, 8} and the two controls at n = 4 are compared directly with the human results; the rest are
   reported separately as extensions.
+- **2026-10-20 update (decided by Rodrigo, after the first sweep): the paper's cells only.** n = 10 is dropped,
+  and T-NT and NT-NT run only at n = 4, as in the paper: NoTalk→Talk at n ∈ {2, 4, 6, 8} plus both controls at
+  n = 4 (six cells, 36 markets per model at 6 per cell). This is the default of further full sweeps:
+  `oligopoly.run` plays these cells (`config.PAPER_CELLS`), `--n`/`--orderings` only narrow them (so a resume
+  never adds extension cells), and the cost and context projections use the same default. Extension cells
+  need an explicit `--grid`, which plays every `--n` × `--orderings` pair. The n = 10 and
+  off-paper control markets of the 2026-10-20 sweep are kept and still reported as extensions.
 
 ### Models (§6 item 10, plus model choice)
 

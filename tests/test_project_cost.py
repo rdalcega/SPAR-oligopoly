@@ -62,6 +62,9 @@ def test_excluded_cells_not_projected():
     from oligopoly.config import ModelConfig
 
     cfg = ModelConfig("m", "acme/m", "p", exclude_cells=(("NT-T", 8), ("T-NT", 8)))
-    todo, excluded = pc.cells_to_project(cfg, [4, 8], ["NT-T", "T-NT", "NT-NT"])
+    todo, excluded = pc.cells_to_project(cfg, [4, 8], ["NT-T", "T-NT", "NT-NT"], grid=True)
     assert todo == [(4, "NT-T"), (4, "T-NT"), (4, "NT-NT"), (8, "NT-NT")]
     assert excluded == [(8, "NT-T"), (8, "T-NT")]
+    todo, excluded = pc.cells_to_project(cfg, None, None)  # default: the paper's cells, as in oligopoly.run
+    assert todo == [(2, "NT-T"), (4, "NT-T"), (6, "NT-T"), (4, "T-NT"), (4, "NT-NT")]
+    assert excluded == [(8, "NT-T")]

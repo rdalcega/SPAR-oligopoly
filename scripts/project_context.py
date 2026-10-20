@@ -3,7 +3,8 @@
     uv run python scripts/project_context.py                 # print the table (fetches endpoint metadata)
     uv run python scripts/project_context.py --write         # also write exclude_cells into config/models.toml
 
-Method: every cell (n x ordering, full part lengths from config/experiment.toml) is played offline by the real
+Method: every cell (the paper's cells by default, as `oligopoly.run` picks them; --grid for n x ordering; full
+part lengths from config/experiment.toml) is played offline by the real
 engine with a replay client. The client answers with outputs drawn from that model's completed pilot markets
 (data/runs/pilot*/markets/*.json; all pilots pooled if the model has none with chat): real notes and chat
 texts, real prices, the observed pass rate and number of chat rounds per period, and the observed rate of
@@ -32,13 +33,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models
+from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models, select_cells
 from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed, is_market_record_file
 from oligopoly.llm import ChatResult, Usage, find_endpoint, get_endpoints, prompt_token_bound
 from oligopoly.mock import probe_answer
 from oligopoly.parse import strip_reasoning
 
-NS = (2, 4, 6, 8, 10)
 KINDS = ("price", "message")
 
 
@@ -213,8 +213,9 @@ def write_excludes(path: Path, excludes: dict[str, list[tuple[str, int]]]) -> No
 async def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--models", nargs="*", help="model names (default: every live model in models.toml)")
-    ap.add_argument("--n", nargs="+", type=int, default=list(NS))
-    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), default=list(ORDERINGS))
+    ap.add_argument("--n", nargs="+", type=int, help="narrows the paper's cells, as in oligopoly.run")
+    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), help="narrows the paper's cells")
+    ap.add_argument("--grid", action="store_true", help="every --n x --orderings pair (extension cells)")
     ap.add_argument("--markets", type=int, default=3, help="replays per cell; the peak is their maximum")
     ap.add_argument("--threshold", type=float, default=0.8, help="share of context_length a cell may use")
     ap.add_argument("--pilots", default=str(ROOT / "data" / "runs"), help="directory holding pilot*/markets")
@@ -234,7 +235,8 @@ async def main(argv: list[str] | None = None) -> int:
     if not samples.get("*") or not samples["*"].usable:
         raise SystemExit(f"no completed pilot markets with chat under {a.pilots}")
     ctx = dict(zip(names, await asyncio.gather(*(context_length(registry[k]) for k in names))))
-    cells = [(n, o) for n in a.n for o in a.orderings]
+    cells = select_cells(a.n, a.orderings, a.grid)
+    ns, orderings = sorted({n for n, _ in cells}), [o for o in ORDERINGS if any(c[1] == o for c in cells)]
     print(f"Part lengths {exp.part_lengths}; peak over {a.markets} replays per cell; limit = "
           f"{a.threshold:.0%} of context_length; tokens = prompt_token_bound(bytes_per_token_min) + max_tokens")
     excludes: dict[str, list[tuple[str, int]]] = {}
@@ -254,10 +256,13 @@ async def main(argv: list[str] | None = None) -> int:
             continue
         # cells not projected this time keep their current setting
         excludes[name] = [c for c in cfg.exclude_cells if (c[1], c[0]) not in cells]
-        print(f"  {'n':>3} " + " ".join(f"{o:>16}" for o in a.orderings))
-        for n in a.n:
+        print(f"  {'n':>3} " + " ".join(f"{o:>16}" for o in orderings))
+        for n in ns:
             row = []
-            for o in a.orderings:
+            for o in orderings:
+                if (n, o) not in cells:
+                    row.append(f"{'-':>14}")
+                    continue
                 total = await project(cfg, sample, n, o, exp, a.markets) + (cfg.max_tokens or 0)
                 ok = total <= limit
                 if not ok:

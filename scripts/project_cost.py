@@ -3,7 +3,8 @@
     uv run python scripts/project_cost.py --model gpt-oss-20b --markets-per-cell 6   # fetches endpoint pricing
 
 Method:
-- Every cell (n x ordering, full part lengths from config/experiment.toml) is replayed offline by the real engine
+- Every cell (the paper's cells by default, as `oligopoly.run` picks them; --grid for n x ordering; full
+  part lengths from config/experiment.toml) is replayed offline by the real engine
   with `project_context`'s replay client (pilot notes, messages, prices, pass rate, chat rounds and invalid-answer
   rate of that model), --replays times. Every call's prompt (UTF-8 bytes of the message contents, as the context
   guard counts them) and phase (chat / price) is recorded.
@@ -37,9 +38,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from project_context import NS, ReplayClient, Sample, load_samples
+from project_context import ReplayClient, Sample, load_samples
 
-from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models
+from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models, select_cells
 from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed
 from oligopoly.llm import _content_text, find_endpoint, get_endpoints, prompt_token_bound
 
@@ -146,11 +147,11 @@ def steps(calls: list[dict[str, Any]]) -> dict[str, int]:
     return out
 
 
-def cells_to_project(cfg: ModelConfig, ns: list[int], orderings: list[str]) -> tuple[list[tuple[int, str]],
-                                                                                   list[tuple[int, str]]]:
-    """(cells to project, cells the model excludes) in the order given; excluded cells are not run, so they
-    are left out of the projection, as `oligopoly.run` leaves them out of a run."""
-    pairs = [(n, o) for n in ns for o in orderings]
+def cells_to_project(cfg: ModelConfig, ns: list[int] | None, orderings: list[str] | None, grid: bool = False
+                     ) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """(cells to project, cells the model excludes), chosen as `oligopoly.run` chooses them (the paper's cells
+    without `ns`); excluded cells are not run, so they are left out of the projection, as in a run."""
+    pairs = select_cells(ns, orderings, grid)
     return [c for c in pairs if not cfg.excludes(*c)], [c for c in pairs if cfg.excludes(*c)]
 
 
@@ -173,8 +174,9 @@ async def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--model", required=True, help="name in config/models.toml")
     ap.add_argument("--markets-per-cell", type=int, default=6)
-    ap.add_argument("--n", nargs="+", type=int, default=list(NS))
-    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), default=list(ORDERINGS))
+    ap.add_argument("--n", nargs="+", type=int, help="narrows the paper's cells, as in oligopoly.run")
+    ap.add_argument("--orderings", nargs="+", choices=list(ORDERINGS), help="narrows the paper's cells")
+    ap.add_argument("--grid", action="store_true", help="every --n x --orderings pair (extension cells)")
     ap.add_argument("--replays", type=int, default=2, help="offline replays per cell; results are their mean")
     ap.add_argument("--pilots", default=str(ROOT / "data" / "runs"), help="directory holding pilot*/")
     ap.add_argument("--models-file", default=str(ROOT / "config" / "models.toml"))
@@ -206,7 +208,7 @@ async def main(argv: list[str] | None = None) -> int:
            f"{'$/cell bound':>12} {'h/mkt p50':>9} {'h/mkt p90':>9}")
     print(hdr)
     tot = defaultdict(float)
-    todo, excluded = cells_to_project(cfg, a.n, a.orderings)
+    todo, excluded = cells_to_project(cfg, a.n, a.orderings, a.grid)
     for n, o in todo:
         reps = [await replay_cell(cfg, sample, n, o, exp, i) for i in range(a.replays)]
         r = defaultdict(float)

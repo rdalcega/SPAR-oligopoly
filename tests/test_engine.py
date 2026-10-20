@@ -7,7 +7,7 @@ import re
 import pytest
 
 from oligopoly import engine, market
-from oligopoly.config import ConfigError, ExperimentConfig, ModelConfig, load_models
+from oligopoly.config import ConfigError, ExperimentConfig, ModelConfig, load_models, PAPER_CELLS, select_cells
 from oligopoly.engine import MarketSpec, environment_seed, market_path, run_market
 from oligopoly.llm import BudgetExceeded, RetriesExhausted
 from oligopoly.mock import MockClient
@@ -337,7 +337,7 @@ async def test_cli(tmp_path, capsys):
         (tmp_path / "m.toml").write_text(PENDING_TOML)
         await main(["--run-id", "x", "--models", "pending", "--n", "2", "--budget-usd", "1",
                     "--models-file", str(tmp_path / "m.toml"), "--out-root", str(tmp_path)])
-    args = ["--run-id", "cli", "--models", "mock", "--n", "2", "3", "--orderings", "T-NT",
+    args = ["--run-id", "cli", "--models", "mock", "--grid", "--n", "2", "3", "--orderings", "T-NT",
             "--markets-per-cell", "1", "--part-lengths", "3,2", "--out-root", str(tmp_path)]
     assert await main(args) == 0
     run = tmp_path / "cli"
@@ -345,6 +345,29 @@ async def test_cli(tmp_path, capsys):
     assert len(json.loads((run / "run.json").read_text())) == 1
     assert await main(args + ["--dry-run"]) == 0
     assert "Estimated cost" in capsys.readouterr().out
+
+
+def test_select_cells():
+    paper = [(2, "NT-T"), (4, "NT-T"), (6, "NT-T"), (8, "NT-T"), (4, "T-NT"), (4, "NT-NT")]
+    assert select_cells(None, None) == paper
+    assert select_cells(None, ["T-NT", "NT-NT"]) == [(4, "T-NT"), (4, "NT-NT")]
+    assert select_cells([2, 6, 8], None) == [(2, "NT-T"), (6, "NT-T"), (8, "NT-T")]  # a resume never adds extensions
+    assert select_cells([10], None) == []
+    assert select_cells([2, 3], ["T-NT"], grid=True) == [(2, "T-NT"), (3, "T-NT")]
+    with pytest.raises(ConfigError):
+        select_cells([10], None, grid=True)
+
+
+async def test_cli_defaults_to_paper_cells(tmp_path):
+    args = ["--run-id", "paper", "--models", "mock", "--markets-per-cell", "1", "--part-lengths", "2,1",
+            "--out-root", str(tmp_path)]
+    assert await main(args) == 0
+    recs = [json.loads(p.read_text()) for p in (tmp_path / "paper" / "markets").glob("*.json")
+            if engine.is_market_record_file(p)]
+    assert sorted((r["spec"]["n"], r["spec"]["ordering"]) for r in recs) == sorted(select_cells(None, None))
+    assert json.loads((tmp_path / "paper" / "run.json").read_text())[0]["cells"] == sorted(map(list, PAPER_CELLS))
+    with pytest.raises(ConfigError, match="--grid"):
+        await main(["--run-id", "none", "--models", "mock", "--n", "10", "--out-root", str(tmp_path)])
 
 
 async def test_market_with_openrouter_client(tmp_path):
@@ -709,7 +732,7 @@ def models_file(tmp_path, temperature=1.0):
 
 
 async def test_run_config_resume(tmp_path):
-    base = ["--run-id", "rc", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1", "--part-lengths",
+    base = ["--run-id", "rc", "--grid", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1", "--part-lengths",
             "2,1", "--out-root", str(tmp_path / "runs")]
     mf = models_file(tmp_path)
     assert await main(base + ["--models", "mock", "--models-file", mf]) == 0
@@ -747,7 +770,7 @@ async def test_preflight_aborts_before_any_market(tmp_path, monkeypatch):
 
 
 def rc_args(tmp_path, *extra):
-    return ["--run-id", "rc", "--n", "2", "--orderings", "NT-NT", "--part-lengths", "2,1", "--models", "mock",
+    return ["--run-id", "rc", "--grid", "--n", "2", "--orderings", "NT-NT", "--part-lengths", "2,1", "--models", "mock",
             "--models-file", models_file(tmp_path), "--out-root", str(tmp_path / "runs"), *extra]
 
 
@@ -835,7 +858,7 @@ async def test_dry_run_plans_with_endpoint_context_length(tmp_path, capsys):
     engine.write_json_atomic(engine.failure_path(run, s), {
         "reason": "context_overflow", "fingerprint": engine.market_fingerprint(s, exp),
         "guard": {"bytes_per_token_min": 2.5, "max_tokens": 64, "context_length": 2600}})
-    args = ["--run-id", "dr", "--models", "live", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1",
+    args = ["--run-id", "dr", "--models", "live", "--grid", "--n", "2", "--orderings", "NT-NT", "--markets-per-cell", "1",
             "--part-lengths", "2,1", "--models-file", str(f), "--out-root", str(tmp_path / "runs"), "--dry-run"]
     for ctx, todo in ((2600, 0), (4000, 1)):
         ep = {"tag": "deepinfra/fp8", "provider_name": "DeepInfra", "context_length": ctx,
