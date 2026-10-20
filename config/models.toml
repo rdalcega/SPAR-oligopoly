@@ -1,0 +1,99 @@
+# Per-model settings, held fixed across every cell (DECISIONS.md §6 item 9). The table name is the model's
+# short name used on the command line and in output file names.
+#
+# Keys: model (OpenRouter id), provider (endpoint tag to pin, fallbacks off), temperature, top_p,
+# top_k (optional), max_tokens, reasoning (OpenRouter reasoning object), require_parameters,
+# cache_control (optional, default true: add a cache breakpoint on the newest message),
+# pricing (optional, USD per million tokens; used by --dry-run instead of live endpoint pricing).
+#
+# provider = "TODO" until the provider probe has picked an endpoint: the runner refuses live calls for it.
+# Sampling values below are placeholders taken from the model cards' reasoning-mode recommendations as far as
+# known; confirm each against its card before the sweep.
+
+[mock]
+model = "mock"
+provider = "mock"
+temperature = 1.0
+top_p = 1.0
+max_tokens = 4096
+reasoning = { effort = "medium" }
+require_parameters = true
+# Illustrative prices of a small open-weight model, for dry-run estimates only.
+pricing = { prompt = 0.10, completion = 0.40, input_cache_read = 0.025 }
+
+["qwen3.8-27b"]
+model = "qwen/qwen3.8-27b"
+provider = "TODO"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["qwen3.6-27b"]
+model = "qwen/qwen3.6-27b"
+provider = "TODO"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["qwen3.5-27b"]
+model = "qwen/qwen3.5-27b"
+provider = "TODO"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["qwen3.5-9b"]
+model = "qwen/qwen3.5-9b"
+provider = "TODO"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["gemma-4-26b-a4b"]
+model = "google/gemma-4-26b-a4b-it"
+provider = "TODO"
+temperature = 1.0
+top_p = 0.95
+top_k = 64
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["gpt-oss-20b"]
+model = "openai/gpt-oss-20b"
+provider = "TODO"
+temperature = 1.0
+top_p = 1.0
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["granite-4.2-8b"]
+model = "ibm-granite/granite-4.2-8b"
+provider = "TODO"
+temperature = 0.7  # TODO: confirm from model card
+top_p = 0.95
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["lfm-2.5-24b-a2b"]
+model = "liquid/lfm-2.5-24b-a2b"
+provider = "TODO"
+temperature = 0.7  # TODO: confirm from model card
+top_p = 0.95
+max_tokens = 16384
+reasoning = { effort = "medium" }
+require_parameters = true

@@ -298,7 +298,8 @@ texts.
     (§6 item 1).
 16. "After the minute expires, the chat box will close" became "After the last round, the chat box will close".
     Same reason.
-17. The two restrictions (no self-identification, no offensive language) are kept verbatim.
+17. The two restrictions (no self-identification, no offensive language) are kept verbatim, except that the
+    self-identification examples add "what kind of system or model you are" (DECISIONS.md §6 item 7).
 18. In Talk → NoTalk, the chat paragraphs go into Part 1, after the examples, with the lead "In this part of the
     experiment you will be able to communicate with …" instead of "The difference to Part 1 is …". No published
     text exists for this ordering.
@@ -328,8 +329,14 @@ texts.
     use the instructions' vocabulary (period, selling price, ECU, virtual dice, chat box) and nothing more. The
     own firm is marked "(you)" in chat logs and results. The rivals' cumulative profits are never shown. The
     order firms are listed in the results is a parameter, for shuffling.
-26. JSON output (`{"price": …}`, `{"message": …}` or `null`) and the optional private `"notes"` field are new
-    (§6 items 2 and 8).
+26. JSON output (`{"price": …}`, `{"message": …}` or `null`) and the private `"notes"` field are new
+    (§6 items 2, 3 and 8). In the engine every price and chat answer has the form
+    `{"notes": "<private notes, at most about 100 words>", "price": …}` / `{"notes": …, "message": …}`.
+27. Engine wiring (added with `src/oligopoly/engine.py`): each chat prompt from round 2 on, and the price prompt
+    after a chat, open with the previous round's messages ("Messages posted in round k:" or "No firm posted a
+    message in round k."), so each message is shown once. After a failed last re-ask the firm is told
+    `fallback_text` ("Your response could not be used, so your price for this period was set to X." / "... so
+    you posted no message in that round.").
 
 ## Open questions for the PI
 

@@ -9,6 +9,7 @@ from oligopoly.prompts import (
     ChatMessage,
     ChatSpec,
     chat_prompt,
+    fallback_text,
     firm_letters,
     part_instructions,
     part_over_text,
@@ -192,3 +193,28 @@ def test_part_over_and_reask():
     assert "The experiment is over" in s and "123,456" in s
     r = reask_text("price 150 is above 100", '{"price": <integer from 0 to 100>}')
     assert "150" in r and '{"price"' in r
+
+
+def test_notes_formats_and_round_messages():
+    spec = ChatSpec()
+    p = chat_prompt(1, 2, 1, "A", [], spec, notes=True)
+    assert '{"notes": "<private notes, at most about 100 words>", "message": null}' in p and "never see it" in p
+    msgs = [ChatMessage("B", "hi", 1)]
+    p = chat_prompt(1, 2, 2, "A", msgs, spec, notes=True)
+    assert p.startswith("Messages posted in round 1:\nFirm B: hi\n")
+    p = period_prompt(1, 2, talk=True, notes=True, firm_letter="A", last_round=2, last_messages=[])
+    assert "No firm posted a message in round 2." in p and '"price": <integer from 0 to 100>}' in p
+    p = period_prompt(1, 22, talk=True, firm_letter="A", last_round=3, last_messages=msgs)  # die shown in chat
+    assert "dice" not in p and "Firm B: hi" in p
+
+
+def test_pilot_min_periods_and_fallback_text():
+    assert "Period 6 is over" in part_over_text(1, 6, final_part=False, min_periods=6)
+    with pytest.raises(ValueError):
+        part_over_text(1, 6, final_part=False)
+    assert "set to 100" in fallback_text("price", 100) and "no message" in fallback_text("message")
+
+
+def test_chat_rules_forbid_model_identification():
+    p = part_instructions(4, "A", 2, True, previous_talk=False, chat_spec=ChatSpec())
+    assert "what kind of system or model you are" in p

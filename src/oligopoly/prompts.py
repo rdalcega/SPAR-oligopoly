@@ -226,7 +226,8 @@ def _chat_rules(n: int, spec: ChatSpec) -> str:
         parts.append(p)
     parts.append(
         "There are only two restrictions on messages: you may not post messages which identify yourself "
-        "(e.g. age, gender, location etc.) and you may not use offensive language."
+        "(e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive "
+        "language."
     )
     parts.append("After the last round, the chat box will close and you will have to choose your price.")
     return " ".join(parts)
@@ -355,10 +356,17 @@ def part_instructions(
 # --------------------------------------------------------------------------------------------------
 
 
-def die_line(previous_period: int, roll: int) -> str:
-    """Announces the die thrown after `previous_period` (>= 20)."""
-    if previous_period < MIN_PERIODS:
-        raise ValueError("the die is only thrown once the 20th period is over")
+NOTES_WORDS = 100
+
+
+def die_line(previous_period: int, roll: int, min_periods: int = MIN_PERIODS) -> str:
+    """Announces the die thrown after `previous_period` (>= min_periods).
+
+    min_periods is MIN_PERIODS in every real run; pilots with parts shorter than 20 periods lower it to the
+    part length (the instructions still say 20).
+    """
+    if previous_period < min_periods:
+        raise ValueError(f"the die is only thrown once the {min_periods}th period is over")
     if not 1 <= roll <= 6:
         raise ValueError("a die shows 1-6")
     outcome = "this part of the experiment is over" if roll == 6 else "this part of the experiment continues"
@@ -368,18 +376,36 @@ def die_line(previous_period: int, roll: int) -> str:
     )
 
 
+_NOTES_FIELD = f'"notes": "<private notes, at most about {NOTES_WORDS} words>"'
+_NOTES_LINE = (
+    f'The "notes" field is private: the other firms never see it. Keep it to about {NOTES_WORDS} words at most.'
+)
+
+
 def price_format(notes: bool) -> str:
     if notes:
-        return '{"price": <integer from 0 to 100>, "notes": "<short private notes>"}'
+        return f'{{{_NOTES_FIELD}, "price": <integer from 0 to 100>}}'
     return '{"price": <integer from 0 to 100>}'
 
 
-def message_format(chat_spec: ChatSpec) -> str:
+def message_format(chat_spec: ChatSpec, notes: bool = False) -> str:
     limit = f", at most {chat_spec.char_limit} characters" if chat_spec.char_limit else ""
-    s = f'{{"message": "<your message{limit}>"}}'
+    pre = f"{_NOTES_FIELD}, " if notes else ""
+    s = f'{{{pre}"message": "<your message{limit}>"}}'
     if chat_spec.allow_pass:
-        s += ' or {"message": null} to post nothing in this round'
+        s += f' or {{{pre}"message": null}} to post nothing in this round'
     return s
+
+
+def round_messages_text(round_: int, messages: Sequence[ChatMessage], firm_letter: str) -> str:
+    """The messages posted in chat round `round_` (passes are not listed)."""
+    if not messages:
+        return f"No firm posted a message in round {round_}."
+    lines = [f"Messages posted in round {round_}:"]
+    for m in messages:
+        who = f"Firm {m.firm} (you)" if m.firm == firm_letter else f"Firm {m.firm}"
+        lines.append(f"{who}: {m.text}")
+    return "\n".join(lines)
 
 
 def period_prompt(
@@ -388,25 +414,34 @@ def period_prompt(
     die_roll: int | None = None,
     talk: bool = False,
     notes: bool = False,
+    *,
+    firm_letter: str | None = None,
+    last_round: int | None = None,
+    last_messages: Sequence[ChatMessage] = (),
+    min_periods: int = MIN_PERIODS,
 ) -> str:
     """Asks for this period's price. die_roll: the roll thrown after period - 1 (pass it from period 21
-    on, i.e. whenever period - 1 >= 20; it must be 1-5 here, since a 6 ends the part)."""
+    on, i.e. whenever period - 1 >= 20; it must be 1-5 here, since a 6 ends the part). In Talk periods the
+    die is shown in the round-1 chat prompt instead, and `last_round`/`last_messages` (with `firm_letter`)
+    report the final chat round, which the firm has not seen yet."""
     lines = []
     if die_roll is not None:
         if die_roll == 6:
             raise ValueError("a six ends the part; use part_over_text")
-        lines.append(die_line(period - 1, die_roll))
-    elif period - 1 >= MIN_PERIODS:
+        lines.append(die_line(period - 1, die_roll, min_periods))
+    elif period - 1 >= min_periods and not talk:
         raise ValueError("from period 21 on the die result must be shown")
+    if talk and last_round is not None:
+        if firm_letter is None:
+            raise ValueError("firm_letter is needed to show chat messages")
+        lines.append(round_messages_text(last_round, last_messages, firm_letter) + "\n")
     lines.append(f"Part {part}, period {period}.")
     if talk:
         lines.append("The chat box has closed.")
     lines.append("Choose your selling price for this period: a whole number from 0 to 100.")
     lines.append(f"Respond with JSON only, in this format: {price_format(notes)}")
     if notes:
-        lines.append(
-            'The "notes" field is private: the other firms never see it. Keep it short.'
-        )
+        lines.append(_NOTES_LINE)
     return "\n".join(lines)
 
 
@@ -418,23 +453,24 @@ def chat_prompt(
     messages: Sequence[ChatMessage],
     chat_spec: ChatSpec,
     die_roll: int | None = None,
+    notes: bool = False,
+    min_periods: int = MIN_PERIODS,
 ) -> str:
-    """Asks for a chat message. `messages` are this period's messages so far, in posting order (passes
-    are not listed). die_roll: as in period_prompt, shown only in round 1."""
+    """Asks for a chat message. `messages` are the messages of round `round_ - 1` (the firm has seen the
+    earlier rounds already; passes are not listed). die_roll: as in period_prompt, shown only in round 1."""
     lines = []
     if die_roll is not None and round_ == 1:
         if die_roll == 6:
             raise ValueError("a six ends the part; use part_over_text")
-        lines.append(die_line(period - 1, die_roll))
+        lines.append(die_line(period - 1, die_roll, min_periods))
+    if round_ > 1:
+        lines.append(round_messages_text(round_ - 1, messages, firm_letter) + "\n")
     lines.append(f"Part {part}, period {period}: chat, round {round_} of at most {chat_spec.max_rounds}.")
-    if messages:
-        lines.append("Messages so far in this period:")
-        for m in messages:
-            who = f"Firm {m.firm} (you)" if m.firm == firm_letter else f"Firm {m.firm}"
-            lines.append(f"{who}: {m.text}")
-    else:
+    if round_ == 1:
         lines.append("No messages have been posted in this period yet.")
-    lines.append(f"Respond with JSON only, in this format: {message_format(chat_spec)}")
+    lines.append(f"Respond with JSON only, in this format: {message_format(chat_spec, notes)}")
+    if notes:
+        lines.append(_NOTES_LINE)
     return "\n".join(lines)
 
 
@@ -469,14 +505,22 @@ def results_text(
     return "\n".join(lines)
 
 
-def part_over_text(part: int, last_period: int, final_part: bool, total_profit: float | None = None) -> str:
+def part_over_text(part: int, last_period: int, final_part: bool, total_profit: float | None = None,
+                   min_periods: int = MIN_PERIODS) -> str:
     """Shown after the die shows six. For the final part also reports the firm's total profit."""
-    s = die_line(last_period, 6)
+    s = die_line(last_period, 6, min_periods)
     if final_part:
         s += " The experiment is over."
         if total_profit is not None:
             s += f" The sum of your firm's profits during the experiment is {format_ecu(total_profit)} ECU."
     return s
+
+
+def fallback_text(kind: str, value: int | None = None) -> str:
+    """Tells a firm that its answer was still unusable after the last re-ask, and what was used instead."""
+    if kind == "price":
+        return f"Your response could not be used, so your price for this period was set to {value}."
+    return "Your response could not be used, so you posted no message in that round."
 
 
 def reask_text(error: str, expected_format: str) -> str:

@@ -117,3 +117,21 @@ No LLM judges. Chats are coded by (a) rule-based extraction (prices proposed or 
 the prices actually posted, to classify agreements as kept or broken; mentions of punishment or retaliation
 followed by price cuts) and (b) qualitative reading of sampled transcripts by Claude Code subagents, with the
 sampling rule and reading notes saved alongside the analysis.
+
+### Engine details (implementation choices, 2026-10-19)
+
+1. Die faces and each firm's listing order are seeded from (base seed, n, ordering, market index) only, so all
+   models face identical draws in a cell. Per-call sampling seeds hash all call coordinates plus that seed.
+2. Chat messages of a round are shown in the reader's own listing order, once, at the top of the next prompt.
+3. Own cumulative profit: Part 1 shows the part total; Part 2 shows the Part-2 total and the overall total.
+4. After the final failed re-ask the firm is told the fallback (price set to X / no message posted). The fallback
+   price is the firm's last price, carried across parts; 100 only in Part 1 period 1.
+5. Failed attempts stay in the firm's history (raw content with think blocks stripped); valid answers are stored
+   as the extracted JSON, re-serialised.
+6. Parsing accepts numeric strings and integral floats (logged); other floats, booleans and out-of-range prices
+   are invalid. Missing or over-long notes are logged but never re-asked.
+7. `notes` comes first in both JSON formats.
+8. Pilot runs with parts shorter than 20 periods are for testing only: they keep the instruction text and show
+   the die (a 6) only in the final period.
+9. A failed market writes `<key>.failed.json` and is retried on the next invocation.
+10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
