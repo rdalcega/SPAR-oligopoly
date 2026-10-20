@@ -1,0 +1,17 @@
+ab_id,arm,model,market,status,talk_sp,final_sp,talk_sp_partial,periods_done
+ab-w3|gpt-oss-20b__n2__NT-T__m0,window 3,gpt-oss-20b,m0,complete,51.8,52,,53
+ab-w3|gpt-oss-20b__n2__NT-T__m1,window 3,gpt-oss-20b,m1,complete,1.0,1,,53
+ab-w3|gpt-oss-20b__n2__NT-T__m2,window 3,gpt-oss-20b,m2,complete,2.0,2,,53
+ab-w3|gpt-oss-20b__n2__NT-T__m3,window 3,gpt-oss-20b,m3,complete,1.0,1,,53
+ab-w3|qwen3-14b__n2__NT-T__m0,window 3,qwen3-14b,m0,complete,1.0,1,,53
+ab-w3|qwen3-14b__n2__NT-T__m1,window 3,qwen3-14b,m1,complete,85.0,85,,53
+ab-w3|qwen3-14b__n2__NT-T__m2,window 3,qwen3-14b,m2,complete,51.6,63,,53
+ab-w3|qwen3-14b__n2__NT-T__m3,window 3,qwen3-14b,m3,complete,75.0,75,,53
+ab-w60|gpt-oss-20b__n2__NT-T__m0,window 60,gpt-oss-20b,m0,complete,72.0,72,,53
+ab-w60|gpt-oss-20b__n2__NT-T__m1,window 60,gpt-oss-20b,m1,complete,1.0,1,,53
+ab-w60|gpt-oss-20b__n2__NT-T__m2,window 60,gpt-oss-20b,m2,complete,1.0,1,,53
+ab-w60|gpt-oss-20b__n2__NT-T__m3,window 60,gpt-oss-20b,m3,complete,95.9,100,,53
+ab-w60|qwen3-14b__n2__NT-T__m0,window 60,qwen3-14b,m0,stopped: context guard,,,2.0,49
+ab-w60|qwen3-14b__n2__NT-T__m1,window 60,qwen3-14b,m1,stopped: context guard,,,50.0,44
+ab-w60|qwen3-14b__n2__NT-T__m2,window 60,qwen3-14b,m2,stopped: context guard,,,1.0,46
+ab-w60|qwen3-14b__n2__NT-T__m3,window 60,qwen3-14b,m3,stopped: context guard,,,50.0,48

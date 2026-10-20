@@ -1,0 +1,3 @@
+model,price_decisions,chat_decisions,price_zero_pct,price_invalid_pct,chat_invalid_pct,price_fallback_pct,chat_fallback_pct,misread_notes_pct,notes_contradict_pct
+gpt-oss-20b,28620,28620,36.3,0.39,12.0,0.01,0.031,0.17,0.33
+qwen3-14b,15476,12294,5.5,0.02,6.8,0.0,0.0,0.03,1.93

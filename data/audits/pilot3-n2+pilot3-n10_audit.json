@@ -1,0 +1,1896 @@
+{
+ "pilot3-n2/gpt-oss-20b__n2__NT-T__m0": {
+  "market": "gpt-oss-20b__n2__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat2/a0",
+    "future/same-round message of B visible: gpt-oss-20b__n2__NT-T__m0/A/p2/t3/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/chat3/a0",
+    "future/same-round message of B visible: gpt-oss-20b__n2__NT-T__m0/A/p2/t3/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t3/price/a0",
+    "future/same-round message of B visible: gpt-oss-20b__n2__NT-T__m0/A/p2/t4/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat1/a0",
+    "future/same-round message of B visible: gpt-oss-20b__n2__NT-T__m0/A/p2/t4/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat2/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/chat3/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t4/price/a1",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t5/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t5/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t5/chat1/a0",
+    "future/same-round message of A visible: gpt-oss-20b__n2__NT-T__m0/B/p2/t5/chat1/a0"
+   ],
+   "ok_calls": 255,
+   "checked_against_log": 255
+  },
+  "usage_record": {
+   "prompt_tokens": 922876,
+   "completion_tokens": 76663,
+   "reasoning_tokens": 56391,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 255,
+   "cost_usd": 0.03841909999999999,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "1/100"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "1/1"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "1/1"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "1/1"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 1,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 2,
+     "support": 2,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 2,
+     "support": 2,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": null,
+     "support": 1,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.03472222222222221,
+   "msg_len_mean": 55.44604316546763,
+   "msg_len_max": 203,
+   "msg_over_280": 0,
+   "reasks": {
+    "price": 1,
+    "chat": 2
+   },
+   "fallbacks": {
+    "price": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "JSON coerced: typographic quote(s) in a structural position read as \"": 1
+   },
+   "errors": {
+    "no JSON object with a \"price\" field was found": 1,
+    "a price was given on a chat turn (no \"message\" field)": 2
+   },
+   "profits": {
+    "A": 8100.0,
+    "B": 7800.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 255,
+   "calls_err": 2,
+   "err_kinds": {
+    "HTTP #: {\"message\": \"Provider returned error\", \"code\": #, \"metadata\": {\"raw\": \"o": 2
+   },
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     858,
+     1179,
+     1340.5,
+     1583,
+     1682,
+     1741
+    ],
+    "part2": [
+     2382.5,
+     2903,
+     3390,
+     3906
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 858,
+    "p1t2": 1179,
+    "p1t3": 1340.5,
+    "p1t4": 1583,
+    "p1t5": 1682,
+    "p1t6": 1741,
+    "p2t1": 2891.5,
+    "p2t2": 3398.5,
+    "p2t3": 3911.5,
+    "p2t4": 4494,
+    "p2t5": 4498.5,
+    "p2t6": 4630
+   },
+   "growth_talk_per_period": 176.6,
+   "growth_notalk_per_period": 507.8333333333333,
+   "completion_mean": {
+    "price": 290.1682242990654,
+    "chat": 306.43835616438355,
+    "probe": 437.5
+   },
+   "reasoning_mean": {
+    "price": 200.05607476635515,
+    "chat": 234.54794520547946,
+    "probe": 370.5
+   },
+   "cost_per_call": {
+    "price": 0.00012791233644859814,
+    "chat": 0.00016661787671232877,
+    "probe": 0.000203135
+   },
+   "cost_total": 0.0384191,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 2.2461496249889024,
+   "latency_p90": 6.170432866620831,
+   "latency_max": 18.162119916989468,
+   "tok_per_byte": 0.2544979124457752,
+   "tok_per_byte_min": 0.24155405405405406,
+   "tok_per_byte_max": 0.2640533778148457,
+   "prompt_tokens_max": 5465,
+   "seed_flags": {
+    "(False, None)": 255
+   },
+   "providers": {
+    "('deepinfra/bf16', 'DeepInfra', False)": 255
+   },
+   "models_served": {
+    "openai/gpt-oss-20b": 255
+   },
+   "finish": {
+    "('stop', 'stop')": 255
+   },
+   "reasoning_returned_calls": 255
+  }
+ },
+ "pilot3-n2/qwen3-14b__n2__NT-T__m0": {
+  "market": "qwen3-14b__n2__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 261,
+   "checked_against_log": 261
+  },
+  "usage_record": {
+   "prompt_tokens": 1040321,
+   "completion_tokens": 155496,
+   "reasoning_tokens": 128704,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 261,
+   "cost_usd": 0.16215756000000006,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "50/100"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "50/49"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "48/49"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "48/47"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "46/46"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "45/45"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "44/44"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "43/43"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "42/43"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "42/42"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "41/41"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "40/40"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "39/39"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "38/38"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "37/37"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "36/36"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "35/35"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "34/35"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "35/33"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "32/34"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "31/31"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "30/30"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "31/29"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "28/29"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "28/28"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "29/29"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "30/30"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "31/31"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "32/32"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "33/33"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "34/34"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "35/35"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "36/36"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "37/37"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "38/38"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "39/39"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "40/40"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "41/41"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "42/42"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "43/43"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "44/44"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "45/45"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "46/46"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "47/47"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "48/48"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "49/49"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "50/50"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "51/51"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "52/52"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "53/53"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "54/54"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "55/55"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "56/56"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": 33,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 34,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 35,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 36,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 37,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 38,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 39,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 40,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 41,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 42,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 43,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 44,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": 45,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 46,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 47,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 48,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 49,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 50,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": 51,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 52,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 53,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 54,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 55,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": 56,
+     "support": 2,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.16666666666666663,
+   "msg_len_mean": 66.75,
+   "msg_len_max": 92,
+   "msg_over_280": 0,
+   "reasks": {
+    "price": 1,
+    "chat": 8
+   },
+   "fallbacks": {
+    "price": 0,
+    "chat": 0
+   },
+   "warnings": {},
+   "errors": {
+    "no JSON object with a \"price\" field was found": 1,
+    "a price was given on a chat turn (no \"message\" field)": 8
+   },
+   "profits": {
+    "A": 334950.0,
+    "B": 312150.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 261,
+   "calls_err": 0,
+   "err_kinds": {},
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     849,
+     1086.5,
+     1264,
+     1481.5,
+     1561.5,
+     1592
+    ],
+    "part2": [
+     2863.5,
+     3301,
+     3828,
+     4439
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 849,
+    "p1t2": 1086.5,
+    "p1t3": 1264,
+    "p1t4": 1481.5,
+    "p1t5": 1561.5,
+    "p1t6": 1592,
+    "p2t1": 3378,
+    "p2t2": 3905.5,
+    "p2t3": 4431,
+    "p2t4": 5029,
+    "p2t5": 5067,
+    "p2t6": 5054
+   },
+   "growth_talk_per_period": 148.6,
+   "growth_notalk_per_period": 525.1666666666666,
+   "completion_mean": {
+    "price": 846.981308411215,
+    "chat": 421.76973684210526,
+    "probe": 380
+   },
+   "reasoning_mean": {
+    "price": 691.4579439252336,
+    "chat": 356.0131578947368,
+    "probe": 302
+   },
+   "cost_per_call": {
+    "price": 0.0005882108411214953,
+    "chat": 0.0006442610526315789,
+    "probe": 0.0006456599999999999
+   },
+   "cost_total": 0.16215756,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 5.853440583974589,
+   "latency_p90": 15.82354266702896,
+   "latency_max": 68.59085333300754,
+   "tok_per_byte": 0.2755085961941828,
+   "tok_per_byte_min": 0.23902027027027026,
+   "tok_per_byte_max": 0.29305845511482254,
+   "prompt_tokens_max": 5343,
+   "seed_flags": {
+    "(False, None)": 261
+   },
+   "providers": {
+    "('deepinfra/fp8', 'DeepInfra', False)": 261
+   },
+   "models_served": {
+    "qwen/qwen3-14b": 261
+   },
+   "finish": {
+    "('stop', 'stop')": 261
+   },
+   "reasoning_returned_calls": 261
+  }
+ },
+ "pilot3-n10/gpt-oss-20b__n10__T-NT__m0": {
+  "market": "gpt-oss-20b__n10__T-NT__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 28,
+     "B": 28,
+     "C": 28,
+     "D": 28,
+     "E": 28,
+     "F": 28,
+     "G": 28,
+     "H": 28,
+     "I": 28,
+     "J": 28
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 324,
+   "checked_against_log": 324
+  },
+  "usage_record": {
+   "prompt_tokens": 2151233,
+   "completion_tokens": 225183,
+   "reasoning_tokens": 185197,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 324,
+   "cost_usd": 0.09606261000000008,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "50/50/50/50/30/50/55/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "29/29/0/28/29/30/29/29/29/28"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "0/0/0/0/30/0/0/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "0/0/0/0/0/0/0/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "30/30/30/30/30/30/30/30/30/30"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "30/30/30/30/30/30/30/30/30/30"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "30/30/0/30/29/30/0/30/30/30"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "30/30/0/29/30/30/0/30/0/30"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "0/0/0/30/0/30/0/30/0/0"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "0/30/0/0/0/0/0/30/0/0"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 1,
+     "period": 1,
+     "agreed": null,
+     "support": 5,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "agreed": 30,
+     "support": 8,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "G",
+      "H",
+      "I",
+      "J"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "agreed": 30,
+     "support": 6,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "agreed": 30,
+     "support": 7,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "agreed": 30,
+     "support": 9,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "agreed": 30,
+     "support": 9,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.0,
+   "msg_len_mean": 153.14444444444445,
+   "msg_len_max": 300,
+   "msg_over_280": 1,
+   "reasks": {
+    "price": 1,
+    "chat": 33
+   },
+   "fallbacks": {
+    "price": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "message truncated from # to # characters": 1,
+    "JSON coerced: typographic quote(s) in a structural position read as \"": 1
+   },
+   "errors": {
+    "a price was given on a chat turn (no \"message\" field)": 32,
+    "no JSON object with a \"message\" field was found": 1,
+    "the response was empty": 1
+   },
+   "profits": {
+    "A": 1800.0,
+    "B": 1800.0,
+    "C": 1800.0,
+    "D": 1800.0,
+    "E": 10800.0,
+    "F": 1800.0,
+    "G": 1800.0,
+    "H": 1800.0,
+    "I": 1800.0,
+    "J": 1800.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 324,
+   "calls_err": 2,
+   "err_kinds": {
+    "HTTP #: {\"message\": \"Provider returned error\", \"code\": #, \"metadata\": {\"raw\": \"o": 2
+   },
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     1320,
+     3515.5,
+     5841.2,
+     8030.2,
+     8187.1,
+     8028.4
+    ],
+    "part2": [
+     8328.5,
+     6536.4,
+     4706.1,
+     2975.6
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 3215,
+    "p1t2": 5505.8,
+    "p1t3": 7728.8,
+    "p1t4": 9856,
+    "p1t5": 10047.9,
+    "p1t6": 9778.8,
+    "p2t1": 8328.5,
+    "p2t2": 6536.4,
+    "p2t3": 4706.1,
+    "p2t4": 2975.6
+   },
+   "growth_talk_per_period": 1341.6799999999998,
+   "growth_notalk_per_period": -1784.3,
+   "completion_mean": {
+    "chat": 658.6150234741784,
+    "price": 791.4356435643564,
+    "probe": 496.3
+   },
+   "reasoning_mean": {
+    "chat": 527.0469483568075,
+    "price": 686.1980198019802,
+    "probe": 363
+   },
+   "cost_per_call": {
+    "chat": 0.0002933262441314554,
+    "price": 0.0003161786138613861,
+    "probe": 0.000165008
+   },
+   "cost_total": 0.09606260999999999,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 4.969609228486661,
+   "latency_p90": 15.863021867000496,
+   "latency_max": 60.80926924996311,
+   "tok_per_byte": 0.25491132711634046,
+   "tok_per_byte_min": 0.23652365236523654,
+   "tok_per_byte_max": 0.2660604038044385,
+   "prompt_tokens_max": 10386,
+   "seed_flags": {
+    "(False, None)": 324
+   },
+   "providers": {
+    "('deepinfra/bf16', 'DeepInfra', False)": 324
+   },
+   "models_served": {
+    "openai/gpt-oss-20b": 324
+   },
+   "finish": {
+    "('stop', 'stop')": 323,
+    "('length', 'length')": 1
+   },
+   "reasoning_returned_calls": 323
+  }
+ },
+ "pilot3-n10/qwen3-14b__n10__T-NT__m0": {
+  "market": "qwen3-14b__n10__T-NT__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 28,
+     "B": 28,
+     "C": 28,
+     "D": 28,
+     "E": 28,
+     "F": 28,
+     "G": 28,
+     "H": 28,
+     "I": 28,
+     "J": 28
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 291,
+   "checked_against_log": 291
+  },
+  "usage_record": {
+   "prompt_tokens": 1814790,
+   "completion_tokens": 161480,
+   "reasoning_tokens": 143806,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 291,
+   "cost_usd": 0.25653000000000015,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "50/50/50/50/50/50/50/50/50/50"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 1,
+     "period": 1,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "agreed": 50,
+     "support": 10,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.0,
+   "msg_len_mean": 139.07222222222222,
+   "msg_len_max": 201,
+   "msg_over_280": 0,
+   "reasks": {
+    "price": 0,
+    "chat": 1
+   },
+   "fallbacks": {
+    "price": 0,
+    "chat": 0
+   },
+   "warnings": {},
+   "errors": {
+    "a price was given on a chat turn (no \"message\" field)": 1
+   },
+   "profits": {
+    "A": 15000.0,
+    "B": 15000.0,
+    "C": 15000.0,
+    "D": 15000.0,
+    "E": 15000.0,
+    "F": 15000.0,
+    "G": 15000.0,
+    "H": 15000.0,
+    "I": 15000.0,
+    "J": 15000.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 291,
+   "calls_err": 0,
+   "err_kinds": {},
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     1324,
+     3333.2,
+     5381.8,
+     7490.2,
+     7885.8,
+     7952.1
+    ],
+    "part2": [
+     8408.3,
+     6660.1,
+     4912.6,
+     3159.8
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 2959,
+    "p1t2": 5014.1,
+    "p1t3": 7122.5,
+    "p1t4": 9252,
+    "p1t5": 9632.7,
+    "p1t6": 9694.2,
+    "p2t1": 8408.3,
+    "p2t2": 6660.1,
+    "p2t3": 4912.6,
+    "p2t4": 3159.8
+   },
+   "growth_talk_per_period": 1325.6200000000001,
+   "growth_notalk_per_period": -1749.4999999999998,
+   "completion_mean": {
+    "chat": 519.5911602209944,
+    "price": 596.89,
+    "probe": 774.5
+   },
+   "reasoning_mean": {
+    "chat": 461.90055248618785,
+    "price": 540.36,
+    "probe": 616.6
+   },
+   "cost_per_call": {
+    "chat": 0.0008623995580110497,
+    "price": 0.0009450372,
+    "probe": 0.000593196
+   },
+   "cost_total": 0.25653,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 10.41754191601649,
+   "latency_p90": 13.531107791000977,
+   "latency_max": 29.43864762497833,
+   "tok_per_byte": 0.28575866390100174,
+   "tok_per_byte_min": 0.24738415545590434,
+   "tok_per_byte_max": 0.29611194590533435,
+   "prompt_tokens_max": 9845,
+   "seed_flags": {
+    "(False, None)": 291
+   },
+   "providers": {
+    "('deepinfra/fp8', 'DeepInfra', False)": 291
+   },
+   "models_served": {
+    "qwen/qwen3-14b": 291
+   },
+   "finish": {
+    "('stop', 'stop')": 291
+   },
+   "reasoning_returned_calls": 291
+  }
+ }
+}

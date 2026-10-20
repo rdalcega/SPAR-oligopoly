@@ -1,0 +1,9 @@
+[openai/gpt-oss-20b deepinfra/bf16 long_60k] fin=stop val=95 mode=strict rtok=59 rch=233 ctok=77 ptok=64951 cache=0 $0.00195931 2.3s
+[liquid/lfm-2.5-24b-a2b liquid/fp8 long_60k] fin=stop val=95 mode=strict rtok=785 rch=3129 ctok=817 ptok=67355 cache=0 $0.00393965 5.4s
+[ibm-granite/granite-4.2-8b deepinfra/bf16 long_60k] fin=stop val=95 mode=strict rtok=18 rch=68 ctok=27 ptok=66619 cache=0 $0.00400389 7.0s
+[qwen/qwen3.8-27b deepinfra/bf16 long_60k] fin=stop val=97 mode=strict rtok=86 rch=341 ctok=95 ptok=69287 cache=0 $0.010571175 7.9s
+[google/gemma-4-26b-a4b-it deepinfra/fp8 long_60k] fin=stop val=89 mode=strict rtok=687 rch=2686 ctok=1065 ptok=65199 cache=0 $0.00492603 23.4s
+[qwen/qwen3.5-9b deepinfra/bf16 long_60k] fin=stop val=97 mode=strict rtok=499 rch=1839 ctok=739 ptok=68585 cache=0 $0.00696935 32.0s
+[qwen/qwen3.6-27b deepinfra/fp8 long_60k] fin=stop val=90 mode=strict rtok=1757 rch=6949 ctok=2409 ptok=68585 cache=0 $0.029656 39.6s
+[qwen/qwen3.5-27b deepinfra/fp8 long_60k] fin=stop val=90 mode=strict rtok=1999 rch=7892 ctok=2409 ptok=68585 cache=0 $0.0240955 41.6s
+spent $0.3297 (cap $3); wrote /Users/rodrigo/Documents/code/SPAR-oligopoly/.claude/worktrees/experiments/data/probes/probe_results_long.json

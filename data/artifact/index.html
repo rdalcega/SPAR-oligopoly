@@ -1,0 +1,632 @@
+<style>
+.lx { font-family: var(--font-anthropic-sans); color: var(--color-fg); display: flex; flex-direction: column; gap: var(--cds-gap-xl); }
+.lx h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; }
+.lx h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-xs); }
+.lx h3 { font-size: var(--cds-font-size-body); font-weight: var(--cds-font-weight-medium); margin: 0; }
+.lx p { margin: 0; line-height: 1.5; }
+.lx .lx-muted { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.lx .lx-lede { font-size: var(--cds-font-size-body); max-width: 60rem; }
+.lx .lx-lede b, .lx .lx-chip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.lx .lx-chips { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); }
+.lx .lx-chip { border: 1px solid var(--color-border-line); border-radius: 999px; padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-caption); background: var(--color-panel); }
+.lx .lx-chip.lx-warn { border-color: var(--color-warn); }
+.lx nav { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); font-size: var(--cds-font-size-caption); }
+.lx nav a { color: var(--color-fg-muted); text-decoration: none; border-bottom: 1px solid var(--color-border-line); }
+.lx section { display: flex; flex-direction: column; gap: var(--cds-gap-md); scroll-margin-top: var(--cds-gap-lg); }
+.lx .lx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--cds-gap-md); }
+.lx .lx-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--cds-gap-md); }
+.lx .lx-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
+.lx .lx-chart { position: relative; min-height: 15rem; }
+.lx .lx-chart.lx-small { min-height: 11rem; }
+.lx .lx-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.lx .lx-sw { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; vertical-align: -1px; }
+.lx .lx-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; z-index: 2; display: none; }
+.lx .lx-tip .lx-tt { color: var(--cds-text-secondary); margin-bottom: 2px; }
+.lx svg text { fill: var(--color-fg-muted); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.lx .lx-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); }
+.lx .lx-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; }
+.lx .lx-seg button { font: inherit; font-size: var(--cds-font-size-caption); background: transparent; color: var(--color-fg-muted); border: 0; padding: var(--cds-pad-xs) var(--cds-pad-sm); cursor: pointer; }
+.lx .lx-seg button[aria-pressed="true"] { background: var(--color-bg); color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.lx select { font: inherit; font-size: var(--cds-font-size-caption); background: var(--color-bg); color: var(--color-fg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); }
+.lx .lx-tablebox { max-height: 26rem; overflow: auto; }
+.lx table { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.lx th { position: sticky; top: 0; background: var(--color-panel); text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); }
+.lx td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); }
+.lx td.lx-num, .lx th.lx-num { text-align: right; }
+.lx details summary { cursor: pointer; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.lx .lx-findings { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+.lx .lx-find { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); display: flex; flex-direction: column; gap: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); }
+.lx .lx-find .lx-claim { font-size: var(--cds-font-size-body); line-height: 1.45; }
+.lx .lx-find blockquote { margin: 0; padding-left: var(--cds-pad-sm); border-left: 2px solid var(--color-border-line); color: var(--color-fg-muted); font-style: italic; overflow-wrap: anywhere; }
+.lx .lx-meta { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); align-items: center; color: var(--color-fg-muted); }
+.lx .lx-pill { border: 1px solid var(--color-border-line); border-radius: 999px; padding: 0 var(--cds-pad-sm); }
+.lx .lx-pill.lx-ok { color: var(--color-ok); border-color: currentColor; }
+.lx .lx-pill.lx-part { color: var(--color-warn); border-color: currentColor; }
+.lx .lx-findcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); align-items: start; }
+.lx .lx-findcol { display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
+.lx .lx-findcol > .lx-findings { grid-template-columns: 1fr; }
+.lx .lx-findcol > h4 { margin: 0; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); display: flex; align-items: center; }
+.lx .lx-theme { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+.lx .lx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--cds-gap-md); }
+.lx .lx-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md); display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+.lx .lx-big { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; font-variant-numeric: tabular-nums; }
+.lx ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: var(--cds-gap-xs); line-height: 1.5; }
+.lx .lx-banner { border-left: 3px solid var(--color-warn); padding-left: var(--cds-pad-sm); }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.lx .lx-fail { display: flex; align-items: center; justify-content: center; gap: var(--cds-gap-xs); color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); min-height: inherit; }
+.lx .lx-fail::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--color-bad); }
+</style>
+
+<div class="lx">
+  <header id="top" style="display:flex;flex-direction:column;gap:var(--cds-gap-sm)">
+    <h1>LLM Oligopoly Results</h1>
+    <p class="lx-lede">In the main design (NoTalk then Talk), opening chat raised the mean selling price by
+      <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=gpt-oss-20b">—</b> points for gpt-oss and
+      <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=qwen3-14b">—</b> for Qwen, against
+      <b class="dash-skeleton" data-source="headline" data-field="gain" data-where="model=humans">—</b> for the human groups of Fonseca and Normann (average over market sizes two to eight). Both models fall far short of human collusion with talk, in different ways.
+      gpt-oss breaks more of its chat agreements (<b class="dash-skeleton" data-source="chat_totals" data-field="broken_pct" data-where="model=gpt-oss-20b">—</b>% of agreement periods), keeps deferring promised joint raises, and in several markets announces undercuts that start price wars.
+      Qwen3-14B keeps nearly all of its agreements (<b class="dash-skeleton" data-source="chat_totals" data-field="kept_pct" data-where="model=qwen3-14b">—</b>% kept), but they sit at low prices anchored on the last NoTalk price, with proposals of higher prices voted down as risky.
+      Firms of both models know full collusion pays best, yet rarely coordinate on it.</p>
+    <div class="lx-chips">
+      <span class="lx-chip">Models <b class="dash-skeleton" data-source="status" data-field="models" data-row="0">—</b></span>
+      <span class="lx-chip">Markets complete <b class="dash-skeleton" data-source="status" data-field="markets_complete" data-row="0">—</b> of <b class="dash-skeleton" data-source="status" data-field="markets_planned" data-row="0">—</b></span>
+      <span class="lx-chip">Spent $<b class="dash-skeleton" data-source="status" data-field="cost_usd" data-row="0">—</b> incl. pilots</span>
+      <span class="lx-chip lx-warn">Qwen incomplete (cost cap reached): <b class="dash-skeleton" data-source="run_status" data-field="cells_complete" data-where="model=qwen3-14b">—</b> of <b class="dash-skeleton" data-source="run_status" data-field="cells_planned" data-where="model=qwen3-14b">—</b> cells</span>
+    </div>
+    <nav aria-label="Sections">
+      <a href="#main">Main design vs humans</a><a href="#order">Order and hysteresis</a><a href="#paths">Price paths</a><a href="#talk">Talk phase</a><a href="#mistakes">Mistakes vs strategy</a><a href="#checks">Design checks</a><a href="#next">Options for next</a>
+    </nav>
+  </header>
+
+  <section id="main">
+    <div>
+      <h2>Main design vs humans</h2>
+      <p class="lx-muted">Mean selling price (the lowest posted price, which wins the market) per market size, averaged over the six markets of each cell. Humans jump from near cost to high prices once chat opens; both LLMs gain far less.</p>
+    </div>
+    <div class="lx-legend" id="main-legend"></div>
+    <div class="lx-grid">
+      <div class="lx-card" id="main-notalk-card">
+        <h3>NoTalk part, from the sixth period</h3>
+        <p class="lx-muted">Part one of the NoTalk then Talk ordering.</p>
+        <div class="lx-chart" id="main-notalk" data-source="cells"></div>
+      </div>
+      <div class="lx-card" id="main-talk-card">
+        <h3>Talk part</h3>
+        <div class="lx-controls"><span class="lx-muted">Window</span>
+          <span class="lx-seg" id="talk-window"><button data-w="sp_p2_all" aria-pressed="true">All periods</button><button data-w="sp_p2_from6" aria-pressed="false">From the sixth period</button></span></div>
+        <div class="lx-chart" id="main-talk" data-source="cells"></div>
+      </div>
+    </div>
+    <p class="lx-muted">The paper does not say whether its Talk average drops the first five Talk periods, so the human value is the same under both windows. Whiskers: one standard deviation across market averages.</p>
+    <div class="lx-theme" id="find-prices-wrap"><h3>Verified findings on price levels</h3><div class="lx-findings" id="find-prices" data-source="findings"></div></div>
+  </section>
+
+  <section id="order">
+    <div>
+      <h2>Order effect and hysteresis</h2>
+      <p class="lx-muted">Left: Talk prices when chat comes first (Talk then NoTalk) vs after a NoTalk part, both from the sixth Talk period. Right: Part two prices once chat is removed, against markets that never had chat (all Part two periods).</p>
+    </div>
+    <div class="lx-grid">
+      <div class="lx-card" id="order-card">
+        <h3>Talk prices by ordering</h3>
+        <div class="lx-legend" id="order-legend"></div>
+        <div id="order-multiples" class="lx-grid3" data-source="cells"></div>
+      </div>
+      <div class="lx-card" id="hyst-card">
+        <h3>NoTalk Part two: after chat vs never chat</h3>
+        <div class="lx-legend" id="hyst-legend"></div>
+        <div id="hyst-multiples" class="lx-grid3" data-source="cells"></div>
+      </div>
+    </div>
+    <p class="lx-muted">Humans were run on these controls only with four firms; other market sizes are LLM extensions.</p>
+    <div class="lx-theme"><h3>Verified findings on order and carry-over</h3><div class="lx-findings" id="find-hysteresis" data-source="findings"></div></div>
+  </section>
+
+  <section id="paths">
+    <div>
+      <h2>Price paths</h2>
+      <p class="lx-muted">Mean selling price per period across the six markets (line) with the interquartile band. The dashed line marks the start of Part two; dotted lines mark the first die throw in each part.</p>
+    </div>
+    <div class="lx-controls">
+      <label>Model <select id="ts-model" aria-label="Model"></select></label>
+      <label>Ordering <select id="ts-order" aria-label="Ordering"></select></label>
+    </div>
+    <div class="lx-grid3" id="ts-multiples" data-source="timeseries"></div>
+  </section>
+
+  <section id="talk">
+    <div>
+      <h2>Talk phase: what firms say and do</h2>
+      <p class="lx-muted">Findings from reading the transcripts, each checked by an independent GPT verifier. Where the verifier corrected a claim, the claim is restated to match the correction; refuted claims are dropped. gpt-oss findings cover its human-comparable cells and extensions; Qwen3-14B findings cover only its 36 human-comparable markets (two to eight firms NoTalk then Talk, and the four-firm controls). With all models shown, the two models sit side by side under each heading; the model filter applies to every findings section on the page.</p>
+    </div>
+    <div class="lx-controls"><label>Model <select id="find-model" aria-label="Findings model"><option value="">All models</option></select></label>
+      <span class="lx-muted" id="find-count"></span></div>
+    <div class="lx-theme"><h3>Agreements</h3><div class="lx-findings" id="find-agreements" data-source="findings"></div></div>
+    <div class="lx-theme"><h3>Breaches: deliberate and accidental</h3><div class="lx-findings" id="find-breaches" data-source="findings"></div></div>
+    <div class="lx-theme"><h3>Threats and punishment</h3><div class="lx-findings" id="find-threats" data-source="findings"></div></div>
+    <div class="lx-theme"><h3>Deception</h3><div class="lx-findings" id="find-deception" data-source="findings"></div></div>
+    <div class="lx-theme"><h3>Coordination failures</h3><div class="lx-findings" id="find-coordination" data-source="findings"></div></div>
+    <div class="lx-card" id="chat-screen">
+      <h3>Automated chat screen (rule-based coder)</h3>
+      <p class="lx-muted lx-banner">A screen, not a verdict. Hand check after the coder fix: kept agreements <b data-source="screen_checks" data-field="correct" data-where="check=kept">—</b> of <b data-source="screen_checks" data-field="sample" data-where="check=kept">—</b> right, broken <b data-source="screen_checks" data-field="correct" data-where="check=broken">—</b> of <b data-source="screen_checks" data-field="sample" data-where="check=broken">—</b>; deception flags <b data-source="screen_checks" data-field="correct" data-where="check=deception">—</b> of <b data-source="screen_checks" data-field="sample" data-where="check=deception">—</b> right, but only <b data-source="screen_checks" data-field="deliberate" data-where="check=deception">—</b> look deliberate (about <b data-source="screen_checks" data-field="deliberate_pct" data-where="check=deception">—</b>%), the rest being notes that mistake a chat proposal for a posted price. An agreement is a price backed by a majority of firms in a period's chat; kept means every firm posts exactly that price.</p>
+      <div class="lx-tablebox">
+        <table id="chat-table" data-source="chat" data-row-key="cell_id">
+          <thead><tr><th data-field="model">Model</th><th data-field="n" class="lx-num">Firms</th><th data-field="ordering">Ordering</th><th data-field="talk_periods" class="lx-num">Talk periods</th><th data-field="agreements" class="lx-num">Agreement periods</th><th data-field="agreed_100" class="lx-num">At full price</th><th data-field="kept" class="lx-num">Kept</th><th data-field="broken" class="lx-num">Broken</th><th data-field="broken_undercut" class="lx-num">Broken by undercut</th><th data-field="threat_pct" class="lx-num">Periods with threat %</th><th data-field="deception_flagged" class="lx-num">Deception flagged</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="mistakes">
+    <div>
+      <h2>Mistakes vs strategy</h2>
+      <p class="lx-muted">After the last period each firm was asked, outside play, which common price gives every firm the highest profit. Nearly all answer correctly, whatever their market priced.</p>
+    </div>
+    <div class="lx-grid">
+      <div class="lx-card" id="probe-card">
+        <h3>Knows the best common price vs Talk-part price</h3>
+        <p class="lx-muted">One dot per cell with chat. Horizontal: Talk-part mean selling price (all periods). Vertical: share of firms naming the full price as the best common price.</p>
+        <div class="lx-legend" id="probe-legend"></div>
+        <div class="lx-chart" id="probe-chart" data-source="probe"></div>
+      </div>
+      <div class="lx-card" id="mistake-tiles-card">
+        <h3>Per model, all decisions</h3>
+        <div class="lx-tiles" id="mistake-tiles">
+          <div class="lx-tile"><span class="lx-muted">Price decisions at zero (gpt-oss / Qwen)</span><span class="lx-big"><span data-source="mistakes_model" data-field="price_zero_pct" data-where="model=gpt-oss-20b">—</span>% / <span data-source="mistakes_model" data-field="price_zero_pct" data-where="model=qwen3-14b">—</span>%</span><span class="lx-muted">Weakly dominated; counted, not called a mistake.</span></div>
+          <div class="lx-tile"><span class="lx-muted">Chat turns needing a re-ask (format slips)</span><span class="lx-big"><span data-source="mistakes_model" data-field="chat_invalid_pct" data-where="model=gpt-oss-20b">—</span>% / <span data-source="mistakes_model" data-field="chat_invalid_pct" data-where="model=qwen3-14b">—</span>%</span><span class="lx-muted">Mostly a price sent on a chat turn; nearly all fixed on re-ask.</span></div>
+          <div class="lx-tile"><span class="lx-muted">Chat turns ending in a fallback</span><span class="lx-big"><span data-source="mistakes_model" data-field="chat_fallback_pct" data-where="model=gpt-oss-20b">—</span>% / <span data-source="mistakes_model" data-field="chat_fallback_pct" data-where="model=qwen3-14b">—</span>%</span><span class="lx-muted">Counted as a pass.</span></div>
+          <div class="lx-tile"><span class="lx-muted">Price notes with a rule misread</span><span class="lx-big"><span data-source="mistakes_model" data-field="misread_notes_pct" data-where="model=gpt-oss-20b">—</span>% / <span data-source="mistakes_model" data-field="misread_notes_pct" data-where="model=qwen3-14b">—</span>%</span><span class="lx-muted">Highest price wins, ties take all, or a certain end.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="lx-card" id="mistakes-cells-card">
+      <h3>Per cell</h3>
+      <div class="lx-tablebox">
+        <table id="mistakes-table" data-source="mistakes" data-row-key="cell_id">
+          <thead><tr><th data-field="model">Model</th><th data-field="n" class="lx-num">Firms</th><th data-field="ordering">Ordering</th><th data-field="price_decisions" class="lx-num">Price decisions</th><th data-field="price_zero_pct" class="lx-num">Price zero %</th><th data-field="price_reask_pct" class="lx-num">Price re-ask %</th><th data-field="chat_reask_pct" class="lx-num">Chat re-ask %</th><th data-field="misread_notes_pct" class="lx-num">Misread in notes %</th><th data-field="misread_chat_pct" class="lx-num">Misread in chat %</th><th data-field="notes_contradict_pct" class="lx-num">Notes contradict price %</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="lx-theme"><h3>Verified findings on mistakes and misreads</h3><div class="lx-findings" id="find-mistakes" data-source="findings"></div></div>
+  </section>
+
+  <section id="checks">
+    <div>
+      <h2>Design checks and caveats</h2>
+    </div>
+    <div class="lx-grid">
+      <div class="lx-card" id="ab-card">
+        <h3>Memory window pilot: three periods vs sixty</h3>
+        <p class="lx-muted">Duopolies, NoTalk then Talk, four markets per arm per model; Talk-part mean selling price and the final period's price. Pilot only, not part of the sweep. Qwen's sixty-period markets hit the context guard in Part two (partial Talk mean shown).</p>
+        <div class="lx-tablebox">
+          <table id="ab-table" data-source="ab_memory" data-row-key="ab_id">
+            <thead><tr><th data-field="arm">Arm</th><th data-field="model">Model</th><th data-field="market">Market</th><th data-field="status">Status</th><th data-field="talk_sp" class="lx-num">Talk mean</th><th data-field="final_sp" class="lx-num">Final</th><th data-field="talk_sp_partial" class="lx-num">Partial Talk mean</th><th data-field="periods_done" class="lx-num">Periods</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="lx-muted">Both models collude in some pairs under the short window, so the sweep kept it. Whether more memory helps gpt-oss is open: the arms differ, but four markets each cannot settle it.</p>
+      </div>
+      <div class="lx-card" id="status-card">
+        <h3>Run status and cost</h3>
+        <div class="lx-tablebox">
+          <table id="status-table" data-source="run_status" data-row-key="model">
+            <thead><tr><th data-field="model">Run</th><th data-field="cells_complete" class="lx-num">Cells done</th><th data-field="cells_planned" class="lx-num">Planned</th><th data-field="human_cells_complete" class="lx-num">Human-comparable done</th><th data-field="markets_complete" class="lx-num">Markets done</th><th data-field="cost_usd" class="lx-num">Spent $</th><th data-field="cap_usd" class="lx-num">Cap $</th><th data-field="cells_incomplete">Incomplete cells (markets done)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="lx-muted">Qwen's sweep stopped at its cost cap. Cells with fewer than six finished markets are left out of every chart and table above, not imputed; the unfinished markets are checkpointed.</p>
+      </div>
+    </div>
+    <div class="lx-card" id="caveats">
+      <h3>Caveats</h3>
+      <ul>
+        <li><b>Network outage.</b> An overnight outage failed a batch of markets with connection errors (nothing billed). They resumed from per-period checkpoints, so firms saw exactly what an uninterrupted run would have shown; nothing was lost.</li>
+        <li><b>Contamination.</b> A separate probe asked each model about the paper by name, without it, and from its instructions. No model recognised the instructions or recalled the design or results, so memorised benchmarks are unlikely to drive behaviour.</li>
+        <li><b>Human data.</b> Benchmarks come from the working paper; the journal version is unchecked. Its Talk window is ambiguous, and each human cell has only six markets.</li>
+        <li><b>Memory.</b> Firms see full detail of only the last three periods plus their own notes (a deliberate design choice). Probe answers about deviations test that memory.</li>
+        <li><b>Extensions.</b> Ten-firm markets and the control orderings at sizes other than four are extensions with no human counterpart; keep them apart from the human comparison.</li>
+        <li><b>Automated chat counts</b> are a rule-based screen; lean on the verified findings for interpretation.</li>
+        <li><b>Qwen incomplete.</b> Qwen's sweep hit its cost cap. Its partial cells (listed under run status) are left out rather than imputed, and its transcript findings cover only the 36 human-comparable markets.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="next">
+    <h2>Options for next</h2>
+    <div class="lx-card">
+      <ul>
+        <li><b>Full-history arm for gpt-oss.</b> The memory pilot hints that longer recall may help gpt-oss collude; a full-length arm at a few market sizes would test it (Qwen cannot, its context is too short).</li>
+        <li><b>Finish Qwen's remaining cells.</b> The unfinished Qwen3-14B markets (eight-firm Talk first, all ten-firm cells, and the rest of six-firm Talk first) are checkpointed and can resume where they stopped, for an estimated fifteen to twenty dollars more; the API key needs topping up first.</li>
+        <li><b>More markets per cell.</b> Six markets per cell match the human sample but leave wide intervals, especially in duopolies where outcomes vary most.</li>
+        <li><b>Structured outputs.</b> Constrained decoding would remove most format slips; it changes how the model generates, so it would be a new arm, not a fix.</li>
+        <li><b>Cheaper gpt-oss provider.</b> Switching to a provider with prompt caching (darkbloom, eight-bit weights) would roughly halve the cost, but it changes the provider and quantisation: a design change to record and hold fixed, not a drop-in swap.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const MODELS = { 'gpt-oss-20b': 'gpt-oss-20b', 'qwen3-14b': 'Qwen3-14B', 'humans': 'Humans' };
+  const ORDER_LABEL = { 'NT-T': 'NoTalk then Talk', 'T-NT': 'Talk then NoTalk', 'NT-NT': 'NoTalk then NoTalk' };
+  const C = dash.colors;
+  const modelColor = (m) => m === 'gpt-oss-20b' ? C[0] : m === 'qwen3-14b' ? C[1] : C[2];
+  const pairColor = [C[3], C[4]];
+  const toNum = (v) => (v === '' || v == null) ? null : Number(v);
+  const state = { talkW: 'sp_p2_all', tsModel: null, tsOrder: 'NT-T', findModel: '' };
+  window.lxState = state;
+
+  dash.calc('headline', {
+    inputs: ['cells'],
+    title: 'Average gain from talking',
+    description: 'Mean over market sizes two to eight of the NoTalk-then-Talk gain (Talk minus NoTalk selling price, all Talk periods), per model and for humans.',
+    fn: (cells) => {
+      const by = {};
+      cells.filter((r) => r.ordering === 'NT-T' && r.measure === 'gain_p2_all' && Number(r.n) <= 8)
+        .forEach((r) => { (by[r.model] = by[r.model] || []).push(Number(r.mean)); });
+      return Object.entries(by).map(([model, v]) => ({ model, gain: Math.round(10 * v.reduce((a, b) => a + b, 0) / v.length) / 10, sizes: v.length }));
+    },
+  });
+  dash.calc('chat_totals', {
+    inputs: ['chat'],
+    title: 'Chat agreements kept and broken',
+    description: 'Per model, total agreement periods from the chat screen and the shares kept and broken.',
+    fn: (chat) => {
+      const by = {};
+      chat.forEach((r) => { const t = by[r.model] = by[r.model] || { agreements: 0, kept: 0, broken: 0 }; t.agreements += Number(r.agreements); t.kept += Number(r.kept); t.broken += Number(r.broken); });
+      return Object.entries(by).map(([model, t]) => ({ model, ...t, kept_pct: Math.round(100 * t.kept / t.agreements), broken_pct: Math.round(100 * t.broken / t.agreements) }));
+    },
+  });
+  dash.calc('status', {
+    inputs: ['run_status'],
+    title: 'Run totals',
+    description: 'Models run, markets complete and planned, and total spend including pilots and probes.',
+    fn: (run_status) => {
+      const sweeps = run_status.filter((r) => r.markets_planned !== '' && r.markets_planned != null);
+      const sum = (k, rows) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+      return [{ models: sweeps.length, markets_complete: sum('markets_complete', sweeps), markets_planned: sum('markets_planned', sweeps), cost_usd: Math.round(100 * sum('cost_usd', run_status)) / 100 }];
+    },
+  });
+
+  function fail(el) { el.replaceChildren(); const d = document.createElement('div'); d.className = 'lx-fail'; d.textContent = 'Failed to load'; el.appendChild(d); }
+  function setSkeleton(el, on) { el.classList.toggle('dash-skeleton', on); }
+
+  function legend(el, items) {
+    el.replaceChildren(...items.map(([label, color]) => {
+      const s = document.createElement('span'); const sw = document.createElement('span');
+      sw.className = 'lx-sw'; sw.style.background = color; s.append(sw, label); return s;
+    }));
+  }
+
+  function tipFor(box) {
+    let t = box.querySelector(':scope > .lx-tip');
+    if (!t) { t = document.createElement('div'); t.className = 'lx-tip'; box.appendChild(t); }
+    return t;
+  }
+  function showTip(box, t, x, y, title, lines) {
+    t.replaceChildren();
+    const h = document.createElement('div'); h.className = 'lx-tt'; h.textContent = title; t.appendChild(h);
+    lines.forEach(([color, label, val]) => {
+      const d = document.createElement('div');
+      if (color) { const sw = document.createElement('span'); sw.className = 'lx-sw'; sw.style.background = color; d.appendChild(sw); }
+      d.append(label + (val != null ? ': ' + val : ''));
+      t.appendChild(d);
+    });
+    t.style.display = 'block';
+    const bw = box.clientWidth, tw = t.offsetWidth, th = t.offsetHeight;
+    t.style.left = Math.max(0, Math.min(bw - tw, x + 12)) + 'px';
+    t.style.top = Math.max(0, y - th - 8) + 'px';
+  }
+  const hideTip = (t) => { t.style.display = 'none'; };
+  const f1 = d3.format('.1f');
+
+  // Grouped bars: groups along x, series within a group, values 0..100.
+  function groupedBars(box, { groups, series, get, height = 220, groupLabel = (g) => 'n = ' + g, compact = false }) {
+    box.querySelectorAll('svg').forEach((s) => s.remove());
+    const W = Math.max(160, box.clientWidth);
+    const H = height;
+    const m = { l: 30, r: 6, t: 8, b: 22 };
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    const y = d3.scaleLinear([0, 100], [H - m.b, m.t]);
+    const x0 = d3.scaleBand(groups, [m.l, W - m.r]).paddingInner(0.2).paddingOuter(0.05);
+    const x1 = d3.scaleBand(series.map((s) => s.key), [0, x0.bandwidth()]).padding(0.12);
+    const ticks = compact ? [0, 50, 100] : [0, 25, 50, 75, 100];
+    svg.append('g').selectAll('line').data(ticks).join('line')
+      .attr('x1', m.l).attr('x2', W - m.r).attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
+      .attr('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('text').data(ticks).join('text')
+      .attr('x', m.l - 4).attr('y', (d) => y(d) + 4).attr('text-anchor', 'end').text((d) => d);
+    svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    svg.append('g').selectAll('text').data(groups).join('text')
+      .attr('x', (g) => x0(g) + x0.bandwidth() / 2).attr('y', H - 6).attr('text-anchor', 'middle').text(groupLabel);
+    const tip = tipFor(box);
+    const bw = Math.min(32, x1.bandwidth());
+    groups.forEach((g) => {
+      series.forEach((s) => {
+        const v = get(g, s);
+        if (!v || v.mean == null) return;
+        const cx = x0(g) + x1(s.key) + x1.bandwidth() / 2;
+        const top = y(Math.max(0, Math.min(100, v.mean)));
+        const h = Math.max(1, y(0) - top);
+        svg.append('path').attr('fill', s.color)
+          .attr('d', `M${cx - bw / 2},${y(0)} V${top + Math.min(3, h)} q0,-${Math.min(3, h)} ${Math.min(3, bw / 2)},-${Math.min(3, h)} H${cx + bw / 2 - Math.min(3, bw / 2)} q${Math.min(3, bw / 2)},0 ${Math.min(3, bw / 2)},${Math.min(3, h)} V${y(0)} Z`);
+        if (v.sd != null && !compact) {
+          const lo = y(Math.max(0, v.mean - v.sd)), hi = y(Math.min(100, v.mean + v.sd));
+          svg.append('line').attr('x1', cx).attr('x2', cx).attr('y1', lo).attr('y2', hi).attr('stroke', 'var(--color-fg-muted)').attr('stroke-width', 1);
+        }
+        svg.append('rect').attr('x', x0(g) + x1(s.key)).attr('width', x1.bandwidth()).attr('y', m.t).attr('height', H - m.b - m.t)
+          .attr('fill', 'transparent')
+          .on('mousemove', (ev) => {
+            const [px, py] = d3.pointer(ev, box);
+            const lines = [[s.color, s.label, f1(v.mean)]];
+            if (v.sd != null) lines.push([null, 'SD', f1(v.sd)]);
+            if (v.nm != null) lines.push([null, 'Markets', v.nm]);
+            showTip(box, tip, px, py, groupLabel(g), lines);
+          })
+          .on('mouseleave', () => hideTip(tip));
+      });
+    });
+  }
+
+  function cellIndex(rows) {
+    const ix = new Map();
+    rows.forEach((r) => ix.set(`${r.model}|${r.n}|${r.ordering}|${r.measure}`, { mean: toNum(r.mean), sd: toNum(r.sd), nm: toNum(r.n_markets) }));
+    return ix;
+  }
+
+  function drawMain(ix) {
+    const series = ['gpt-oss-20b', 'qwen3-14b', 'humans'].map((k) => ({ key: k, label: MODELS[k], color: modelColor(k) }));
+    legend(document.getElementById('main-legend'), series.map((s) => [s.label, s.color]));
+    const groups = [2, 4, 6, 8];
+    groupedBars(document.getElementById('main-notalk'), { groups, series, get: (g, s) => ix.get(`${s.key}|${g}|NT-T|sp_p1_from6`) });
+    groupedBars(document.getElementById('main-talk'), { groups, series, get: (g, s) => ix.get(`${s.key}|${g}|NT-T|${state.talkW}`) });
+  }
+
+  function multiples(wrap, pairs, ix, legendEl) {
+    wrap.replaceChildren();
+    const series = pairs.map((p, i) => ({ key: p.key, label: p.label, color: pairColor[i] }));
+    legend(legendEl, series.map((s) => [s.label, s.color]));
+    ['gpt-oss-20b', 'qwen3-14b', 'humans'].forEach((model) => {
+      const ns = [2, 4, 6, 8, 10].filter((n) => pairs.some((p) => ix.has(`${model}|${n}|${p.ordering}|${p.measure}`)));
+      if (!ns.length) return;
+      const card = document.createElement('div');
+      const h = document.createElement('div'); h.className = 'lx-muted'; h.textContent = MODELS[model]; card.appendChild(h);
+      const box = document.createElement('div'); box.className = 'lx-chart lx-small'; card.appendChild(box);
+      wrap.appendChild(card);
+      groupedBars(box, { groups: ns, series, height: 170, compact: true,
+        get: (g, s) => { const p = pairs.find((q) => q.key === s.key); return ix.get(`${model}|${g}|${p.ordering}|${p.measure}`); } });
+    });
+  }
+
+  function drawOrder(ix) {
+    multiples(document.getElementById('order-multiples'), [
+      { key: 'first', label: 'Talk first (Part one)', ordering: 'T-NT', measure: 'sp_p1_from6' },
+      { key: 'after', label: 'Talk after NoTalk (Part two)', ordering: 'NT-T', measure: 'sp_p2_from6' },
+    ], ix, document.getElementById('order-legend'));
+    multiples(document.getElementById('hyst-multiples'), [
+      { key: 'after', label: 'After chat (Talk then NoTalk)', ordering: 'T-NT', measure: 'sp_p2_all' },
+      { key: 'never', label: 'Never chat (NoTalk then NoTalk)', ordering: 'NT-NT', measure: 'sp_p2_all' },
+    ], ix, document.getElementById('hyst-legend'));
+  }
+
+  function fillSelect(sel, values, labels, current) {
+    const cur = current ?? sel.value;
+    sel.replaceChildren(...values.map((v) => new Option(labels[v] || v, v)));
+    if (values.includes(cur)) sel.value = cur;
+    return sel.value;
+  }
+
+  function drawPaths(rows) {
+    const wrap = document.getElementById('ts-multiples');
+    wrap.replaceChildren();
+    const models = [...new Set(rows.map((r) => r.model))];
+    state.tsModel = fillSelect(document.getElementById('ts-model'), models, MODELS, state.tsModel || models[0]);
+    const orders = ['NT-T', 'T-NT', 'NT-NT'].filter((o) => rows.some((r) => r.model === state.tsModel && r.ordering === o));
+    state.tsOrder = fillSelect(document.getElementById('ts-order'), orders, ORDER_LABEL, state.tsOrder);
+    const sel = rows.filter((r) => r.model === state.tsModel && r.ordering === state.tsOrder);
+    const ns = [...new Set(sel.map((r) => Number(r.n)))].sort((a, b) => a - b);
+    const color = modelColor(state.tsModel);
+    ns.forEach((n) => {
+      const pts = sel.filter((r) => Number(r.n) === n).map((r) => ({ g: Number(r.gperiod), part: Number(r.part), period: Number(r.period), mean: toNum(r.mean), q25: toNum(r.q25), q75: toNum(r.q75), nm: r.n_markets })).sort((a, b) => a.g - b.g);
+      const card = document.createElement('div'); card.className = 'lx-card'; card.id = 'ts-n' + n;
+      const h = document.createElement('h3'); h.textContent = n + ' firms'; card.appendChild(h);
+      const box = document.createElement('div'); box.className = 'lx-chart lx-small'; card.appendChild(box);
+      wrap.appendChild(card);
+      const W = Math.max(180, box.clientWidth), H = 170, m = { l: 28, r: 6, t: 14, b: 20 };
+      const x = d3.scaleLinear(d3.extent(pts, (p) => p.g), [m.l, W - m.r]);
+      const y = d3.scaleLinear([0, 100], [H - m.b, m.t]);
+      const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+      [0, 50, 100].forEach((t) => {
+        svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(t)).attr('y2', y(t)).attr('stroke', 'var(--cds-chart-grid)');
+        svg.append('text').attr('x', m.l - 4).attr('y', y(t) + 4).attr('text-anchor', 'end').text(t);
+      });
+      const p1end = d3.max(pts.filter((p) => p.part === 1), (p) => p.g);
+      if (p1end != null && pts.some((p) => p.part === 2)) {
+        svg.append('line').attr('x1', x(p1end + 0.5)).attr('x2', x(p1end + 0.5)).attr('y1', m.t).attr('y2', H - m.b).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '4 3');
+        svg.append('text').attr('x', x(p1end + 0.5) + 3).attr('y', m.t - 3).text('Part 2');
+        svg.append('text').attr('x', m.l + 2).attr('y', m.t - 3).text('Part 1');
+      }
+      pts.filter((p) => p.period === 20).forEach((p) => {
+        svg.append('line').attr('x1', x(p.g)).attr('x2', x(p.g)).attr('y1', m.t).attr('y2', H - m.b).attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '1 3');
+      });
+      [1, 2].forEach((part) => {
+        const pp = pts.filter((p) => p.part === part && p.mean != null);
+        if (!pp.length) return;
+        svg.append('path').datum(pp).attr('fill', color).attr('fill-opacity', 0.15)
+          .attr('d', d3.area().x((p) => x(p.g)).y0((p) => y(p.q25 ?? p.mean)).y1((p) => y(p.q75 ?? p.mean)));
+        svg.append('path').datum(pp).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round')
+          .attr('d', d3.line().x((p) => x(p.g)).y((p) => y(p.mean)));
+      });
+      const xt = x.ticks(4).filter(Number.isInteger);
+      svg.append('g').selectAll('text').data(xt).join('text').attr('x', (d) => x(d)).attr('y', H - 5).attr('text-anchor', 'middle').text((d) => d);
+      const tip = tipFor(box);
+      const rule = svg.append('line').attr('y1', m.t).attr('y2', H - m.b).attr('stroke', 'var(--cds-chart-axis)').style('display', 'none');
+      const dot = svg.append('circle').attr('r', 4).attr('fill', color).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2).style('display', 'none');
+      svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).attr('fill', 'transparent')
+        .on('mousemove', (ev) => {
+          const [sx] = d3.pointer(ev);
+          const g = Math.round(x.invert(sx));
+          const p = pts.find((q) => q.g === g); if (!p || p.mean == null) return;
+          rule.style('display', null).attr('x1', x(g)).attr('x2', x(g));
+          dot.style('display', null).attr('cx', x(g)).attr('cy', y(p.mean));
+          const [px, py] = d3.pointer(ev, box);
+          showTip(box, tip, px, py, `Part ${p.part}, period ${p.period}`, [[color, 'Mean selling price', f1(p.mean)], [null, 'Middle half', `${f1(p.q25)} to ${f1(p.q75)}`]]);
+        })
+        .on('mouseleave', () => { hideTip(tip); rule.style('display', 'none'); dot.style('display', 'none'); });
+    });
+  }
+
+  function findingCard(r) {
+    const c = document.createElement('article'); c.className = 'lx-find';
+    const meta = document.createElement('div'); meta.className = 'lx-meta';
+    const v = document.createElement('span'); v.className = 'lx-pill ' + (r.verdict === 'confirmed' ? 'lx-ok' : 'lx-part');
+    v.textContent = r.verdict === 'confirmed' ? 'Verified' : r.verdict === 'partly' ? 'Verified with corrections' : r.verdict;
+    const md = document.createElement('span'); md.className = 'lx-pill'; md.textContent = MODELS[r.model] || r.model;
+    const gr = document.createElement('span'); gr.textContent = r.group;
+    meta.append(v, md, gr);
+    const p = document.createElement('p'); p.className = 'lx-claim'; p.textContent = r.claim;
+    c.append(meta, p);
+    if (r.quote) {
+      const q = document.createElement('blockquote'); q.textContent = r.quote; c.appendChild(q);
+      const src = document.createElement('div'); src.className = 'lx-muted'; src.textContent = `${r.market_short}, period ${r.period}`; c.appendChild(src);
+    }
+    if (r.verifier_note) {
+      const d = document.createElement('details'); const s = document.createElement('summary'); s.textContent = 'Verifier note';
+      const n = document.createElement('p'); n.className = 'lx-muted'; n.textContent = r.verifier_note; d.append(s, n); c.appendChild(d);
+    }
+    return c;
+  }
+
+  function drawFindings(rows) {
+    const models = [...new Set(rows.map((r) => r.model))];
+    const sel = document.getElementById('find-model');
+    sel.replaceChildren(new Option('All models', ''), ...models.map((m) => new Option(MODELS[m] || m, m)));
+    sel.value = state.findModel;
+    const rs = rows.filter((r) => !state.findModel || r.model === state.findModel);
+    document.getElementById('find-count').textContent = rs.length + ' findings shown';
+    const themes = { prices: 'find-prices', hysteresis: 'find-hysteresis', agreements: 'find-agreements', breaches: 'find-breaches', threats: 'find-threats', deception: 'find-deception', coordination: 'find-coordination', mistakes: 'find-mistakes', method: 'find-mistakes', other: 'find-prices' };
+    const shown = state.findModel ? [state.findModel] : models;
+    [...new Set(Object.values(themes))].forEach((id) => {
+      const box = document.getElementById(id);
+      box.replaceChildren();
+      const mine = rs.filter((r) => (themes[r.theme] || 'find-prices') === id);
+      box.className = shown.length > 1 ? 'lx-findcols' : 'lx-findings';
+      if (shown.length <= 1) { mine.forEach((r) => box.appendChild(findingCard(r))); return; }
+      shown.forEach((m) => {
+        const col = document.createElement('div'); col.className = 'lx-findcol';
+        const h = document.createElement('h4'); const sw = document.createElement('span'); sw.className = 'lx-sw'; sw.style.background = modelColor(m);
+        const these = mine.filter((r) => r.model === m);
+        h.append(sw, `${MODELS[m] || m} (${these.length})`);
+        const list = document.createElement('div'); list.className = 'lx-findings';
+        these.forEach((r) => list.appendChild(findingCard(r)));
+        if (!these.length) { const e = document.createElement('p'); e.className = 'lx-muted'; e.textContent = 'No findings under this heading.'; list.appendChild(e); }
+        col.append(h, list); box.appendChild(col);
+      });
+    });
+  }
+
+  function fillTable(table, rows, key, fmt = {}) {
+    const cols = [...table.querySelectorAll('thead th')].map((th) => th.dataset.field);
+    const tb = table.querySelector('tbody');
+    tb.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr'); tr.dataset.key = r[key];
+      cols.forEach((c) => {
+        const td = document.createElement('td');
+        const th = table.querySelector(`th[data-field="${c}"]`);
+        if (th.classList.contains('lx-num')) td.className = 'lx-num';
+        td.textContent = fmt[c] ? fmt[c](r[c]) : (r[c] ?? '');
+        tr.appendChild(td);
+      });
+      return tr;
+    }));
+  }
+
+  function drawProbe(rows) {
+    const box = document.getElementById('probe-chart');
+    box.querySelectorAll('svg').forEach((s) => s.remove());
+    const pts = rows.filter((r) => r.talk_sp !== '' && r.talk_sp != null).map((r) => ({ ...r, x: Number(r.talk_sp), y: Number(r.best_common_pct) }));
+    const models = [...new Set(pts.map((p) => p.model))];
+    legend(document.getElementById('probe-legend'), models.map((m) => [MODELS[m] || m, modelColor(m)]));
+    const W = Math.max(200, box.clientWidth), H = 220, m = { l: 34, r: 10, t: 10, b: 30 };
+    const x = d3.scaleLinear([0, 100], [m.l, W - m.r]);
+    const ymin = Math.min(50, Math.floor((d3.min(pts, (p) => p.y) ?? 50) / 10) * 10);
+    const y = d3.scaleLinear([ymin, 100], [H - m.b, m.t]);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    y.ticks(4).forEach((t) => {
+      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(t)).attr('y2', y(t)).attr('stroke', 'var(--cds-chart-grid)');
+      svg.append('text').attr('x', m.l - 4).attr('y', y(t) + 4).attr('text-anchor', 'end').text(t + '%');
+    });
+    [0, 25, 50, 75, 100].forEach((t) => svg.append('text').attr('x', x(t)).attr('y', H - 14).attr('text-anchor', 'middle').text(t));
+    svg.append('text').attr('x', W - m.r).attr('y', H - 2).attr('text-anchor', 'end').text('Talk-part mean selling price');
+    const tip = tipFor(box);
+    pts.forEach((p) => {
+      svg.append('circle').attr('cx', x(p.x)).attr('cy', y(p.y)).attr('r', 5).attr('fill', modelColor(p.model)).attr('fill-opacity', 0.85).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2);
+      svg.append('circle').attr('cx', x(p.x)).attr('cy', y(p.y)).attr('r', 12).attr('fill', 'transparent')
+        .on('mousemove', (ev) => { const [px, py] = d3.pointer(ev, box);
+          showTip(box, tip, px, py, `${MODELS[p.model]}, ${p.n} firms, ${p.ordering}`, [[modelColor(p.model), 'Best common price correct', p.best_common_pct + '%'], [null, 'Talk-part selling price', p.talk_sp], [null, 'Last prices recalled', p.recall_pct + '%'], [null, 'Firms', p.firms]]); })
+        .on('mouseleave', () => hideTip(tip));
+    });
+  }
+
+  document.getElementById('talk-window').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    state.talkW = b.dataset.w;
+    document.querySelectorAll('#talk-window button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  });
+  document.getElementById('ts-model').addEventListener('change', (e) => { state.tsModel = e.target.value; render(); });
+  document.getElementById('ts-order').addEventListener('change', (e) => { state.tsOrder = e.target.value; render(); });
+  document.getElementById('find-model').addEventListener('change', (e) => { state.findModel = e.target.value; render(); });
+
+  function guard(id, els, draw) {
+    const d = dash.data(id);
+    els.forEach((el) => setSkeleton(el, d.status === 'loading'));
+    if (d.status === 'ok') { try { draw(d.data); } catch (e) { els.forEach(fail); throw e; } }
+    else if (d.status === 'error' || d.status === 'connect') els.forEach(fail);
+    else els.forEach((el) => el.querySelectorAll('svg').forEach((s) => s.remove()));
+  }
+
+  const byId = (id) => document.getElementById(id);
+  function fillMarks() {
+    document.querySelectorAll('.lx [data-source][data-field][data-where]:not(th)').forEach((el) => {
+      const src = el.dataset.source; const d = dash.data(src);
+      if (d.status !== 'ok') { el.textContent = '—'; return; }
+      el.classList.remove('dash-skeleton');
+      const conds = el.dataset.where.split('&').map((kv) => kv.split('=').map(decodeURIComponent));
+      const row = (d.data || []).find((r) => conds.every(([k, v]) => String(r[k]) === v));
+      const val = row ? row[el.dataset.field] : null;
+      el.textContent = val == null || val === '' ? '—' : String(val);
+    });
+    document.querySelectorAll('.lx [data-source="status"][data-field]').forEach((el) => {
+      const d = dash.data('status');
+      if (d.status !== 'ok') { el.textContent = '—'; return; }
+      el.classList.remove('dash-skeleton');
+      el.textContent = String(d.data[0][el.dataset.field]);
+    });
+  }
+
+  function render() {
+    fillMarks();
+    guard('cells', [byId('main-notalk'), byId('main-talk'), byId('order-multiples'), byId('hyst-multiples')], (rows) => { const ix = cellIndex(rows); drawMain(ix); drawOrder(ix); });
+    guard('timeseries', [byId('ts-multiples')], drawPaths);
+    guard('findings', [byId('find-prices')], drawFindings);
+    guard('chat', [], (rows) => fillTable(byId('chat-table'), rows, 'cell_id'));
+    guard('mistakes', [], (rows) => fillTable(byId('mistakes-table'), rows, 'cell_id'));
+    guard('ab_memory', [], (rows) => fillTable(byId('ab-table'), rows, 'ab_id'));
+    guard('run_status', [], (rows) => fillTable(byId('status-table'), rows, 'model'));
+    guard('probe', [byId('probe-chart')], drawProbe);
+  }
+  dash.onData(render);
+
+  let linked = false;
+  dash.onData(() => {
+    if (linked) return;
+    const named = document.getElementById(location.hash.slice(1));
+    if (named && dash.data('cells').status === 'ok') { named.scrollIntoView(); linked = true; }
+  });
+  document.querySelectorAll('.lx nav a').forEach((a) => a.addEventListener('click', () => dash.setLink(a.getAttribute('href').slice(1))));
+})();
+</script>

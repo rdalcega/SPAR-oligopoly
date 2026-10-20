@@ -1,0 +1,164 @@
+model,block,measure,n,ordering,window,llm,llm_sd,llm_n_markets,human,human_sd,diff,caveat
+gpt-oss-20b,price,NoTalk selling price,2,NT-T,p1_from6,35.75,38.48214773689801,6,50.4,21.2,-14.649999999999999,
+gpt-oss-20b,price,NoTalk posted price,2,NT-T,p1_from6,36.8125,38.472697299513584,6,54.23,,-17.417499999999997,fn. 10 NoTalk posted price; the paper does not state its window (assumed periods 6 on).
+gpt-oss-20b,price,Talk selling price,2,NT-T,p2_all,37.479166666666664,36.489246418180066,6,93.5,9.3,-56.020833333333336,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,2,NT-T,p2_all,1.7291666666666667,16.919945289837997,6,43.2,,-41.47083333333334,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Talk selling price,2,NT-T,p2_from6,39.09649122807017,36.18207904407906,6,93.5,9.3,-54.40350877192983,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,2,NT-T,p2_from6,3.346491228070175,20.037030056476656,6,43.2,,-39.853508771929825,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,fn14 Talk selling price (last 5),2,NT-T,p2_last5,44.333333333333336,37.919212368754,6,90.57,,-46.23666666666666,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,fn14 gain (last 5),2,NT-T,p2_last5,8.583333333333334,31.24354377751951,6,40.21,,-31.626666666666665,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,NoTalk selling price,4,NT-T,p1_from6,0.8333333333333334,0.408248290463863,6,6.0,0.6,-5.166666666666667,
+gpt-oss-20b,price,NoTalk posted price,4,NT-T,p1_from6,1.138888888888889,0.4442762268462501,6,18.18,,-17.04111111111111,fn. 10 NoTalk posted price; the paper does not state its window (assumed periods 6 on).
+gpt-oss-20b,price,Talk selling price,4,NT-T,p2_all,2.6875,3.5889249009201136,6,81.3,30.1,-78.6125,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,4,NT-T,p2_all,1.8541666666666667,3.9965045491167794,6,75.3,,-73.44583333333333,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Talk selling price,4,NT-T,p2_from6,2.736842105263158,3.568716025690775,6,81.3,30.1,-78.56315789473683,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,4,NT-T,p2_from6,1.9035087719298245,3.975885297211624,6,75.3,,-73.39649122807018,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,fn14 Talk selling price (last 5),4,NT-T,p2_last5,2.8666666666666667,3.5251477510406093,6,62.97,,-60.10333333333333,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,fn14 gain (last 5),4,NT-T,p2_last5,2.033333333333333,3.9302247603243594,6,56.95,,-54.91666666666667,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,NoTalk selling price,6,NT-T,p1_from6,0.0,0.0,6,2.5,2.0,-2.5,
+gpt-oss-20b,price,NoTalk posted price,6,NT-T,p1_from6,0.22800925925925927,0.38057625315437194,6,23.41,,-23.18199074074074,fn. 10 NoTalk posted price; the paper does not state its window (assumed periods 6 on).
+gpt-oss-20b,price,Talk selling price,6,NT-T,p2_all,16.97222222222222,18.241163512679126,6,65.0,42.9,-48.02777777777778,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,6,NT-T,p2_all,16.97222222222222,18.241163512679126,6,62.5,,-45.52777777777778,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Talk selling price,6,NT-T,p2_from6,17.333333333333332,18.310454960199436,6,65.0,42.9,-47.66666666666667,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,6,NT-T,p2_from6,17.333333333333332,18.310454960199436,6,62.5,,-45.16666666666667,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,fn14 Talk selling price (last 5),6,NT-T,p2_last5,16.366666666666667,17.81478786476748,6,58.63,,-42.263333333333335,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,fn14 gain (last 5),6,NT-T,p2_last5,16.366666666666667,17.81478786476748,6,56.09,,-39.723333333333336,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,NoTalk selling price,8,NT-T,p1_from6,0.3333333333333333,0.5163977794943223,6,1.1,0.3,-0.7666666666666668,
+gpt-oss-20b,price,NoTalk posted price,8,NT-T,p1_from6,0.48871527777777785,0.4441632546903555,6,29.36,,-28.87128472222222,fn. 10 NoTalk posted price; the paper does not state its window (assumed periods 6 on).
+gpt-oss-20b,price,Talk selling price,8,NT-T,p2_all,4.215277777777778,5.7952576796958795,6,55.2,35.3,-50.984722222222224,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,8,NT-T,p2_all,3.8819444444444446,6.0379825932422415,6,54.1,,-50.21805555555556,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Talk selling price,8,NT-T,p2_from6,4.842105263157895,6.900319154367642,6,55.2,35.3,-50.357894736842105,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,Gain from talking,8,NT-T,p2_from6,4.508771929824562,7.141208621268801,6,54.1,,-49.59122807017544,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,price,fn14 Talk selling price (last 5),8,NT-T,p2_last5,4.766666666666667,7.445177410019634,6,38.73,,-33.96333333333333,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,price,fn14 gain (last 5),8,NT-T,p2_last5,4.433333333333334,7.662288605023089,6,37.64,,-33.20666666666666,Most likely only the last 5 periods of the Talk phase (periods 49-53); wording ambiguous
+gpt-oss-20b,controls,Talk selling price (part 1),4,T-NT,p1_from6,51.236111111111114,39.42164932096557,6,89.0,8.7,-37.763888888888886,
+gpt-oss-20b,controls,NoTalk selling price (part 2),4,T-NT,p2_all,38.875,38.13111517441425,6,67.0,33.8,-28.125,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,controls,NoTalk selling price (part 2),4,T-NT,p2_from6,37.60526315789474,37.090452437923446,6,67.0,33.8,-29.39473684210526,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,controls,NoTalk selling price (part 1),4,NT-NT,p1_from6,0.5,0.5477225575051662,6,2.84,3.63,-2.34,
+gpt-oss-20b,controls,NoTalk selling price (part 2),4,NT-NT,p2_all,0.5,0.5477225575051662,6,5.69,8.42,-5.19,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,controls,NoTalk selling price (part 2),4,NT-NT,p2_from6,0.5,0.5477225575051662,6,5.69,8.42,-5.19,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,NoTalk % selling price 100,2,NT-T,p1_from6,16.666666666666664,,144,0.0,,16.666666666666664,
+gpt-oss-20b,table2,NoTalk % selling price 99,2,NT-T,p1_from6,0.0,,144,2.1,,-2.1,
+gpt-oss-20b,table2,NoTalk % selling price 2-98,2,NT-T,p1_from6,50.0,,144,97.9,,-47.900000000000006,
+gpt-oss-20b,table2,NoTalk % selling price <=1,2,NT-T,p1_from6,33.33333333333333,,144,0.0,,33.33333333333333,
+gpt-oss-20b,table2,NoTalk % selling price 100,4,NT-T,p1_from6,0.0,,144,0.0,,0.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 99,4,NT-T,p1_from6,0.0,,144,0.0,,0.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 2-98,4,NT-T,p1_from6,0.0,,144,64.9,,-64.9,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price <=1,4,NT-T,p1_from6,100.0,,144,36.1,,63.9,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 100,6,NT-T,p1_from6,0.0,,144,0.0,,0.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 99,6,NT-T,p1_from6,0.0,,144,0.0,,0.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 2-98,6,NT-T,p1_from6,0.0,,144,35.0,,-35.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price <=1,6,NT-T,p1_from6,100.0,,144,66.0,,34.0,Human column sums to 101.0 as transcribed (Table 2 rounding/printing).
+gpt-oss-20b,table2,NoTalk % selling price 100,8,NT-T,p1_from6,0.0,,144,0.0,,0.0,
+gpt-oss-20b,table2,NoTalk % selling price 99,8,NT-T,p1_from6,0.0,,144,0.0,,0.0,
+gpt-oss-20b,table2,NoTalk % selling price 2-98,8,NT-T,p1_from6,0.0,,144,5.6,,-5.6,
+gpt-oss-20b,table2,NoTalk % selling price <=1,8,NT-T,p1_from6,100.0,,144,94.4,,5.599999999999994,
+gpt-oss-20b,table2,Talk % selling price 100,2,NT-T,p2_all,16.666666666666664,,144,60.5,,-43.833333333333336,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,2,NT-T,p2_all,0.0,,144,14.9,,-14.9,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,2,NT-T,p2_all,67.36111111111111,,144,24.6,,42.76111111111111,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,2,NT-T,p2_all,15.972222222222221,,144,0.0,,15.972222222222221,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,2,NT-T,p2_from6,16.666666666666664,,114,60.5,,-43.833333333333336,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,2,NT-T,p2_from6,0.0,,114,14.9,,-14.9,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,2,NT-T,p2_from6,71.9298245614035,,114,24.6,,47.329824561403505,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,2,NT-T,p2_from6,11.403508771929824,,114,0.0,,11.403508771929824,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,4,NT-T,p2_all,0.0,,144,74.6,,-74.6,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,4,NT-T,p2_all,0.0,,144,2.6,,-2.6,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,4,NT-T,p2_all,36.80555555555556,,144,11.2,,25.605555555555558,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,4,NT-T,p2_all,63.19444444444444,,144,11.4,,51.794444444444444,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,4,NT-T,p2_from6,0.0,,114,74.6,,-74.6,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,4,NT-T,p2_from6,0.0,,114,2.6,,-2.6,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,4,NT-T,p2_from6,42.10526315789473,,114,11.2,,30.905263157894733,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,4,NT-T,p2_from6,57.89473684210527,,114,11.4,,46.49473684210527,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,6,NT-T,p2_all,0.0,,144,23.7,,-23.7,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,6,NT-T,p2_all,0.0,,144,28.9,,-28.9,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,6,NT-T,p2_all,87.5,,144,28.1,,59.4,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,6,NT-T,p2_all,12.5,,144,19.3,,-6.800000000000001,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,6,NT-T,p2_from6,0.0,,114,23.7,,-23.7,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,6,NT-T,p2_from6,0.0,,114,28.9,,-28.9,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,6,NT-T,p2_from6,90.35087719298247,,114,28.1,,62.250877192982465,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,6,NT-T,p2_from6,9.649122807017543,,114,19.3,,-9.650877192982458,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,8,NT-T,p2_all,0.0,,144,12.3,,-12.3,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,8,NT-T,p2_all,0.0,,144,23.7,,-23.7,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,8,NT-T,p2_all,27.083333333333332,,144,45.6,,-18.51666666666667,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,8,NT-T,p2_all,72.91666666666666,,144,18.4,,54.51666666666666,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 100,8,NT-T,p2_from6,0.0,,114,12.3,,-12.3,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 99,8,NT-T,p2_from6,0.0,,114,23.7,,-23.7,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price 2-98,8,NT-T,p2_from6,30.701754385964914,,114,45.6,,-14.898245614035087,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table2,Talk % selling price <=1,8,NT-T,p2_from6,69.2982456140351,,114,18.4,,50.8982456140351,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,table3,P(100 -> 100),2,NT-T,p2_all,1.0,,23,0.92,,0.07999999999999996,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> 99),2,NT-T,p2_all,0.0,,23,0.02,,-0.02,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> <99),2,NT-T,p2_all,0.0,,23,0.06,,-0.06,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 100),2,NT-T,p2_all,,,0,0.04,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 99),2,NT-T,p2_all,,,0,0.87,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> <99),2,NT-T,p2_all,,,0,0.09,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 100),2,NT-T,p2_all,0.0,,115,0.19,,-0.19,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 99),2,NT-T,p2_all,0.0,,115,0.0,,0.0,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> <99),2,NT-T,p2_all,1.0,,115,0.81,,0.18999999999999995,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,Shorrocks index,2,NT-T,p2_all,,,,0.2,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table4,observed share 100,2,NT-T,p2_all,0.16666666666666666,,,0.609,,-0.44233333333333336,
+gpt-oss-20b,table4,ergodic share 100,2,NT-T,p2_all,,,,0.61,,,
+gpt-oss-20b,table4,observed share 99,2,NT-T,p2_all,0.0,,,0.167,,-0.167,
+gpt-oss-20b,table4,ergodic share 99,2,NT-T,p2_all,,,,0.175,,,
+gpt-oss-20b,table4,observed share <99,2,NT-T,p2_all,0.8333333333333334,,,0.225,,0.6083333333333334,
+gpt-oss-20b,table4,ergodic share <99,2,NT-T,p2_all,,,,0.215,,,
+gpt-oss-20b,table3,P(100 -> 100),4,NT-T,p2_all,,,0,0.95,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> 99),4,NT-T,p2_all,,,0,0.03,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> <99),4,NT-T,p2_all,,,0,0.02,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 100),4,NT-T,p2_all,,,0,0.1,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 99),4,NT-T,p2_all,,,0,0.7,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> <99),4,NT-T,p2_all,,,0,0.2,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 100),4,NT-T,p2_all,0.0,,138,0.09,,-0.09,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 99),4,NT-T,p2_all,0.0,,138,0.03,,-0.03,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> <99),4,NT-T,p2_all,1.0,,138,0.88,,0.12,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,Shorrocks index,4,NT-T,p2_all,,,,0.24,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table4,observed share 100,4,NT-T,p2_all,0.0,,,0.685,,-0.685,
+gpt-oss-20b,table4,ergodic share 100,4,NT-T,p2_all,,,,0.689,,,
+gpt-oss-20b,table4,observed share 99,4,NT-T,p2_all,0.0,,,0.109,,-0.109,
+gpt-oss-20b,table4,ergodic share 99,4,NT-T,p2_all,,,,0.121,,,
+gpt-oss-20b,table4,observed share <99,4,NT-T,p2_all,1.0,,,0.207,,0.793,
+gpt-oss-20b,table4,ergodic share <99,4,NT-T,p2_all,,,,0.192,,,
+gpt-oss-20b,table3,P(100 -> 100),6,NT-T,p2_all,,,0,0.85,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> 99),6,NT-T,p2_all,,,0,0.03,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> <99),6,NT-T,p2_all,,,0,0.12,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 100),6,NT-T,p2_all,,,0,0.05,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 99),6,NT-T,p2_all,,,0,0.82,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> <99),6,NT-T,p2_all,,,0,0.13,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 100),6,NT-T,p2_all,0.0,,138,0.04,,-0.04,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 99),6,NT-T,p2_all,0.0,,138,0.09,,-0.09,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> <99),6,NT-T,p2_all,1.0,,138,0.87,,0.13,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,Shorrocks index,6,NT-T,p2_all,,,,0.24,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table4,observed share 100,6,NT-T,p2_all,0.0,,,0.239,,-0.239,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share 100,6,NT-T,p2_all,,,,0.239,,,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,observed share 99,6,NT-T,p2_all,0.0,,,0.275,,-0.275,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share 99,6,NT-T,p2_all,,,,0.275,,,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,observed share <99,6,NT-T,p2_all,1.0,,,0.486,,0.514,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share <99,6,NT-T,p2_all,,,,0.486,,,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table3,P(100 -> 100),8,NT-T,p2_all,,,0,0.78,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> 99),8,NT-T,p2_all,,,0,0.19,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(100 -> <99),8,NT-T,p2_all,,,0,0.03,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 100),8,NT-T,p2_all,,,0,0.07,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> 99),8,NT-T,p2_all,,,0,0.72,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(99 -> <99),8,NT-T,p2_all,,,0,0.21,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 100),8,NT-T,p2_all,0.0,,138,0.01,,-0.01,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> 99),8,NT-T,p2_all,0.0,,138,0.04,,-0.04,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,P(<99 -> <99),8,NT-T,p2_all,1.0,,138,0.95,,0.050000000000000044,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table3,Shorrocks index,8,NT-T,p2_all,,,,0.28,,,Human matrix rounded to 2 decimals; Shorrocks reported from unrounded matrices.
+gpt-oss-20b,table4,observed share 100,8,NT-T,p2_all,0.0,,,0.225,,-0.225,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share 100,8,NT-T,p2_all,,,,0.265,,,"Human ergodic shares for n=8 sum to 1.031 as transcribed; do not cross-check with Table 3. WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,observed share 99,8,NT-T,p2_all,0.0,,,0.203,,-0.203,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share 99,8,NT-T,p2_all,,,,0.183,,,"Human ergodic shares for n=8 sum to 1.031 as transcribed; do not cross-check with Table 3. WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,observed share <99,8,NT-T,p2_all,1.0,,,0.572,,0.42800000000000005,"WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,table4,ergodic share <99,8,NT-T,p2_all,,,,0.583,,,"Human ergodic shares for n=8 sum to 1.031 as transcribed; do not cross-check with Table 3. WP labels the third state 'p < 100' for n=6, 8 (probably 'p < 99')."
+gpt-oss-20b,strategy,mean all-100 agreement length,2,NT-T,p2_all,24.0,,1,10.8,,13.2,Paper's unit is a market's average all-100 agreement length; LLM mean over markets with >= 1 spell.
+gpt-oss-20b,strategy,mean all-100 agreement length,4,NT-T,p2_all,,,0,16.0,,,Paper's unit is a market's average all-100 agreement length; LLM mean over markets with >= 1 spell.
+gpt-oss-20b,strategy,mean all-100 agreement length,6,NT-T,p2_all,,,0,4.3,,,Paper's unit is a market's average all-100 agreement length; LLM mean over markets with >= 1 spell.
+gpt-oss-20b,strategy,mean all-100 agreement length,8,NT-T,p2_all,,,0,3.6,,,Paper's unit is a market's average all-100 agreement length; LLM mean over markets with >= 1 spell.
+gpt-oss-20b,strategy,share of markets all-100 in first Talk period,,NT-T,p2 period 1,0.041666666666666664,,24,0.5833333333333334,,-0.5416666666666667,"Pooled over n = 2, 4, 6, 8 (24 human markets)."
+gpt-oss-20b,strategy,markets with taking turns,,NT-T,p2_all,0.0,,24,5.0,,-5.0,"Pooled over n = 2, 4, 6, 8 (24 human markets). Paper says taking turns was seen in 5 markets but describes only four spells."
+gpt-oss-20b,strategy,defections (fn18 price pattern),,NT-T,p2_all,0.0,,24,21.0,,-21.0,"Pooled over n = 2, 4, 6, 8 (24 human markets). Paper removed 2 deliberate turn switches by reading chats; LLM counts are price-based candidates."
+gpt-oss-20b,strategy,share of defections kept (p >= 99 next),,NT-T,p2_all,,,0,0.47619047619047616,,,"Pooled over n = 2, 4, 6, 8 (24 human markets). Paper removed 2 deliberate turn switches by reading chats; LLM counts are price-based candidates."
+gpt-oss-20b,tests,"Spearman rho, NoTalk price vs n (p=0.000223)",,NT-T,p1_from6,-0.6848452570121984,,24,-0.93,,0.2451547429878016,
+gpt-oss-20b,tests,"Spearman rho, Talk price vs n (p=0.085)",,NT-T,p2_all,-0.3588831923754898,,24,-0.51,,0.15111680762451019,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,tests,"Spearman rho, Talk price vs n (p=0.0902)",,NT-T,p2_from6,-0.3534864526405201,,24,-0.51,,0.15651354735947992,Part 2 window ambiguous in the paper: compare both p2_all and p2_from6 (WINDOW_AMBIGUITY).
+gpt-oss-20b,tests,markets with Talk > NoTalk,,NT-T,p2_all,16.0,,24,24.0,,-8.0,"Pooled over n = 2, 4, 6, 8 (24 human markets)."
+gpt-oss-20b,tests,markets with Talk > NoTalk,,NT-T,p2_from6,16.0,,24,24.0,,-8.0,"Pooled over n = 2, 4, 6, 8 (24 human markets)."

@@ -1,0 +1,4 @@
+check,label,sample,correct,correct_pct,deliberate,deliberate_pct
+kept,Agreement kept,15,15,100,,
+broken,Agreement broken,15,15,100,,
+deception,Deception flag (firm),20,17,85,14,70

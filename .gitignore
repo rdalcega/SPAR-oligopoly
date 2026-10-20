@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 .env
+.venv/
+.pytest_cache/
+data/runs/
+data/analysis/

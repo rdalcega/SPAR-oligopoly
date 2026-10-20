@@ -1,0 +1,111 @@
+# Per-model settings, held fixed across every cell (DECISIONS.md §6 item 9). The table name is the model's
+# short name used on the command line and in output file names.
+#
+# Keys: model (OpenRouter id), provider (endpoint tag to pin, fallbacks off), temperature, top_p,
+# top_k (optional), max_tokens, reasoning (OpenRouter reasoning object), require_parameters,
+# cache_control (optional, default true: add a cache breakpoint on the newest message),
+# pricing (optional, USD per million tokens; used by --dry-run instead of live endpoint pricing),
+# timeout_s (optional httpx timeout per read, also connect/pool/write, default 900 s; a read timeout is charged its
+#   reservation, a connect or pool timeout is not), deadline_s (optional absolute deadline per attempt, body
+#   included, default 2 x timeout_s; charged unless the request is known not to have been sent). Neither key
+#   affects play or fingerprints.
+# max_tokens is required for live models: the budget reserves its cost before every call.
+#
+# extra (optional): other sampling parameters sent as-is (presence_penalty, repetition_penalty, ...).
+# structured_outputs (optional, default false): send a strict json_schema response_format on chat and price calls
+#   (needs require_parameters = true); part of the model's fingerprint. Checked live by scripts/probe_structured.py.
+#
+# Context limits (DECISIONS.md, 2026-10-20; neither key affects play or fingerprints):
+# exclude_cells (optional): cells the model skips, e.g. [["NT-T", 10], ["T-NT", 10]] (ordering, n); written by
+#   scripts/project_context.py --write. bytes_per_token_min (optional, default 2.5): UTF-8 bytes per prompt token
+#   assumed by the runtime context guard; set lower for a model whose tokenizer is denser.
+#
+# Pins and sampling from the 2026-10-19 provider probe (data/probes/): DeepInfra serves 7 of the 8 models at
+# bf16/fp8 with seed support, so all 7 models are pinned to it, keeping provider out of model comparisons.
+# LFM-2.5-24B-A2B was dropped: its only provider caps output at 8192 tokens and ~18% of calls truncated. Sampling follows each model card's thinking-mode recommendation (gpt-oss's card
+# gives none: T=1, top_p=1). The reasoning parameter is always sent: without it Gemma does not think and
+# Qwen3.8 thinks ~6x longer. Only gpt-oss (and weakly Granite) respond to the effort level.
+
+[mock]
+model = "mock"
+provider = "mock"
+temperature = 1.0
+top_p = 1.0
+max_tokens = 4096
+reasoning = { effort = "medium" }
+require_parameters = true
+# Illustrative prices of a small open-weight model, for dry-run estimates only.
+pricing = { prompt = 0.10, completion = 0.40, input_cache_read = 0.025 }
+
+["qwen3.8-27b"]
+model = "qwen/qwen3.8-27b"
+provider = "deepinfra/bf16"
+temperature = 1.0
+top_p = 0.95
+top_k = 20
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+bytes_per_token_min = 2.4  # densest tokenizer in the pilots: 2.69 bytes/token on results text
+
+["qwen3.6-27b"]
+model = "qwen/qwen3.6-27b"
+provider = "deepinfra/fp8"
+temperature = 1.0
+top_p = 0.95
+top_k = 20
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["qwen3.5-27b"]
+model = "qwen/qwen3.5-27b"
+provider = "deepinfra/fp8"
+temperature = 1.0
+top_p = 0.95
+top_k = 20
+extra = { presence_penalty = 1.5 }
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["gemma-4-26b-a4b"]
+model = "google/gemma-4-26b-a4b-it"
+provider = "deepinfra/fp8"
+temperature = 1.0
+top_p = 0.95
+top_k = 64
+max_tokens = 8000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["gpt-oss-20b"]
+model = "openai/gpt-oss-20b"
+provider = "deepinfra/bf16"
+temperature = 1.0
+top_p = 1.0
+max_tokens = 6000  # largest pilot output was 4,200 tokens; 6000 keeps T-NT n=10 within the context rule
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["qwen3-14b"]
+# Older Qwen generation, added for the small end. DeepInfra context is 40,960 tokens (input + output). With the
+# rolling window (DECISIONS.md, 2026-10-20) the projected peak is ~20.6k tokens incl. max_tokens: no exclusions.
+model = "qwen/qwen3-14b"
+provider = "deepinfra/fp8"
+temperature = 0.6
+top_p = 0.95
+top_k = 20
+max_tokens = 8000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["granite-4.2-8b"]
+model = "ibm-granite/granite-4.2-8b"
+provider = "deepinfra/bf16"
+temperature = 1.0
+top_p = 0.95
+max_tokens = 8192
+reasoning = { effort = "medium" }
+require_parameters = true
+
