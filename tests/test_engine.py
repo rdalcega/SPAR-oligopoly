@@ -644,7 +644,7 @@ async def test_checkpoint_serialised_once_and_written_in_thread(tmp_path, monkey
     monkeypatch.setattr(engine.json, "loads", no_loads)
     await m.save_checkpoint()
     monkeypatch.undo()
-    assert threaded == ["dumps", "write_text_atomic"]  # serialised and written off the event loop
+    assert threaded == ["dumps", "write_checkpoint_atomic"]  # serialised and written off the event loop
     assert engine.checkpoint_path(tmp_path, s).read_text() == m._boundary
     assert json.loads(m._boundary)["periods_completed"] == 0
 
@@ -1372,7 +1372,62 @@ def test_structured_outputs_config():
     assert engine.response_schema("price", False)["json_schema"]["schema"]["required"] == ["price"]
 
 
-@pytest.mark.parametrize("stage", ["dumps", "write_text_atomic"])
+async def test_failure_checkpoint_falls_back_when_new_boundary_write_fails(tmp_path, monkeypatch):
+    """If writing the serialised new boundary fails, the old boundary plus all held call results is written."""
+    s = spec()
+    path = engine.checkpoint_path(tmp_path, s)
+    m = engine.Market(s, MockClient(), SHORT, checkpoint=path)
+    await m.save_checkpoint()
+    old_seq = json.loads(path.read_text())["seq"]
+    m.partial_calls = {"c1": {"x": 1}}
+    m.replay = {"c0": {"x": 0}}
+    m._seq += 1
+    m._next_boundary = json.dumps(engine.with_seq({**json.loads(m._boundary), "periods_completed": 99}, m._seq))
+    real, calls = engine.write_checkpoint_atomic, []
+
+    def flaky(p, text, seq):
+        calls.append(seq)
+        if len(calls) == 1:
+            raise OSError("disk full")
+        return real(p, text, seq)
+
+    monkeypatch.setattr(engine, "write_checkpoint_atomic", flaky)
+    m.save_failure_checkpoint()
+    saved = json.loads(path.read_text())
+    assert len(calls) == 2 and saved["periods_completed"] == 0
+    assert saved["partial_calls"] == {"c0": {"x": 0}, "c1": {"x": 1}}
+    assert saved["seq"] > old_seq + 1 and engine.checkpoint_seq(path) == saved["seq"]
+
+
+def test_orphaned_checkpoint_writer_cannot_overwrite_a_newer_checkpoint(tmp_path):
+    path = tmp_path / "ck.json"
+    assert engine.checkpoint_seq(path) is None
+    assert engine.write_checkpoint_atomic(path, json.dumps(engine.with_seq({"a": 2}, 5)), 5)
+    assert not engine.write_checkpoint_atomic(path, json.dumps(engine.with_seq({"a": 1}, 4)), 4)  # stale: skipped
+    assert json.loads(path.read_text()) == {"seq": 5, "a": 2}
+    assert engine.write_checkpoint_atomic(path, json.dumps(engine.with_seq({"a": 3}, 5)), 5)  # not newer: replaced
+    assert engine.write_checkpoint_atomic(path, json.dumps(engine.with_seq({"a": 4}, 6)), 6)
+    assert json.loads(path.read_text()) == {"seq": 6, "a": 4}
+    assert not list(tmp_path.glob(".*.tmp"))
+    path.write_text('{"version": 4}')  # legacy checkpoint without seq: replaced
+    assert engine.write_checkpoint_atomic(path, json.dumps(engine.with_seq({}, 1)), 1)
+
+
+async def test_checkpoint_seq_increases_and_survives_restore(tmp_path):
+    s = spec(3, "NT-T")
+    out = tmp_path / "run"
+    m = engine.Market(s, MockClient(), SHORT, checkpoint=engine.checkpoint_path(out, s))
+    await m.save_checkpoint()
+    await m.save_checkpoint()
+    ck = json.loads(engine.checkpoint_path(out, s).read_text())
+    assert ck["seq"] == 2 and list(ck)[0] == "seq"
+    m2 = engine.Market(s, MockClient(), SHORT, checkpoint=engine.checkpoint_path(out, s))
+    assert m2.restore(ck) is None and m2._seq == 2
+    await m2.save_checkpoint()
+    assert engine.checkpoint_seq(engine.checkpoint_path(out, s)) == 3
+
+
+@pytest.mark.parametrize("stage", ["dumps", "write_checkpoint_atomic"])
 async def test_cancel_during_checkpoint_save_keeps_paid_results(tmp_path, monkeypatch, stage):
     """A cancellation at either await of save_checkpoint (here at the boundary after period 2) must leave the
     new boundary or the old one plus every paid result of period 2: the resume makes no call twice."""

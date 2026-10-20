@@ -37,9 +37,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import random
 import re
+import threading
 import traceback
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -51,6 +53,8 @@ from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
 from .llm import BudgetExceeded, BudgetWaitTimeout, ChatResult, ContextOverflow, Usage, messages_sha256
 from .parse import PARSER_VERSION, Parsed, extract_object, parse_message, parse_price, parse_probe, strip_reasoning
+
+log = logging.getLogger(__name__)
 
 Kind = Literal["price", "message"]
 
@@ -188,6 +192,47 @@ def write_text_atomic(path: Path, text: str) -> None:
         tmp.unlink(missing_ok=True)
 
 
+_CHECKPOINT_LOCK = threading.Lock()  # makes a checkpoint's sequence check and rename one step in this process
+_SEQ_HEAD = re.compile(rb'^\{"seq": (\d+)[,}]')
+
+
+def checkpoint_seq(path: Path) -> int | None:
+    """The `seq` of the checkpoint at `path` (written first in the file, so only its head is read); None if the
+    file is missing or has none (written before checkpoints carried one)."""
+    try:
+        with path.open("rb") as f:
+            m = _SEQ_HEAD.match(f.read(64))
+    except FileNotFoundError:
+        return None
+    return int(m.group(1)) if m else None
+
+
+def with_seq(ck: dict[str, Any], seq: int) -> dict[str, Any]:
+    """`ck` with `seq` as its first key (where `checkpoint_seq` reads it)."""
+    return {"seq": seq, **{k: v for k, v in ck.items() if k != "seq"}}
+
+
+def write_checkpoint_atomic(path: Path, text: str, seq: int) -> bool:
+    """Like write_text_atomic, but rename over `path` only if the checkpoint there is not newer (its `seq` is
+    not above `seq`). Guards against a writer left running in a worker thread after its await was cancelled
+    landing after a later checkpoint. Returns whether `path` was replaced."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:12]}.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        with _CHECKPOINT_LOCK:
+            on_disk = checkpoint_seq(path)
+            if on_disk is not None and on_disk > seq:
+                return False
+            os.replace(tmp, path)
+            return True
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def write_json_atomic(path: Path, obj: Any) -> None:
     """`obj` as indented JSON, written atomically (see write_text_atomic)."""
     write_text_atomic(path, json.dumps(obj, ensure_ascii=False, indent=1))
@@ -292,6 +337,7 @@ class Market:
         self.replay: dict[str, dict[str, Any]] = {}  # from a checkpoint: results to reuse instead of calling
         self._boundary: str | None = None  # JSON of the last checkpoint written (a period boundary)
         self._next_boundary: str | None = None  # a boundary serialised but not yet known to be written
+        self._seq = 0  # sequence number of the last checkpoint serialised (each write gets a higher one)
         self.letters = prompts.firm_letters(spec.n)
         self.talk = ORDERINGS[spec.ordering]
         self.chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
@@ -576,7 +622,7 @@ class Market:
 
     def snapshot(self) -> dict[str, Any]:
         """Everything needed to continue after the last completed period."""
-        return {"version": CHECKPOINT_VERSION, "spec": self.spec.to_dict(),
+        return {"seq": self._seq, "version": CHECKPOINT_VERSION, "spec": self.spec.to_dict(),
                 "fingerprint": self.fingerprint, "texts_digest": self.texts_digest,
                 "periods_completed": len(self.periods), "die_schedules": self.dies,
                 "listing_orders": {L: f.order for L, f in self.firms.items()},
@@ -596,26 +642,36 @@ class Market:
         if self.checkpoint is None:
             self.partial_calls, self.replay = {}, {}
             return
+        self._seq += 1
+        seq = self._seq
         text = await asyncio.to_thread(json.dumps, self.snapshot(), ensure_ascii=False)
         self._next_boundary = text
-        await asyncio.to_thread(write_text_atomic, self.checkpoint, text)
+        await asyncio.to_thread(write_checkpoint_atomic, self.checkpoint, text, seq)
         self._boundary, self._next_boundary = text, None
         self.partial_calls, self.replay = {}, {}
 
     def save_failure_checkpoint(self) -> None:
         """After a failure: the last boundary checkpoint plus the results of the calls already made (or still
         unused from an earlier resume) in the period in progress; or, if the failure interrupted the write of
-        a boundary already serialised, that new boundary."""
+        a boundary already serialised, that new boundary (falling back to the former if this write fails too).
+        Every write carries a `seq` and never replaces a newer checkpoint, so a boundary writer orphaned in its
+        worker thread by a cancellation cannot overwrite what is written here."""
         if self.checkpoint is None:
             return
         if self._next_boundary is not None:
-            write_text_atomic(self.checkpoint, self._next_boundary)
-            return
+            try:
+                write_checkpoint_atomic(self.checkpoint, self._next_boundary, self._seq)
+                return
+            except Exception:  # fall back to the old boundary plus the results still held
+                log.warning("market %s: writing the new boundary checkpoint failed; writing the previous one "
+                            "plus the period's call results", self.spec.key, exc_info=True)
         if self._boundary is None:
             return
         ck = json.loads(self._boundary)
         ck["partial_calls"] = {**self.replay, **self.partial_calls}
-        write_text_atomic(self.checkpoint, json.dumps(ck, ensure_ascii=False))
+        self._seq += 1
+        write_checkpoint_atomic(self.checkpoint, json.dumps(with_seq(ck, self._seq), ensure_ascii=False),
+                                self._seq)
 
     def restore(self, ck: dict[str, Any]) -> str | None:
         """Load checkpoint `ck` into this fresh market. Returns why it does not match (nothing is changed
@@ -643,6 +699,7 @@ class Market:
         self.probe = ck.get("probe")
         self.resumed_from = [*ck.get("resumed_from_period", []), len(self.periods) + 1]
         self.replay = dict(ck.get("partial_calls") or {})
+        self._seq = ck["seq"] if isinstance(ck.get("seq"), int) else 0
         self._boundary = json.dumps({**ck, "resumed_from_period": self.resumed_from, "partial_calls": {}},
                                     ensure_ascii=False)
         return None
