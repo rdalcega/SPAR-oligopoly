@@ -36,6 +36,10 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   `google/gemma-4-26b-a4b-it`, `openai/gpt-oss-20b`, `ibm-granite/granite-4.2-8b`, `liquid/lfm-2.5-24b-a2b`.
   This gives one model per lab, a Qwen size axis (3.5-9B vs 3.5-27B) and a Qwen generation axis at 27B
   (3.5, 3.6, 3.8).
+- **2026-10-20: LFM-2.5-24B-A2B dropped** (7 models remain). Its only provider (Liquid) caps output at 8,192
+  tokens, thinking cannot be disabled or shortened, and ~18% of probe calls truncated with empty answers.
+- **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
+  supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
 
 ### §6 item 1 — chat structure
 

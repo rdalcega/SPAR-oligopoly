@@ -24,6 +24,7 @@ class ModelConfig:
     temperature: float | None = None
     top_p: float | None = None
     top_k: int | None = None
+    extra: dict[str, Any] | None = None  # other sampling parameters sent as-is (e.g. presence_penalty)
     max_tokens: int | None = None
     reasoning: dict[str, Any] | None = None
     require_parameters: bool = True
@@ -47,12 +48,13 @@ class ModelConfig:
             raise ConfigError(f"model {self.name!r} has provider = {self.provider!r}; pin an endpoint first")
 
     def chat_kwargs(self) -> dict[str, Any]:
-        """Keyword arguments for `OpenRouterClient.chat` (top_k goes through extra_body)."""
+        """Keyword arguments for `OpenRouterClient.chat` (top_k and `extra` go through extra_body)."""
+        extra_body = {**({"top_k": self.top_k} if self.top_k is not None else {}), **(self.extra or {})}
         return {
             "model": self.model, "provider": self.provider, "temperature": self.temperature, "top_p": self.top_p,
             "max_tokens": self.max_tokens, "reasoning": self.reasoning,
             "require_parameters": self.require_parameters,
-            "extra_body": {"top_k": self.top_k} if self.top_k is not None else None,
+            "extra_body": extra_body or None,
             "timeout_s": self.timeout_s,
         }
 

@@ -213,20 +213,30 @@ async def test_atomic_write(tmp_path, monkeypatch):
     assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
 
-def test_models_config():
+PENDING_TOML = """
+["pending"]
+model = "x/pending"
+provider = "TODO"
+max_tokens = 100
+"""
+
+
+def test_models_config(tmp_path):
     models = load_models()
-    assert "mock" in models and len(models) == 9
+    assert "mock" in models and len(models) == 8
     live = [m for m in models.values() if not m.is_mock]
-    assert all(m.provider_pending for m in live)
+    assert all(not m.provider_pending and m.max_tokens for m in live)
+    assert models["qwen3.5-9b"].chat_kwargs()["extra_body"] == {"top_k": 20, "presence_penalty": 1.5}
+    (tmp_path / "m.toml").write_text(PENDING_TOML)
     with pytest.raises(ConfigError):
-        live[0].check_live()
-    assert models["qwen3.5-9b"].chat_kwargs()["extra_body"] == {"top_k": 20}
+        load_models(tmp_path / "m.toml")["pending"].check_live()
 
 
 async def test_cli(tmp_path, capsys):
     with pytest.raises(ConfigError, match="provider"):
-        await main(["--run-id", "x", "--models", "gpt-oss-20b", "--n", "2", "--budget-usd", "1",
-                    "--out-root", str(tmp_path)])
+        (tmp_path / "m.toml").write_text(PENDING_TOML)
+        await main(["--run-id", "x", "--models", "pending", "--n", "2", "--budget-usd", "1",
+                    "--models-file", str(tmp_path / "m.toml"), "--out-root", str(tmp_path)])
     args = ["--run-id", "cli", "--models", "mock", "--n", "2", "3", "--orderings", "T-NT",
             "--markets-per-cell", "1", "--part-lengths", "3,2", "--out-root", str(tmp_path)]
     assert await main(args) == 0
