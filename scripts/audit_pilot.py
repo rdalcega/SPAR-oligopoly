@@ -131,7 +131,7 @@ def check_market(rec: dict) -> dict:
             if "chat box, which you can use" in p2_instr:
                 issues.append(f"{L}: Part 2 describes a chat box")
         after = "\n".join(users[p2i:])
-        if talk["part2"] is False and re.search(r": chat, round|chat box has closed|Messages posted", after.split("Instructions – Part 2")[1]):
+        if talk["part2"] is False and re.search(r": chat,? round|chat box has closed|Messages posted", after.split("Instructions – Part 2")[1]):
             issues.append(f"{L}: chat prompt in Part 2 NoTalk")
         # die lines: only at the end of each part (pilot: min_periods = part length)
         dies = re.findall(r"Period (\d+) is over\. The computer threw the virtual dice and it showed (\d)", full_user)

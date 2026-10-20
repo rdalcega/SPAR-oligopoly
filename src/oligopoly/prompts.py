@@ -472,7 +472,7 @@ def period_prompt(
         lines.append(round_messages_text(last_round, last_messages, firm_letter) + "\n")
     lines.append(f"Part {part}, period {period}.")
     if talk:
-        lines.append("The chat box has closed.")
+        lines.append("The chat box has closed for this period: no more messages can be posted.")
     lines.append("Choose your selling price for this period.")
     lines.append(price_reminder(notes))
     return "\n".join(lines)
@@ -498,7 +498,11 @@ def chat_prompt(
         lines.append(die_line(period - 1, die_roll, min_periods))
     if round_ > 1:
         lines.append(round_messages_text(round_ - 1, messages, firm_letter) + "\n")
-    lines.append(f"Part {part}, period {period}: chat, round {round_} of at most {chat_spec.max_rounds}.")
+    if round_ == chat_spec.max_rounds:
+        lines.append(f"Part {part}, period {period}: chat round {round_} of {chat_spec.max_rounds} "
+                     "(last round; prices are set after it).")
+    else:
+        lines.append(f"Part {part}, period {period}: chat round {round_} of at most {chat_spec.max_rounds}.")
     if round_ == 1:
         lines.append("No messages have been posted in this period yet.")
     lines.append(message_reminder(chat_spec, notes))
@@ -574,6 +578,7 @@ def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
         period_prompt(2, 5, talk=True, notes=notes, firm_letter="A", last_round=2, last_messages=msgs),
         chat_prompt(1, 21, 1, "A", [], chat_spec, die_roll=2, notes=notes),
         chat_prompt(1, 5, 2, "A", msgs, chat_spec, notes=notes),
+        chat_prompt(1, 5, chat_spec.max_rounds, "A", msgs, chat_spec, notes=notes),
         results_text(2, 3, "A", {"A": 90, "B": 80}, {"A": 0, "B": 24000}, ["B", "A"], 1.5, 2.5),
         part_over_text(2, 22, final_part=True, total_profit=10),
         fallback_text("price", 7), fallback_text("message"),

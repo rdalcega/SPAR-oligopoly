@@ -73,6 +73,12 @@ passes without seeing that round's other messages; then all messages of the roun
 chat closes early when every firm passes in a round. Messages are capped at 300 characters (longer messages are
 truncated and the truncation is logged).
 
+**2026-10-20, after pilot 1 (prompt wording, not structure):** all 15 invalid outputs in pilot 1 were price
+JSON sent to a chat prompt, mostly in round 3. The chat line now names the round ("chat round 2 of at most 3")
+and, on the last possible round, adds "(last round; prices are set after it)"; the price prompt after a chat
+says "The chat box has closed for this period: no more messages can be posted." Both restate timing already
+in the instructions; nothing about how to behave. Listed as edit 28 in `docs/prompts-draft.md`.
+
 ### §6 item 2 — simultaneous pricing
 
 All firms' prices for a period are collected independently before any is revealed. Each firm's notes and

@@ -247,7 +247,7 @@ Firm B: Hi all. Shall we keep prices where they were?
 Firm D: Fine by me.
 
 Part 2, period 5.
-The chat box has closed.
+The chat box has closed for this period: no more messages can be posted.
 Choose your selling price for this period.
 Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
 ```
@@ -258,7 +258,7 @@ Round 1 from period 21 on (the die result opens the round-1 prompt):
 
 ```text
 Period 20 is over. The computer threw the virtual dice and it showed 4, so this part of the experiment continues.
-Part 2, period 21: chat, round 1 of at most 3.
+Part 2, period 21: chat round 1 of at most 3.
 No messages have been posted in this period yet.
 Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
@@ -271,7 +271,19 @@ Firm B: Hi all.
 Firm C (you): [your message above]
 Firm D: What price is everyone setting?
 
-Part 2, period 5: chat, round 2 of at most 3.
+Part 2, period 5: chat round 2 of at most 3.
+Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
+```
+
+Round 3, the last possible round (its line says that prices are set after it):
+
+```text
+Messages posted in round 2:
+Firm B: 100 again?
+Firm C (you): [your message above]
+Firm D: Yes.
+
+Part 2, period 5: chat round 3 of 3 (last round; prices are set after it).
 Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
 
@@ -402,6 +414,11 @@ texts.
     posted, after any truncation). After a failed last re-ask the firm is told
     `fallback_text` ("Your response could not be used, so your price for this period was set to X." / "... so
     you posted no message in that round.").
+28. Round labels (2026-10-20, after pilot 1, where all 15 invalid outputs were price JSON sent to a chat
+    prompt, mostly in round 3): the chat line reads "chat round k of at most 3", and on the last possible round
+    "chat round 3 of 3 (last round; prices are set after it)". The price prompt after a chat says "The chat box
+    has closed for this period: no more messages can be posted." Both only restate the timing already in the
+    instructions ("After the last round, the chat box will close and you will have to choose your price").
 
 ## Open questions for the PI
 

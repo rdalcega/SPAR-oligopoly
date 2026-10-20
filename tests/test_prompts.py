@@ -240,3 +240,18 @@ def test_full_answer_format_once_per_part(n):
     assert '{"price": <integer from 0 to 100>}' in plain and "notes" not in plain
     no_pass = chat_prompt(1, 1, 1, "A", [], ChatSpec(allow_pass=False, end_when_all_pass=False), notes=True)
     assert no_pass.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>"}')
+
+
+def test_last_chat_round_says_prices_come_next():
+    spec = ChatSpec(max_rounds=3)
+    msgs = [ChatMessage("A", "hello", 2)]
+    last = chat_prompt(1, 4, 3, "B", msgs, spec)
+    assert "Part 1, period 4: chat round 3 of 3 (last round; prices are set after it)." in last
+    for r in (1, 2):
+        p = chat_prompt(1, 4, r, "B", msgs if r > 1 else [], spec)
+        assert f"chat round {r} of at most 3." in p and "last round" not in p and "prices are set" not in p
+    one = chat_prompt(1, 4, 1, "B", [], ChatSpec(max_rounds=1))
+    assert "chat round 1 of 1 (last round; prices are set after it)." in one
+    p = period_prompt(1, 4, talk=True, firm_letter="B", last_round=3, last_messages=msgs)
+    assert "The chat box has closed for this period: no more messages can be posted." in p
+    assert "chat box has closed" not in period_prompt(1, 4)  # NoTalk: no chat mentioned
