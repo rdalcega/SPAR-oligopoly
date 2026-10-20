@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 
 from .. import benchmarks as b
-from ..config import ROOT
+from ..config import ROOT, load_models
 from . import chat as chat_mod
 from . import human, measures, mistakes, stats
 from .load import load_records, tidy
@@ -68,8 +68,38 @@ def chat_examples(msgs: pd.DataFrame, periods: pd.DataFrame, chat: pd.DataFrame,
     return out
 
 
-def build(run_ids: list[str], runs_root: str | Path) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
-    t = tidy(load_records(run_ids, runs_root))
+def excluded_cells_from_config(models_file: str | Path | None = None) -> dict[str, set[tuple[str, int]]]:
+    """{model name: {(ordering, n), ...}} from `exclude_cells` in models.toml (DECISIONS.md: context limits)."""
+    models = load_models(models_file) if models_file else load_models()
+    return {name: set(m.exclude_cells) for name, m in models.items() if m.exclude_cells}
+
+
+def drop_excluded(records: list[dict[str, Any]], excluded: dict[str, set[tuple[str, int]]]
+                  ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Records outside excluded cells, and one row per excluded cell of a model present in the data (with the
+    number of completed markets found there and left out). Excluded cells are reported as missing, not imputed."""
+    keep, dropped = [], {}
+    for rec in records:
+        sp = rec["spec"]
+        cell = (sp["model"], sp["ordering"], int(sp["n"]))
+        if (cell[1], cell[2]) in excluded.get(cell[0], ()):
+            dropped[cell] = dropped.get(cell, 0) + 1
+        else:
+            keep.append(rec)
+    models = {r["spec"]["model"] for r in records}
+    rows = [{"model": m, "ordering": o, "n": n, "markets_dropped": dropped.get((m, o, n), 0)}
+            for m in sorted(models) for o, n in sorted(excluded.get(m, ()), key=lambda c: (c[1], c[0]))]
+    return keep, rows
+
+
+def build(run_ids: list[str], runs_root: str | Path,
+          excluded: dict[str, set[tuple[str, int]]] | None = None) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """`excluded`: cells to leave out per model; default: `exclude_cells` in config/models.toml."""
+    recs, excluded_rows = drop_excluded(load_records(run_ids, runs_root),
+                                           excluded_cells_from_config() if excluded is None else excluded)
+    if not recs:
+        raise ValueError("every completed market is in an excluded cell")
+    t = tidy(recs)
     mt = measures.market_table(t.market_period, t.markets)
     cells = measures.cell_stats(mt)
     t2 = measures.table2(t.market_period)
@@ -94,6 +124,7 @@ def build(run_ids: list[str], runs_root: str | Path) -> tuple[dict[str, pd.DataF
         "strategy_market_part": strat_m, "strategy_cells": strat, "tests": tests, "hysteresis": hyst,
         "human_comparison": comp, "chat_messages": msgs, "chat_turns": fc, "chat_periods": periods,
         "chat_cells": chat_cells, "mistakes_by_model": mis, "timeseries": ts,
+        "excluded_cells": pd.DataFrame(excluded_rows, columns=["model", "ordering", "n", "markets_dropped"]),
     }
     counts = t.markets.groupby(["model", "n", "ordering"]).size().rename("markets").reset_index()
     summary = {
@@ -101,7 +132,8 @@ def build(run_ids: list[str], runs_root: str | Path) -> tuple[dict[str, pd.DataF
                  "git_commit": _git(), "models": sorted(t.markets["model"].unique()), "n": [int(n) for n in ns],
                  "orderings": sorted(t.markets["ordering"].unique()), "markets_per_cell": records(counts),
                  "part_lengths": sorted({(int(a), int(c)) for a, c in zip(t.markets["part1_len"], t.markets["part2_len"])}),
-                 "paper_lengths_all": bool(t.markets["paper_lengths"].all()), "windows": measures.WINDOWS},
+                 "paper_lengths_all": bool(t.markets["paper_lengths"].all()), "windows": measures.WINDOWS,
+                 "excluded_cells": excluded_rows},
         "definitions": {"measures": b.__doc__, "chat_coding": chat_mod.__doc__, "mistakes": mistakes.__doc__,
                         "tests": stats.__doc__},
         "theory": measures.theory(ns),

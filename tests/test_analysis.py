@@ -263,6 +263,26 @@ def test_build_and_write(tmp_path):
     assert talk["agreements"] == 9
 
 
+def test_excluded_cells_skipped_and_reported(tmp_path):
+    runs = tmp_path / "runs" / "r" / "markets"
+    runs.mkdir(parents=True)
+    for o in ("NT-NT", "T-NT"):
+        for i in range(2):
+            rec = record({1: flat(*[(100, 100)] * 3), 2: flat(*[(90, 90)] * 3)}, ordering=o, idx=i, n=2,
+                         chats={(1, t): [{"A": "Let's all set 100", "B": "ok"}] for t in range(1, 4)} if o == "T-NT" else {})
+            rec.pop("_market_id")
+            (runs / f"m__n2__{o}__m{i}.json").write_text(json.dumps(rec))
+    model = rec["spec"]["model"]
+    tables, summary = build(["r"], tmp_path / "runs", {model: {("T-NT", 2), ("NT-T", 10)}})
+    assert set(tables["markets"]["ordering"]) == {"NT-NT"}
+    assert summary["meta"]["excluded_cells"] == [
+        {"model": model, "ordering": "T-NT", "n": 2, "markets_dropped": 2},
+        {"model": model, "ordering": "NT-T", "n": 10, "markets_dropped": 0}]
+    assert len(tables["excluded_cells"]) == 2
+    tables, summary = build(["r"], tmp_path / "runs", {})
+    assert set(tables["markets"]["ordering"]) == {"NT-NT", "T-NT"} and summary["meta"]["excluded_cells"] == []
+
+
 # ------------------------------------------------------------------------------------------- negative controls
 
 
