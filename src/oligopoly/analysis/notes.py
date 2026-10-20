@@ -19,6 +19,8 @@ only filler words are allowed ("my price at", "the price to", "by one point to")
                      in the clause or right after the number ("51-price retaliation"), or a later-period cue
                      ("next period", "then", "after", "future")
     ranges           "50-60", "50 or 51", "between 50 and 60", examples ("e.g.")
+    evaluations      a clause-initial move followed by a bad outcome ("Setting 32 would result in a split"), or a
+                     price cut weighed against its cost ("undercutting to 99 gains 22,200, but triggers ...")
     profits          numbers > 100 and "N ECU each / of profit"
     negated          "I will not set 99"
 When several candidates remain, those whose clause has a this-period cue ("this period", "this round", "now",
@@ -94,6 +96,15 @@ BAD_OUTCOME = re.compile(r"^\s*(?:ecu\s+)?(?:\w+\s+)?(?:yields? (?:no|zero|nothi
                          r"means? (?:no|zero|losing))\b|"
                          r"^[^.!?]*?\b(?:risks|loses?|would|could|might|offers? no|no (?:gain|advantage|benefit)|worse|"
                          r"only reduces?|reduces? (?:my|our))\b", I)
+# a price cut weighed against its cost, not a plan: "undercutting to 99 gains +22,200 ECU this period, but expected
+# punishment ..." ("Setting 1 gives us a share" is the decision with its reason)
+CUT_VERB = re.compile(r"(?:undercut|lower|drop|cut|decreas|reduc|deviat)", I)
+# (the "but" clause names a cost and no first-person decision follows: "..., but I accept the retaliation risk" is one)
+GAIN_BUT = re.compile(r"^\s*(?:ecu\s+)?(?:\S+\s+){0,3}?(?:yields?|gains?|earns?|nets?|gives?|brings?|generates?|pays?)\b"
+                      r"(?:[^.!?]|\.\d)*?\b(?:but|however|yet|though|although)\b"
+                      r"(?=(?:[^.!?]|\.\d)*?\b(?:punish|retaliat|trigger|price war|risk|los[es]|losing|destroy|not worth|"
+                      r"cost|future|remaining|long[- ]run|shadow)\w*)"
+                      r"(?!(?:[^.!?]|\.\d)*?\b(?:I|we)(?:'ll|’ll| will| accept| am going to|'m going to| still)\b)", I)
 PUNISH = re.compile(r"punish|retaliat|penalt|enforce|in response|tit[- ]for[- ]tat|revenge|threat", I)
 PUNISH_AFTER = re.compile(r"^\s*(?:ecu)?\s*[-‑–]?\s*(?:price\s+)?(?:punish|retaliat|penalt|threat|response|deterr)", I)
 DIFF_AFTER = re.compile(r"^\s*(?:ecu\s+|units?\s+|points?\s+|notch(?:es)?\s+|steps?\s+)?(?:lower|higher|below|above|"
@@ -197,6 +208,8 @@ def _candidates(text: str, period: int | None) -> list[tuple[int, int, int, int 
                     continue
                 if rx is CLAUSE_START and BAD_OUTCOME.search(after):
                     continue  # "Setting 32 would result in a split", "Raising to 42 risks ..."
+                if rx is CLAUSE_START and CUT_VERB.match(m.group("verb") or "") and GAIN_BUT.search(after):
+                    continue
                 excluded, cue = _excluded_context(sent, a, b, period)
                 if excluded:
                     continue

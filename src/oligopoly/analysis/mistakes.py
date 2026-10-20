@@ -18,8 +18,9 @@ inside the match; examples saved):
     highest_wins         "higher price wins / attracts the buyers", in a sentence without if/when/unless ("a
                          higher price gets undercut" doesn't count)
     tie_full             a tie or matching price earning the full/entire market, within one clause free of
-                         contrast, condition or undercut wording ("A set 65 instead and took the entire market"
-                         doesn't count), with no split/share wording within 80 characters
+                         contrast, condition, undercut or loss-avoidance wording ("A set 65 instead and took the
+                         entire market", "I may match to avoid losing all customers" don't count), with no
+                         split/share wording within 80 characters
     horizon              "this is the last/final period", "only 20 periods", "game ends at 20", "the game ends after
                          this period" before period 20 (claims about periods or the game only: "last/final round"
                          refers to the chat rounds, whose end the prompts announce, and is not flagged; nor is
@@ -48,7 +49,8 @@ MISREAD = {
     "tie_full": re.compile(
         r"(?:\btie\b|\btied\b|same price|equal price|\bmatch(?:ing)?\b)"
         r"(?:(?!\b(?:instead|but|if|when|whenever|now|while|whereas|otherwise|undercuts?|undercutting|lower|below|"
-        r"raises?|above|higher|fails?|step|steps|loses?|lost)\b)[^.!?;,()]){0,60}?\b(?:full|entire|whole|all(?: the)?|"
+        r"raises?|above|higher|fails?|step|steps|loses?|lost|losing|(?:avoid|risk)(?:s|ing)? los\w+)\b)"
+        r"[^.!?;,()]){0,60}?\b(?:full|entire|whole|all(?: the)?|"
         r"100% of the)\s+(?:profit|market|demand|sales|buyers|customers)", I),
     "horizon": re.compile(
         r"\b(?:this is|this will be|this might be|this could be|it'?s) (?:the |likely the |probably the )?"

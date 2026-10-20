@@ -626,3 +626,62 @@ def test_agreement_labels_precision():
             hits[coded].append(coded == lab["hand_label"])
     for k, v in hits.items():
         assert len(v) >= 12 and sum(v) / len(v) >= 0.9, (k, sum(v), len(v))
+
+
+# ------------------------------------------------------------------------------------------- streak counts and
+# evaluated moves (artifacts found reading the 2026-10-20 Qwen3.8-27B smoke market)
+
+
+@pytest.mark.parametrize("msg, prices, endorsed", [
+    ("Round 3: confirmed, price 100 for period 12. 11 clean periods of cooperation — let's make it 12. See you after "
+     "pricing.", [100], 100),
+    ("Period 20 — 49 clean periods and counting. Appreciate the smooth run, everyone. Let's keep it steady.", [], None),
+    ("Confirmed. 49 streak is well worth protecting. Thanks all — see you on the other side of the dice.", [], None),
+    ("Reconfirming 100 for period 20. 49 clean periods is impressive — thanks to all. Let's lock it in.", [100], 100),
+    ("Round 3 confirmed: price 100 for period 12. 12 clean periods in Part 2 and 43 total.", [100], 100),
+    ("11 solid cooperative rounds at 100, 5 in a row this part. Confirmed 100.", [100, 100], 100),
+    # a price after "make it" with no streak count, or after a plain duration, is still a price
+    ("Let's make it 50 this period.", [50], 50),
+    ("We hold 100 for 2 periods, then make it 90.", [100, 90], 100),
+    ("10 clean rounds at 90 — let's make it 100.", [90, 100], 100),  # not the next count: a price
+    ("Great streak so far, let's make it 95 this period.", [95], 95),
+    ("11 periods of cooperation, let's make it 12.", [], None),
+    ("For 10 periods we held this price. Let us make it 11 ECU this period.", [11], 11),
+    ("For 10 periods we held this price. Let us make it $11 this period.", [11], 11),
+    ("11 clean periods. Let's make it 12! Confirmed 100.", [100], 100),
+    ("12 consistent collusive periods so far. Confirmed 100.", [100], 100),
+])
+def test_streak_counts_are_not_prices(msg, prices, endorsed):
+    assert C.prices_in(msg) == prices
+    assert C.endorsed_price(msg) == endorsed
+
+
+@pytest.mark.parametrize("text, period, price", [
+    ("Deviation check: undercutting to 99 gains +22,200 ECU this period, but expected punishment makes it "
+     "overwhelming.", 10, None),
+    ("Deviation analysis: undercutting to 99 yields one-shot gain of 22,200 ECU but triggers credible punishment.", 15,
+     None),
+    ("Deviation analysis: undercutting to 99 yields 29,700 this period (+22,200 vs coop), but with ~23 remaining "
+     "periods at risk, not worth it.", 3, None),
+    # the decision with its reason stays a stated price (gpt-oss sweep notes)
+    ("Setting 1 gives us a share (½ the 1-priced group → 50 units → 50 ECU profit).", 5, 1),
+    ("To avoid getting 0 profit, I must undercut B. Setting 11 gives the highest revenue (3,300 ECU) this period.", 5, 11),
+    ("Undercutting to 69 gives us the whole market this period.", 5, 69),
+    ("Undercutting to 99 this period to win the market.", 5, 99),
+    ("Undercutting to 99 this period gains 22,200 ECU, but triggers punishment.", 5, None),
+    # a cost named after "but" with a first-person decision, or no cost at all: still the decision
+    ("Undercutting to 69 gives us the whole market, but I accept the retaliation risk.", 5, 69),
+    ("Lowering to 50 gives us share, though rivals may follow; I will do it.", 5, 50),
+])
+def test_evaluated_moves_are_not_stated_prices(text, period, price):
+    assert C.stated_own_price(text, period) == price
+
+
+@pytest.mark.parametrize("text, cats", [
+    ("If one firm undercuts by 1-2, I may match to avoid losing all customers.", []),
+    ("Matching risks losing the entire market.", []),
+    ("Matching gives me the entire market.", ["tie_full"]),
+    ("Matching avoids a price war and earns the entire market.", ["tie_full"]),
+])
+def test_loss_avoidance_is_not_tie_misread(text, cats):
+    assert X.misreads(text, 3) == cats

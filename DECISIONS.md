@@ -500,3 +500,11 @@ Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py
   `summary.json` adds `mistakes_cells` (re-ask rates on price decisions and chat turns, i.e. format slips, apart
   from strategic mistakes) and, in `probe`, `knows_not_collude_share` (best common price answered 100 while the
   market's Talk-part mean selling price is below 90).
+- **2026-10-20, from the Qwen3.8-27B smoke market** (`smoke-q38-nt-t-2026-10-20`, all firms at 100 with chat that
+  counts its streak): chat prices skip streak counts ("11 clean periods", "49 streak", "43 total", "49 and
+  counting", and "let's make it 12" only when 12 is an earlier count + 1). The notes' stated price skips a price
+  cut weighed against a named cost ("undercutting to 99 gains 22,200 ECU this period, but triggers punishment"),
+  unless a first-person decision follows; "Setting 1 gives us a share" stays the decision with its reason.
+  tie_full skips "match to avoid/risk losing all customers". Checked on sweep-gptoss and sweep-qwen14b (152
+  markets) plus the smoke market: 17 endorsements (all in the smoke market), 9 stated prices and 7 tie_full
+  flags change, each a correction on reading; no agreed price, kept or broken verdict changes.
