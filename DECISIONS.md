@@ -262,7 +262,8 @@ chat" if there was none). Exact wording in `docs/prompts-draft.md`.
 - It comes after all play, so it cannot change any decision; play calls, seeds and periods are identical with
   the probe on or off (tested). It adds n calls per market (plus re-asks) and the record's `probe` entry.
 - One call per firm, at most one re-ask stating the error; still unusable → recorded as invalid
-  (`valid: false`, every score false). A probe prompt that would overflow the context guard is recorded as
+  (`valid: false`, every score false or 0, even on items a partial answer got right; the partial answers stay
+  in `answers` for auditing). A skipped probe scores the same way. A probe prompt that would overflow the context guard is recorded as
   skipped (`skipped: "context_overflow"`) instead of failing a market whose play is complete. Other failures
   (budget, retries) fail the market as usual; the rerun resumes from the checkpoint taken after the last period
   and asks only the probe (reusing answers already paid for).

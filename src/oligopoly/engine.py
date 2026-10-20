@@ -228,7 +228,8 @@ def best_common_price(letters: list[str]) -> int:
 
 def score_probe(answers: dict[str, Any] | None, truth: dict[str, Any]) -> dict[str, Any]:
     """Probe answers against the truth: booleans for the two prices, the number and share of firms whose last
-    price was recalled exactly. Missing or invalid answers count as wrong."""
+    price was recalled exactly. Missing answers (None: also pass None for an invalid or skipped probe, whose
+    partial answers must not be scored) count as wrong on every item."""
     a = answers or {}
     recalled = a.get("last_period_prices") or {}
     right = sum(recalled.get(L) == v for L, v in truth["last_period_prices"].items())
@@ -427,8 +428,9 @@ class Market:
         truth = {"max_consumer_price": market.P_MAX, "best_common_price": best_common_price(self.letters),
                  "last_period_prices": dict(last["prices"])}
         firms = await self.gather({L: self.probe_firm(L) for L in self.letters})
-        for f in firms.values():
-            f["score"] = score_probe(f["answers"], truth)
+        for f in firms.values():  # an invalid or skipped probe scores wrong on every item; its partial answers
+            # stay in `answers` for auditing
+            f["score"] = score_probe(f["answers"] if f["valid"] else None, truth)
         self.probe = {"part": last["part"], "period": last["period"], "truth": truth, "firms": firms}
 
     async def gather(self, coros: dict[str, Any]) -> dict[str, Any]:

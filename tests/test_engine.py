@@ -1034,6 +1034,47 @@ async def test_probe_context_overflow_does_not_fail_market(tmp_path):
     assert rec["probe"]["firms"]["B"]["skipped"] is None
 
 
+WRONG = {"max_consumer_price": False, "best_common_price": False, "last_period_correct": 0,
+         "last_period_share": 0.0, "last_period_all": False}
+PARTIAL = json.dumps({"max_consumer_price": 100, "best_common_price": 100, "deviations": "none"})  # no last prices
+
+
+def probe_or_play(probe):
+    def answer(tag):
+        if tag["phase"] == "probe":
+            return probe(tag)
+        return '{"notes": "n", "price": 100}' if tag["phase"] == "price" else '{"notes": "n", "message": null}'
+    return answer
+
+
+async def test_partially_valid_exhausted_probe_scores_wrong(tmp_path):
+    """A probe still invalid after its re-ask scores wrong on every item, even on the parts it got right; the
+    partial answers stay in the record."""
+    rec, _, _ = await play(spec(2, "NT-NT"), tmp_path, exp=ExperimentConfig(part_lengths=(1, 1)),
+                           client=Scripted(probe_or_play(lambda tag: PARTIAL)))
+    for f in rec["probe"]["firms"].values():
+        assert not f["valid"] and len(f["attempts"]) == 2 and f["skipped"] is None
+        assert f["answers"]["max_consumer_price"] == 100 and f["answers"]["last_period_prices"] is None
+        assert f["score"] == WRONG
+
+
+async def test_probe_overflow_on_reask_scores_wrong(tmp_path):
+    from oligopoly.llm import ContextOverflow
+
+    class OverflowReask(Scripted):
+        async def chat(self, messages, *, tag=None, **kw):
+            if tag["phase"] == "probe" and tag["attempt"] == 1:
+                raise ContextOverflow("too long")
+            return await super().chat(messages, tag=tag, **kw)
+
+    rec, _, _ = await play(spec(2, "NT-NT"), tmp_path, exp=ExperimentConfig(part_lengths=(1, 1)),
+                           client=OverflowReask(probe_or_play(lambda tag: PARTIAL)))
+    for f in rec["probe"]["firms"].values():
+        assert f["skipped"] == "context_overflow" and not f["valid"] and len(f["attempts"]) == 1
+        assert f["answers"]["best_common_price"] == 100  # kept for auditing, not scored
+        assert f["score"] == WRONG
+
+
 def test_probe_setting_and_wording_in_fingerprint(monkeypatch):
     s = build_specs("r", [MOCK], [2], ["NT-NT"], 1)[0]
     before = engine.market_fingerprint(s, SHORT)
