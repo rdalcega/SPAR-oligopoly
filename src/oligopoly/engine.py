@@ -42,6 +42,7 @@ import os
 import random
 import re
 import threading
+import time
 import traceback
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -767,6 +768,8 @@ async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
                 problem = f"checkpoint unreadable: {type(e).__name__}: {e}"
             if problem:
                 print(f"CHECKPOINT ignored {spec.key}: {problem}; restarting the market", flush=True)
+                # Move it aside so its higher `seq` can't block the restarted market's checkpoints.
+                ckpt.replace(ckpt.with_name(f"{spec.key}.rejected-{time.time_ns()}.ckpt.json"))
                 m = Market(spec, client, exp, checkpoint=ckpt)
             else:
                 print(f"resume  {spec.key} from period {m.resumed_from[-1]} "

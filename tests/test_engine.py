@@ -936,6 +936,23 @@ async def test_mismatched_checkpoint_is_ignored(tmp_path, capsys, field):
     assert "CHECKPOINT ignored" in capsys.readouterr().out
     assert rec == ref and rec["resumed_from_period"] == []  # restarted from scratch
     assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls if c["tag"]["phase"] != "probe") == (1, 1)
+    assert len(list(out.glob(f"markets/{s.key}.rejected-*.ckpt.json"))) == 1  # moved aside, not left in place
+
+
+async def test_rejected_checkpoint_with_high_seq_does_not_block_new_checkpoints(tmp_path):
+    """A rejected checkpoint's higher `seq` must not stop the restarted market from checkpointing."""
+    s = spec(2, "NT-T")
+    out = tmp_path / "run"
+    with pytest.raises(RetriesExhausted):
+        await run_market(s, FailOnce(("B", 1, 3, "price", 0)), out, SHORT)
+    ck = engine.checkpoint_path(out, s)
+    saved = json.loads(ck.read_text())
+    saved["fingerprint"] = "0" * 64
+    engine.write_json_atomic(ck, engine.with_seq(saved, 10**6))
+    with pytest.raises(RetriesExhausted):  # restarted market fails again after period 2
+        await run_market(s, FailOnce(("A", 1, 3, "price", 0)), out, SHORT)
+    restored = json.loads(ck.read_text())
+    assert restored["fingerprint"] != "0" * 64 and restored["seq"] < 10**6  # the new market's own checkpoint
 
 
 async def test_checkpoint_files_are_not_market_records(tmp_path):
