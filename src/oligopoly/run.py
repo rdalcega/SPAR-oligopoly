@@ -229,6 +229,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--budget-usd", type=float, help="USD cap for the run (required for live models)")
     ap.add_argument("--max-concurrent-markets", type=int, default=4)
     ap.add_argument("--max-concurrency", type=int, default=16, help="max simultaneous LLM calls")
+    ap.add_argument("--rate-limit-max-wait-s", type=float, default=1800.0,
+                    help="per call: total time to keep retrying rate-limit / overloaded errors before giving up")
     ap.add_argument("--part-lengths", default=None, help="e.g. 29,24 (default from config); <20 = pilot only")
     ap.add_argument("--seed", type=int, default=0, help="base seed of the environment draws")
     ap.add_argument("--dry-run", action="store_true", help="print the cells and a cost estimate; no calls")
@@ -271,7 +273,8 @@ async def main(argv: list[str] | None = None) -> int:
     log = out_dir / "calls.jsonl"
     mock = MockClient(log)
     live_client = OpenRouterClient(log, Budget(a.budget_usd, out_dir / "budget.json"),
-                                   max_concurrency=a.max_concurrency) if live else None
+                                   max_concurrency=a.max_concurrency,
+                                   rate_limit_max_wait_s=a.rate_limit_max_wait_s) if live else None
     try:
         if live_client:
             if live_client.budget.recovered_usd:

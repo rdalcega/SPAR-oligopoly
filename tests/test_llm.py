@@ -59,7 +59,7 @@ async def make(tmp_path):
 
     def _make(cap=1.0, **kw):
         c = OpenRouterClient(tmp_path / "calls.jsonl", Budget(cap, tmp_path / "budget.json"), api_key="sk-test",
-                             backoff_base_s=0, **kw)
+                             **{"backoff_base_s": 0, "rate_limit_backoff_base_s": 0, **kw})
         clients.append(c)
         return c
 
@@ -68,8 +68,9 @@ async def make(tmp_path):
         await c.aclose()
 
 
-def lines(tmp_path):
-    return [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
+def lines(tmp_path, events=False):
+    recs = [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
+    return recs if events else [r for r in recs if "event" not in r]
 
 
 async def test_success_payload_and_result(mock, make, tmp_path):
@@ -244,7 +245,7 @@ def test_crashed_in_flight_charged_on_restart(tmp_path):
     assert b2.spent == pytest.approx(0.30) and b2.recovered_usd == pytest.approx(0.25) and not b2.in_flight
     assert not json.loads((tmp_path / "budget.json").read_text())["in_flight"]
     OpenRouterClient(tmp_path / "calls.jsonl", b2, api_key="k")
-    assert lines(tmp_path)[0]["event"] == "budget_recovered_in_flight"
+    assert lines(tmp_path, events=True)[0]["event"] == "budget_recovered_in_flight"
 
 
 def test_budget_cap_counts_reservations():
@@ -360,3 +361,47 @@ async def test_context_overflow_is_not_sent(mock, make, tmp_path):
     logged = lines(tmp_path)
     assert [x["error"].startswith("ContextOverflow") for x in logged if x.get("error")] == [True, True]
     assert logged[-1]["context_guard"]["context_length"] == 200_000 and "status_code" not in logged[-1]
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    """Record the client's backoff sleeps without waiting."""
+    import oligopoly.llm as llm
+    real, waits = asyncio.sleep, []
+
+    async def fake(d, *a, **kw):
+        waits.append(d)
+        await real(0)
+
+    monkeypatch.setattr(llm.asyncio, "sleep", fake)
+    return waits
+
+
+async def test_rate_limits_retried_patiently_beyond_max_retries(mock, make, tmp_path, sleeps):
+    overloaded = httpx.Response(503, json={"error": {"code": 503, "message": "engine_overloaded"}})
+    mock.post(CHAT).mock(side_effect=[httpx.Response(429, json={"error": {"code": 429, "message": "slow"}},
+                                                     headers={"Retry-After": "300"})]
+                         + [overloaded] * 9 + [httpx.Response(502, text="bad"), httpx.Response(200, json=completion())])
+    c = make(max_retries=1, rate_limit_backoff_base_s=5, rate_limit_backoff_max_s=120, rate_limit_max_wait_s=1e6)
+    r = await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
+    assert r.attempts == 12
+    assert sleeps[0] == 300  # Retry-After honoured even above the cap
+    assert 5 <= sleeps[1] <= 10 and all(w <= 120 for w in sleeps[1:10]) and sleeps[9] >= 60  # exp. with jitter
+    waits = [x for x in lines(tmp_path, events=True) if x.get("event") == "rate_limit_wait"]
+    assert len(waits) == 10 and waits[-1]["rate_limit_retry"] == 10
+    assert [x["rate_limited"] for x in lines(tmp_path)[:11]] == [True] * 10 + [False]
+
+
+async def test_rate_limit_gives_up_after_total_wait(mock, make, tmp_path, sleeps):
+    route = mock.post(CHAT).mock(return_value=httpx.Response(429, json={"error": {"code": 429, "message": "x"}}))
+    c = make(max_retries=0, rate_limit_backoff_base_s=100, rate_limit_backoff_max_s=120, rate_limit_max_wait_s=500)
+    with pytest.raises(RetriesExhausted, match="rate limited"):
+        await c.chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
+    assert sum(sleeps) == pytest.approx(500) and route.call_count == len(sleeps) + 1
+
+
+async def test_non_rate_limit_errors_keep_max_retries(mock, make, sleeps):
+    route = mock.post(CHAT).mock(return_value=httpx.Response(502, text="bad gateway"))
+    with pytest.raises(RetriesExhausted):
+        await make(max_retries=2).chat(MSGS, model=MODEL, provider="deepinfra/fp8", max_tokens=10)
+    assert route.call_count == 3

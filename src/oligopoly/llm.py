@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import email.utils
 import hashlib
 import json
 import math
@@ -338,6 +339,39 @@ def estimate_cost(endpoint: Endpoint, messages: Sequence[dict[str, Any]], comple
     return p.get("request", 0.0) + prompt_tokens * per_prompt + completion_tokens * per_completion
 
 
+RATE_LIMIT_WORDS = re.compile(r"rate.?limit|overloaded|too many requests|capacity", re.I)
+
+
+def _rate_limited(status: int | None, err: Any) -> bool:
+    """HTTP 429 / 529, or an error body (any status) whose code is 429/529 or whose message says rate limited
+    or overloaded (e.g. DeepInfra's upstream "engine_overloaded")."""
+    if status in (429, 529):
+        return True
+    if isinstance(err, dict):
+        if err.get("code") in (429, 529):
+            return True
+        err = json.dumps(err, default=str)
+    return bool(err) and bool(RATE_LIMIT_WORDS.search(str(err))) and (status is None or status in RETRYABLE_STATUS
+                                                                       or status == 200)
+
+
+def _retry_after_s(value: str | None) -> float | None:
+    """Seconds from a Retry-After header (delta-seconds or HTTP date); None if absent or unparseable."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+
+
 def _error_retryable(err: Any) -> bool:
     code = err.get("code") if isinstance(err, dict) else None
     return not isinstance(code, int) or code in RETRYABLE_STATUS
@@ -356,6 +390,12 @@ class OpenRouterClient:
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
     been sent is charged nothing. A retry after a timeout may be billed twice (the timed-out generation can
     still complete upstream), so it is logged with `timeout_retry: true`.
+
+    Retry policies: rate limits (HTTP 429/529, or an error saying rate limited / overloaded) are retried
+    patiently and do not count against `max_retries`: exponential backoff from `rate_limit_backoff_base_s`
+    with jitter, capped at `rate_limit_backoff_max_s` per wait (a longer Retry-After is honoured), until the
+    waits for this call total `rate_limit_max_wait_s`; then RetriesExhausted. Each wait is logged as an
+    `event: rate_limit_wait` line. Other transient errors get `max_retries` retries with the normal backoff.
     """
 
     def __init__(
@@ -369,6 +409,9 @@ class OpenRouterClient:
         timeout_s: float = 900.0,
         backoff_base_s: float = 1.0,
         backoff_max_s: float = 60.0,
+        rate_limit_backoff_base_s: float = 5.0,
+        rate_limit_backoff_max_s: float = 120.0,
+        rate_limit_max_wait_s: float = 1800.0,
         base_url: str = BASE_URL,
         http: httpx.AsyncClient | None = None,
     ):
@@ -384,6 +427,9 @@ class OpenRouterClient:
         self.max_retries = max_retries
         self.timeout_s = timeout_s
         self.backoff_base_s, self.backoff_max_s = backoff_base_s, backoff_max_s
+        self.rate_limit_backoff_base_s = rate_limit_backoff_base_s
+        self.rate_limit_backoff_max_s = rate_limit_backoff_max_s
+        self.rate_limit_max_wait_s = rate_limit_max_wait_s
         self.base_url = base_url
         self._http = http or httpx.AsyncClient(timeout=timeout_s)
         self._sem = asyncio.Semaphore(max_concurrency)
@@ -433,6 +479,14 @@ class OpenRouterClient:
         except ValueError:
             pass
         return min(delay, self.backoff_max_s)
+
+    def _rate_limit_backoff(self, k: int, retry_after: str | None) -> float:
+        """Wait before the k-th rate-limit retry: exponential with jitter (50-100% of the step), capped at
+        rate_limit_backoff_max_s; at least the Retry-After, if given (which may exceed the cap)."""
+        step = min(self.rate_limit_backoff_max_s, self.rate_limit_backoff_base_s * 2 ** (k - 1))
+        delay = step * random.uniform(0.5, 1.0)
+        ra = _retry_after_s(retry_after)
+        return max(delay, ra) if ra is not None else delay
 
     async def seed_flag(self, model: str, pinned: str, served: str | None, seed: int | None) -> tuple[bool, str | None]:
         """(seed_possibly_ignored, reason). False when no seed was requested."""
@@ -533,7 +587,35 @@ class OpenRouterClient:
 
         last_error: str | None = None
         timeout_retry = False
-        for attempt in range(1, self.max_retries + 2):
+        attempt = failures = rl_retries = 0
+        rl_waited = 0.0
+
+        async def retry_wait(rate_limited: bool, retry_after: str | None = None) -> None:
+            """Sleep before the next attempt, or raise RetriesExhausted when the relevant policy is spent."""
+            nonlocal failures, rl_retries, rl_waited
+            if not rate_limited:
+                failures += 1
+                if failures > self.max_retries:
+                    raise RetriesExhausted(f"{failures} non-rate-limit failures in {attempt} attempts; "
+                                           f"last error: {last_error}")
+                await asyncio.sleep(self._backoff(failures, retry_after))
+                return
+            remaining = self.rate_limit_max_wait_s - rl_waited
+            if remaining <= 0:
+                raise RetriesExhausted(f"rate limited for {rl_waited:.0f} s in total (limit "
+                                       f"{self.rate_limit_max_wait_s:.0f} s) over {attempt} attempts; "
+                                       f"last error: {last_error}")
+            rl_retries += 1
+            wait = min(self._rate_limit_backoff(rl_retries, retry_after), remaining)
+            rl_waited += wait
+            self._log({"ts": _now(), "event": "rate_limit_wait", "tag": base["tag"], "model_requested": model,
+                       "provider_requested": provider, "attempt": attempt, "rate_limit_retry": rl_retries,
+                       "wait_s": round(wait, 3), "waited_total_s": round(rl_waited, 3),
+                       "max_wait_s": self.rate_limit_max_wait_s, "retry_after": retry_after, "error": last_error})
+            await asyncio.sleep(wait)
+
+        while True:
+            attempt += 1
             rec: dict[str, Any] = {"ts": _now(), "attempt": attempt, **base, "timeout_retry": timeout_retry}
             timeout_retry = False
             resp: httpx.Response | None = None
@@ -570,7 +652,7 @@ class OpenRouterClient:
                     charged = float(cost) if cost is not None else estimate if resp.status_code == 200 else 0.0
                     self.budget.settle(rid, charged)
             if resp is None:
-                await asyncio.sleep(self._backoff(attempt, None))
+                await retry_wait(False)
                 continue
 
             latency = time.monotonic() - t0
@@ -586,10 +668,11 @@ class OpenRouterClient:
                 retryable = (resp.status_code in RETRYABLE_STATUS if resp.status_code != 200
                              else _error_retryable(err))
                 last_error = f"HTTP {resp.status_code}: {json.dumps(err, default=str)[:2000]}"
-                self._log({**rec, "error": last_error, "retryable": retryable})
+                rate_limited = retryable and _rate_limited(resp.status_code, err)
+                self._log({**rec, "error": last_error, "retryable": retryable, "rate_limited": rate_limited})
                 if not retryable:
                     raise PermanentError(resp.status_code, err)
-                await asyncio.sleep(self._backoff(attempt, resp.headers.get("retry-after")))
+                await retry_wait(rate_limited, resp.headers.get("retry-after"))
                 continue
 
             served, model_served = body.get("provider"), body.get("model")
@@ -609,10 +692,11 @@ class OpenRouterClient:
             if not choice or choice.get("error"):
                 last_error = f"empty or errored choice: {choice.get('error')}"
                 retryable = _error_retryable(choice.get("error")) if choice.get("error") else True
-                self._log({**rec, "error": last_error, "retryable": retryable})
+                rate_limited = retryable and bool(choice.get("error")) and _rate_limited(None, choice.get("error"))
+                self._log({**rec, "error": last_error, "retryable": retryable, "rate_limited": rate_limited})
                 if not retryable:
                     raise PermanentError(resp.status_code, choice.get("error"))
-                await asyncio.sleep(self._backoff(attempt, None))
+                await retry_wait(rate_limited)
                 continue
             self._log({**rec, "error": None})
             return ChatResult(
@@ -623,4 +707,3 @@ class OpenRouterClient:
                 cost_usd=float(cost) if cost is not None else None, latency_s=latency, attempts=attempt,
                 seed_possibly_ignored=flag, provider_mismatch=mismatch, raw=body,
             )
-        raise RetriesExhausted(f"{self.max_retries + 1} attempts failed; last error: {last_error}")
