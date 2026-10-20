@@ -1,8 +1,12 @@
 """Rule-based coding of chat messages and Talk periods (DECISIONS.md: no LLM judges).
 
 Per message (`code_message`):
-    prices      integers 0-100 in a price-like context (not followed by "periods", "%", "of us", ...; not
-                preceded by "period", "round", "firm", "#", ...)
+    prices      integers 0-100 in a price-like context (not followed by "periods", "%", "of us", "profit", ...;
+                not preceded by "period", "round", "firm", "#", ...). "N ECU" is a price ("Let's set 100 ECU")
+                unless profit wording precedes it in the sentence ("we each earn 75 ECU") or follows the ECU
+                ("75 ECU each", "75 ECU of profit"). A comma group is a thousands number ("7,500", "29,700")
+                unless every group is a plausible price and the sentence has no profit wording: "99,100" and
+                "100,100,100" are lists of prices
     endorsed    the price the sender backs: the first price in the last sentence that has a proposal,
                 commitment or agreement cue, among sentences that are not conditional ("if ...", "otherwise
                 ..."), about the past ("was", "last period", ...), threats, accusations, refusals or taking-turns
@@ -10,8 +14,10 @@ Per message (`code_message`):
     proposal    a proposal/commitment cue together with an endorsed price
     agreement   an un-negated agreement marker ("agree", "ok", "deal", "yes", "sounds good", "I'm in", ...) in a
                 message without a refusal
-    refusal     "disagree", "I don't agree", "won't set", "no, ..." (clears the sender's backing; its sentences
-                endorse nothing)
+    refusal     "disagree", "I don't agree", "won't set", "no, ...", negated proposals ("we should not set 100",
+                "let's not go to 100", "I won't price at 100"; not "don't go below 100") (clears the sender's
+                backing; its sentences endorse nothing, and a price they reject is not endorsed by the
+                single-price fallback)
     threat      un-negated punishment language ("punish", "retaliate", "price war", "if anyone undercuts ...",
                 "we will all go to 0", "last chance", "I'll match the lowest", ...); "let's avoid a price
                 war" is not a threat
@@ -51,7 +57,14 @@ NUMBER = r"\d{1,3}(?:,\d{3})+|\d+"
 NUM = re.compile(rf"(?<![\w#.\-])\$?({NUMBER})(?![\d%]|,\d{{3}}(?!\d)|\.\d|[a-z])", I)
 NOT_BEFORE = re.compile(r"(?:period|round|part|turn|firm|player|number|no\.|step|day|#|top|first|last)\s*$", I)
 NOT_AFTER = re.compile(r"^\s*(?:more\s+|consecutive\s+|straight\s+)?(?:periods?|rounds?|times?|turns?|firms?|players?|"
-                       r"of (?:us|you|them)|companies|competitors|rivals|others|percent|ecu|points|profits?|(?:th|st|nd|rd|x)\b)", I)
+                       r"of (?:us|you|them)|companies|competitors|rivals|others|percent|points|profits?|(?:th|st|nd|rd|x)\b)", I)
+# profit wording: an "N ECU" amount with it before (same sentence) is a profit, not a price, and so is a comma group
+PROFIT_CTX = re.compile(r"profit|earn|payoff|income|revenue|\btotal|\bsplit|\bsum\b|"
+                        r"\b(?:each|we|you|i|both|all|they|everyone)\s+(?:would\s+|will\s+|could\s+|can\s+|'d\s+|"
+                        r"'ll\s+)?(?:get|gets|make|makes|receive|pocket|take home|walk away with)\b", I)
+ECU_PROFIT_AFTER = re.compile(r"^\s*ecu\b\s*(?:of\s+)?(?:profits?|each|apiece|in total|total|per (?:period|round)|"
+                              r"earn|payoff|income|revenue)", I)
+ECU_AFTER = re.compile(r"^\s*ecu\b", I)
 SENT = re.compile(r"(?<=[.!?;\n])\s+|\n")
 CONDITIONAL = re.compile(r"^\W*(?:if|otherwise|or else|unless|whoever|anyone who|should anyone|else)\b|\bif (?:any|some|you)", I)
 PAST = re.compile(r"\b(?:was|were|had|last (?:period|round)|previous(?:ly)?|earlier|before|got|earned|made|ago)\b", I)
@@ -79,8 +92,16 @@ ACCUSE = re.compile(
     r"(?:deal|agreement|promise|word)))|\b(?!I\b)[A-Z]{1,2}\b (?:undercut|cheated|defected|deviated|dropped|broke)")
 APOLOGY = re.compile(r"\bsorry\b|apolog|my (?:bad|mistake)|mistake on my|won'?t happen again", I)
 NEGATION = re.compile(r"(?:\bnot|n't|\bnever|\bno|\bavoid|\bwithout|\bagainst)\W+(?:\w+\W+){0,2}$", I)
+# a negated pricing verb followed by a price is a refusal ("we should not set 100", "I won't price at 100"),
+# unless it only rules out lower prices ("don't go below 100")
+_NOT_LOWER = r"(?![^.!?;,]{0,20}?\b(?:below|under|lower|beneath|less|cheaper|down)\b)"
 REFUSE = re.compile(r"\b(?:disagree|refuse|reject|no deal|(?:do not|don'?t|won'?t|will not|can'?t|cannot) (?:agree|accept|"
-                    r"do (?:that|this|it)|set|go|price|charge|commit)|not (?:going to|gonna) (?:set|go|price|charge))\b|"
+                    r"do (?:that|this|it)|commit))\b|"
+                    rf"\b(?:(?:do not|don'?t|won'?t|will not|can'?t|cannot)|not (?:going to|gonna)) (?:set|go|price|charge)\b"
+                    rf"{_NOT_LOWER}|"
+                    r"(?:\bnot|\bnever|\bcannot|\b(?:do|does|did|wo|should|would|could|ca|must|sha)n['’]?t)\s+"
+                    r"(?:(?:going to|gonna|to|even|really|just|all|both|ever)\s+)?"
+                    rf"(?:set|go|price|charge|keep|stay|stick|post)\b{_NOT_LOWER}(?=[^.!?;\d]{{0,25}}\d)|"
                     r"^\W*no\b(?! problem| worries| doubt)", I)
 INTENT = re.compile(r"\bI(?:'ll|’ll| will| am going to|'m going to| plan to| intend to| should| could| can| might| want to)?"
                     r"\s+(?:\w+\s+){0,2}?(?:undercut|defect|deviate|cheat|grab|steal|capture|exploit|betray|"
@@ -95,14 +116,39 @@ STATED = re.compile(
     rf"({NUMBER})(?!\d|,\d{{3}}(?!\d)|\.\d)(?!\s*%)", I)
 
 
+def _sentence_before(text: str, start: int, width: int = 60) -> str:
+    """Up to `width` characters before `start`, within the same sentence."""
+    before = text[max(0, start - width):start]
+    cut = max(before.rfind(c) for c in ".!?;\n")
+    return before[cut + 1:]
+
+
+def _price_list(groups: list[str]) -> bool:
+    """Whether comma groups read as a list of prices: every group a price 0-100 without a leading zero."""
+    return all(g.isdigit() and int(g) <= 100 and (g == "0" or not g.startswith("0")) for g in groups)
+
+
 def prices_in(text: str) -> list[int]:
     """Integers 0-100 in a price-like context, in order of appearance."""
     out = []
-    for m in NUM.finditer(text or ""):
-        v = int(m.group(1).replace(",", ""))
-        if v <= 100 and not NOT_BEFORE.search(text[max(0, m.start() - 12):m.start()]) \
-                and not NOT_AFTER.search(text[m.end():m.end() + 25]):
-            out.append(v)
+    text = text or ""
+    for m in NUM.finditer(text):
+        raw, after = m.group(1), text[m.end():m.end() + 25]
+        if NOT_BEFORE.search(text[max(0, m.start() - 12):m.start()]) or NOT_AFTER.search(after):
+            continue
+        if "," in raw:  # "99,100" (a list of prices) vs "29,700" (a thousands number)
+            groups = raw.split(",")
+            sentence = _sentence_before(text, m.start(), 200) + text[m.end():m.end() + 60].split(".")[0]
+            if _price_list(groups) and not PROFIT_CTX.search(sentence) and not ECU_AFTER.search(after):
+                out.extend(int(g) for g in groups)
+            continue  # otherwise a thousands number: above 100, not a price
+        v = int(raw)
+        if v > 100:
+            continue
+        if ECU_AFTER.search(after) and (ECU_PROFIT_AFTER.search(after)
+                                        or PROFIT_CTX.search(_sentence_before(text, m.start()))):
+            continue  # "we each earn 75 ECU", "75 ECU each": a profit amount
+        out.append(v)
     return out
 
 
@@ -118,7 +164,8 @@ def endorsed_price(text: str) -> int | None:
     cued = [p for p in cued if p]
     if cued:
         return cued[-1][0]
-    distinct = {p for s in usable for p in prices_in(s)}
+    rejected = {p for s in sents if REFUSE.search(s) for p in prices_in(s)}  # "We should not set 100. 100?"
+    distinct = {p for s in usable for p in prices_in(s)} - rejected
     return distinct.pop() if len(distinct) == 1 else None
 
 

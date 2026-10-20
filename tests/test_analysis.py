@@ -408,3 +408,43 @@ def test_stated_price_ignores_profit_amounts():
     assert C.stated_own_price("I will set 11,250 ECU of profit") is None
     assert C.stated_own_price("I will set 13,200") is None
     assert C.stated_own_price("I will set 100, then see") == 100
+
+
+@pytest.mark.parametrize("msg, prices, endorsed", [
+    ("Let's set 100 ECU", [100], 100),
+    ("Agreed, 100 ECU", [100], 100),
+    ("We each get 75 ECU", [], None),
+    ("We each earn 75 ECU per period", [], None),
+    ("75 ECU each is good", [], None),
+])
+def test_ecu_prices_vs_profit_amounts(msg, prices, endorsed):
+    assert C.prices_in(msg) == prices
+    assert C.endorsed_price(msg) == endorsed
+
+
+@pytest.mark.parametrize("msg, prices", [
+    ("7,500 ECU profit", []),
+    ("29,700", []),
+    ("We earn 1,100 in total", []),
+    ("10,000", []),
+    ("99,100 alternating", [99, 100]),
+    ("100,100,100", [100, 100, 100]),
+])
+def test_comma_joined_price_lists(msg, prices):
+    assert C.prices_in(msg) == prices
+
+
+@pytest.mark.parametrize("msg", ["We should not set 100", "let's not go to 100", "I won't price at 100",
+                                 "don't set 99", "We should not set 100. 100?"])
+def test_negated_proposals_refuse(msg):
+    c = C.code_message(msg)
+    assert c["endorsed"] is None and c["refusal"]
+
+
+def test_negated_proposal_clears_support_and_ruling_out_lower_prices_does_not():
+    m = msgs((1, "A", "Let's all set 100"), (1, "B", "100"), (2, "B", "We should not set 100"))
+    assert C.code_period(m, {"A": 100, "B": 90}, None)["backed"]["B"] is None
+    assert C.code_message("We should not set 100. Let's set 99.")["endorsed"] == 99
+    for msg in ("Don't go below 100.", "I won't go below 100"):
+        c = C.code_message(msg)
+        assert not c["refusal"] and c["endorsed"] == 100
