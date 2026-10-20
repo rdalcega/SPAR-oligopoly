@@ -79,6 +79,14 @@ and, on the last possible round, adds "(last round; prices are set after it)"; t
 says "The chat box has closed for this period: no more messages can be posted." Both restate timing already
 in the instructions; nothing about how to behave. Listed as edit 28 in `docs/prompts-draft.md`.
 
+**2026-10-20, after the n = 10 pilot (wording):** ~19% of chat turns ended as forced passes because gpt-oss
+answered chat turns with a price JSON, and the generic re-ask often failed again. Every chat prompt now states
+"This is a chat turn: prices cannot be set now; you will set your price after the chat closes.", and a chat
+answer holding a price object (and no message object) is re-asked with "You answered with a price, but this is
+a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing." plus the format,
+and recorded with its own error string. Other invalid answers keep the generic re-ask. Edit 30 in
+`docs/prompts-draft.md`.
+
 ### §6 item 2 — simultaneous pricing
 
 All firms' prices for a period are collected independently before any is revealed. Each firm's notes and

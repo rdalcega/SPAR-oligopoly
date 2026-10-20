@@ -430,6 +430,9 @@ def message_reminder(chat_spec: ChatSpec, notes: bool) -> str:
 
 
 OWN_MESSAGE = "[your message above]"
+# Stated in every chat-turn prompt (2026-10-20, after the n = 10 pilot, where ~19% of chat turns ended as forced
+# passes because the firm answered a chat turn with a price): restates timing already in the instructions.
+CHAT_TURN_LINE = "This is a chat turn: prices cannot be set now; you will set your price after the chat closes."
 
 
 def round_messages_text(round_: int, messages: Sequence[ChatMessage], firm_letter: str) -> str:
@@ -503,6 +506,7 @@ def chat_prompt(
                      "(last round; prices are set after it).")
     else:
         lines.append(f"Part {part}, period {period}: chat round {round_} of at most {chat_spec.max_rounds}.")
+    lines.append(CHAT_TURN_LINE)
     if round_ == 1:
         lines.append("No messages have been posted in this period yet.")
     lines.append(message_reminder(chat_spec, notes))
@@ -558,6 +562,16 @@ def fallback_text(kind: str, value: int | None = None) -> str:
     return "Your response could not be used, so you posted no message in that round."
 
 
+CHAT_PRICE_ERROR = 'a price was given on a chat turn (no "message" field)'
+
+
+def chat_price_reask_text(chat_spec: ChatSpec, notes: bool) -> str:
+    """Re-ask after a chat turn was answered with a price object (and no message object)."""
+    s = "You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message"
+    s += ", or null to post nothing." if chat_spec.allow_pass else "."
+    return s + f" Respond with JSON only, in this format: {message_format(chat_spec, notes)}"
+
+
 def reask_text(error: str, expected_format: str) -> str:
     """Re-ask after an unusable answer (unparseable JSON, out-of-range price, over-long message...)."""
     return (
@@ -608,6 +622,7 @@ def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
         part_over_text(2, 22, final_part=True, total_profit=10),
         fallback_text("price", 7), fallback_text("message"),
         reask_text("e", price_format(notes)), reask_text("e", message_format(chat_spec, notes)),
+        chat_price_reask_text(chat_spec, notes),
         probe_prompt(["A", "B"]), reask_text("e", probe_format(["A", "B"])),
     ]
     return hashlib.sha256("\x00".join(texts).encode()).hexdigest()

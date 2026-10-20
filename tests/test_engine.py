@@ -943,3 +943,26 @@ def test_probe_setting_and_wording_in_fingerprint(monkeypatch):
     monkeypatch.setitem(engine.prompts.PROBE_QUESTIONS, "deviations", "Did anyone cheat?")
     assert engine.market_fingerprint(s, SHORT) != before
     assert engine.best_common_price(["A", "B", "C"]) == 100
+
+
+async def test_price_on_chat_turn_gets_its_own_reask(tmp_path):
+    """A chat turn answered with a price object is re-asked with the chat-turn wording; other invalid answers
+    keep the generic re-ask."""
+    from oligopoly.prompts import CHAT_PRICE_ERROR
+
+    def answer(tag):
+        if tag["phase"] == "chat1" and tag["attempt"] == 0:
+            return '{"notes": "n", "price": 100}' if tag["firm"] == "A" else "no json here"
+        return '{"notes": "n", "price": 99}' if tag["phase"] == "price" else '{"notes": "n", "message": null}'
+
+    rec, client, _ = await play(spec(2, "T-NT"), tmp_path, exp=ExperimentConfig(part_lengths=(1, 1)),
+                                client=Scripted(answer))
+    da = rec["periods"][0]["chat"][0]["decisions"]["A"]
+    db = rec["periods"][0]["chat"][0]["decisions"]["B"]
+    assert da["errors"] == [CHAT_PRICE_ERROR] and da["reasks"] == 1 and not da["fallback"]
+    assert db["reasks"] == 1 and db["errors"] != [CHAT_PRICE_ERROR]
+    reask = {c["tag"]["firm"]: c["messages"][-1]["content"] for c in client.calls
+             if c["tag"]["phase"] == "chat1" and c["tag"]["attempt"] == 1}
+    assert reask["A"].startswith("You answered with a price, but this is a chat turn. Prices are set after the "
+                                 "chat closes. Post a message, or null to post nothing.")
+    assert reask["B"].startswith("Your previous response could not be used:")

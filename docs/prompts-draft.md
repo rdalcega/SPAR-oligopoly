@@ -259,6 +259,7 @@ Round 1 from period 21 on (the die result opens the round-1 prompt):
 ```text
 Period 20 is over. The computer threw the virtual dice and it showed 4, so this part of the experiment continues.
 Part 2, period 21: chat round 1 of at most 3.
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
 No messages have been posted in this period yet.
 Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
@@ -272,6 +273,7 @@ Firm C (you): [your message above]
 Firm D: What price is everyone setting?
 
 Part 2, period 5: chat round 2 of at most 3.
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
 Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
 
@@ -284,6 +286,7 @@ Firm C (you): [your message above]
 Firm D: Yes.
 
 Part 2, period 5: chat round 3 of 3 (last round; prices are set after it).
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
 Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
 ```
 
@@ -308,6 +311,13 @@ Period 25 is over. The computer threw the virtual dice and it showed 6, so this 
 
 ```text
 Your previous response could not be used: price 150 is outside 0-100. Please respond again with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "price": <integer from 0 to 100>}
+```
+
+Re-ask after a chat turn was answered with a price object (no `"message"` field); other invalid chat answers get
+the generic re-ask above:
+
+```text
+You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing. Respond with JSON only, in this format: {"notes": "<private notes, at most about 100 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 100 words>", "message": null} to post nothing in this round
 ```
 
 
@@ -443,6 +453,13 @@ texts.
 29. Post-game comprehension probe (2026-10-20, approved by the PI): one extra user message after all play
     (text above). It is not part of the paper's design and cannot affect any decision, since nothing is played
     after it. Its wording is part of the prompt digest, and `post_game_probe` of the market fingerprint.
+30. Chat-turn line and re-ask (2026-10-20, after the n = 10 pilot, where ~19% of chat turns ended as forced
+    passes because gpt-oss answered chat turns with a price JSON and the generic re-ask often failed again): every
+    chat prompt states "This is a chat turn: prices cannot be set now; you will set your price after the chat
+    closes." A chat answer that holds a price object and no message object is re-asked with "You answered with a
+    price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post
+    nothing." followed by the format; it is recorded with the error "a price was given on a chat turn (no
+    "message" field)". Both restate timing from the instructions; nothing about how to behave.
 
 ## Open questions for the PI
 

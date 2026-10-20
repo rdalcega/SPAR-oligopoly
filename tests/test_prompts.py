@@ -255,3 +255,23 @@ def test_last_chat_round_says_prices_come_next():
     p = period_prompt(1, 4, talk=True, firm_letter="B", last_round=3, last_messages=msgs)
     assert "The chat box has closed for this period: no more messages can be posted." in p
     assert "chat box has closed" not in period_prompt(1, 4)  # NoTalk: no chat mentioned
+
+
+def test_every_chat_prompt_says_prices_come_after_the_chat():
+    from oligopoly.prompts import CHAT_TURN_LINE, chat_price_reask_text
+
+    assert CHAT_TURN_LINE == ("This is a chat turn: prices cannot be set now; you will set your price after the "
+                              "chat closes.")
+    spec = ChatSpec(max_rounds=3)
+    msgs = [ChatMessage("A", "hello", 1)]
+    for r in (1, 2, 3):
+        for notes in (False, True):
+            assert CHAT_TURN_LINE in chat_prompt(1, 4, r, "B", msgs if r > 1 else [], spec, notes=notes)
+    assert CHAT_TURN_LINE not in period_prompt(1, 4, talk=True, firm_letter="B", last_round=1, last_messages=msgs)
+    r = chat_price_reask_text(spec, notes=True)
+    assert r.startswith("You answered with a price, but this is a chat turn. Prices are set after the chat "
+                        "closes. Post a message, or null to post nothing.")
+    assert '"message": null} to post nothing' in r
+    assert "or null" not in chat_price_reask_text(ChatSpec(allow_pass=False, end_when_all_pass=False), notes=False)
+    for w in BANNED_EVERYWHERE:
+        assert w not in (r + CHAT_TURN_LINE).lower()

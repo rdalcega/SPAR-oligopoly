@@ -39,7 +39,7 @@ from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
 from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage
-from .parse import PARSER_VERSION, Parsed, parse_message, parse_price, parse_probe, strip_reasoning
+from .parse import PARSER_VERSION, Parsed, extract_object, parse_message, parse_price, parse_probe, strip_reasoning
 
 Kind = Literal["price", "message"]
 
@@ -302,6 +302,10 @@ class Market:
             self.partial_calls[call_id] = {"messages_sha256": msha, "result": result_to_dict(r)}
             self._account(r)
             p = parse(r.content)
+            reask = None
+            if kind == "message" and p.obj is None and extract_object(r.content, "price") is not None:
+                # a price object on a chat turn: say so plainly (the generic re-ask did not fix it in the pilots)
+                p.error, reask = prompts.CHAT_PRICE_ERROR, prompts.chat_price_reask_text(self.chat_spec, self.exp.notes)
             d.attempts.append({
                 "call_id": call_id, "seed": seed, "generation_id": r.generation_id, "provider": r.provider,
                 "finish_reason": r.finish_reason, "seed_possibly_ignored": r.seed_possibly_ignored,
@@ -317,7 +321,7 @@ class Market:
             bad = strip_reasoning(r.content or "")
             firm.answer(bad[:2000] if bad else "(empty response)")
             if attempt < self.exp.max_reasks:
-                messages = firm.ask(prompts.reask_text(p.error, fmt))
+                messages = firm.ask(reask or prompts.reask_text(p.error, fmt))
         d.fallback = True
         d.value = self.prev_price[L] if kind == "price" else None
         firm.tell(prompts.fallback_text(kind, d.value if kind == "price" else None))
