@@ -61,7 +61,7 @@ class MockClient:
             msg = None if r < 0.35 else rng.choice(["pass", ""]) if r < 0.45 else f"#{seed} {rng.choice(PHRASES)}"
             if msg and rng.random() < 0.05:
                 msg += " " + "blah " * 70
-            obj = {"notes": notes, "message": msg}
+            obj = {"message": msg}  # chat answers carry no notes
         js = json.dumps(obj)
         style = rng.random()
         if style < 0.6:

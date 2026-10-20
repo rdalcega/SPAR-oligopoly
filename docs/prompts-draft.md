@@ -17,12 +17,14 @@ Talk → Talk extension) × both parts × two chat specs × with and without mon
 ## How the texts are used in a market
 
 1. Part 1 instructions (as the system message).
-2. Each period: in Talk parts, `chat_prompt` for each round; then `period_prompt`. When the period ends, the
+2. Each period: in Talk parts, `chat_prompt` for each round (answer `{"message": ...}`, no notes); then
+   `period_prompt` (answer `{"notes": ..., "price": ...}`). When the period ends, the
    firm gets that period's summary: `results_text`, then any price fallback notice (`fallback_text`), then, from
    the minimum period (20) on, the die line (`die_line`, 1–5), or `part_over_text` when the pre-drawn last
    period ends (die shows 6). Summaries are shown in later requests (below), not sent as messages of their own.
 3. After Part 1's last period, the Part 2 instructions open every later request, and periods restart at 1.
-4. Transition call (`transition = true`, the default; needs notes): after Part 1's final summary and before
+4. Transition call (`transition = true`, the default; needs notes), only in NoTalk → Talk and Talk → NoTalk,
+   where communication changes (not in NoTalk → NoTalk or Talk → Talk): after Part 1's final summary and before
    Part 2 period 1, each firm gets one notes-only call with `transition_prompt` and answers `{"notes": ...}`
    (extra fields are ignored with a warning). Its notes replace the firm's memory; if the answer is still
    unusable after the re-asks, the notes stay unchanged and the firm is told nothing. Recorded under the
@@ -40,7 +42,8 @@ fresh from the firm's transcript (`firm.section_messages`):
    2. the summaries of the last 3 completed periods (`memory_window`), counted across the part boundary, oldest
       first ("No periods have been played yet." before any), then the firm's own cumulative profit
       (`totals_text`: "Your total profit in Part k so far", and in Part 2 also the experiment);
-   3. the firm's latest private notes (`notes_text`: "Your most recent notes:", then the notes between
+   3. the firm's latest private notes, from its last price answer or the transition call, also on chat turns
+      (`notes_text`: "Your most recent notes:", then the notes between
       "[start of your notes]" and "[end of your notes]" lines, or "You have not written any notes yet.");
    4. in Talk parts, the chat rounds of the current period so far (`chat_text` of `round_text` entries): every
       firm in the viewer's listing order, each message on one line in double quotes (`shown_message`; the
@@ -230,7 +233,7 @@ At the end of the experiment, you will be told of the sum of profits made during
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
 Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -256,9 +259,9 @@ You will be matched with the same participants you were matched with in Part 1, 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
-When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 500 words>", "message": null} to post nothing in this round.
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
 Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -298,9 +301,9 @@ You will be matched with the same participants in every period.
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
-When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 500 words>", "message": null} to post nothing in this round.
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
 Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -325,7 +328,7 @@ At the end of the experiment, you will be told of the sum of profits made during
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
 Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -362,7 +365,7 @@ At the end of the experiment, you will be told of the sum of profits made during
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
 Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -385,7 +388,7 @@ At the end of the experiment, you will be told of the sum of profits made during
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
 Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -425,9 +428,9 @@ You will be matched with the same participants in every period.
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
-When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 500 words>", "message": null} to post nothing in this round.
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
 Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -453,9 +456,9 @@ You will be matched with the same participants you were matched with in Part 1, 
 At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
 
 How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
-When you are asked for a chat message, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 500 words>", "message": null} to post nothing in this round.
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
 Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
-The "notes" field is private: the other firms never see it. Your notes are shown to you at your next decision, where they replace your previous notes, so write in them everything you want to remember. Keep them to about 500 words at most.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
 Each request ends with a short reminder of the format.
 ```
 
@@ -496,7 +499,7 @@ Round 1 (the chat section above it reads "No messages have been posted in this p
 ```text
 Part 2, period 5: chat round 1 of at most 3.
 This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
-Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
 ```
 
 Round 2 (the chat section above it shows round 1):
@@ -504,7 +507,7 @@ Round 2 (the chat section above it shows round 1):
 ```text
 Part 2, period 5: chat round 2 of at most 3.
 This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
-Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
 ```
 
 Round 3, the last possible round (its line says that prices are set after it):
@@ -512,7 +515,7 @@ Round 3, the last possible round (its line says that prices are set after it):
 ```text
 Part 2, period 5: chat round 3 of 3 (last round; prices are set after it).
 This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
-Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
 ```
 
 ### Sample chat section (before round 3; Firm C's round-2 answer could not be used)
@@ -572,7 +575,7 @@ Re-ask after a chat turn was answered with a price object (no `"message"` field)
 the generic re-ask above:
 
 ```text
-You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing. Respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "message": "<your message, at most 300 characters>"} or {"notes": "<private notes, at most about 500 words>", "message": null} to post nothing in this round
+You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing. Respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round
 ```
 
 ### Post-game comprehension probe (after all play; DECISIONS.md, 2026-10-20)
@@ -684,13 +687,13 @@ texts.
     own firm is marked "(you)" in chat logs and results. The rivals' cumulative profits are never shown. The
     order firms are listed in the results is a parameter, for shuffling.
 26. JSON output (`{"price": …}`, `{"message": …}` or `null`) and the private `"notes"` field are new
-    (§6 items 2, 3 and 8). In the engine every price and chat answer has the form
-    `{"notes": "<private notes, at most about 500 words>", "price": …}` / `{"notes": …, "message": …}`
-    (the stated length is `notes_words`).
+    (§6 items 2, 3 and 8). In the engine every price answer has the form
+    `{"notes": "<private notes, at most about 500 words>", "price": …}` (the stated length is `notes_words`)
+    and every chat answer the form `{"message": …}` (no notes since 2026-10-20, see 35).
     The full format (both JSON forms, the pass option, the character limit, notes privacy and length) is stated
     once per part, as the last paragraph of that part's instructions ("How to answer: …"); a NoTalk part states
     only the price format. Each chat and price prompt ends with a one-line reminder instead
-    (`Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}` /
+    (`Reply with JSON: {"message": "<your message, at most 300 characters>" or null}` /
     `Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}`), and the price prompt says only "Choose
     your selling price for this period." (2026-10-20: the repeated ~350-character format block was about a third
     of every firm's history.) Re-asks still state the full format. A digest of the rendered texts is part of
@@ -732,17 +735,19 @@ texts.
     of sections (period summaries, totals, notes, the current period's chat, the prompt; "What each request
     contains" above). The "How to answer" paragraph now says "Each request shows, in this order, the results of
     the last three periods, your total profit, your notes[ and the chat messages posted so far in the current
-    period]. Earlier periods[, earlier chat messages] and your earlier answers are not shown again." and "Your
-    notes are shown to you at your next decision, where they replace your previous notes, so write in them
-    everything you want to remember. Keep them to about 500 words at most." NoTalk parts omit the chat parts.
+    period]. Earlier periods[, earlier chat messages] and your earlier answers are not shown again." NoTalk
+    parts omit the chat parts. (Its notes sentence was revised by 35.)
     The die line moved from the head of the next prompt into the period's summary; prompts no longer carry
     results, die or chat. The stated notes length went from about 150 to about 500 words and is configurable
     (`notes_words`); the unannounced cap is 650 words / 4,500 characters. The message-fallback notice is gone
     (shown in the firm's own chat line instead). Mechanics only: nothing about what to remember or how to
     behave.
-33. Transition call (2026-10-20, DECISIONS.md §6 item 3; config `transition`, default on, needs notes): before
-    Part 2 period 1, one notes-only request (sample above) asks: "Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take it into account." It departs from the
-    paper: human subjects only read the Part 2 sheet before playing on, with no separate step. It lets a firm
+33. Transition call (2026-10-20, DECISIONS.md §6 item 3; config `transition`, default on, needs notes): only
+    in NoTalk → Talk and Talk → NoTalk, where communication changes between the parts (not in NoTalk → NoTalk
+    or Talk → Talk), before Part 2 period 1, one notes-only request (sample above) asks: "Part 1 is over. Part 2
+    starts with the next period; its instructions are shown above. Before it starts, write your notes for
+    Part 2: what changes and how you will take it into account." It departs from the paper: human subjects only
+    read the Part 2 sheet before playing on, with no separate step. It lets a firm
     whose memory is its own notes take in the new instructions once, outside a price or chat decision. The
     wording asks the firm how it will take the change into account, which goes beyond restating mechanics; it
     names no particular behaviour, and Rodrigo approved it as a departure. With structured outputs the call uses
@@ -750,7 +755,15 @@ texts.
 34. Talk → Talk ordering (2026-10-20, `T-T`): an extension with no published counterpart and no human benchmark;
     keep it out of the comparison with the human results. Part 1 is the Talk → NoTalk Part 1 (chat paragraphs
     after the examples, deviation 18). Part 2 says "As in Part 1, you will be able to communicate with the
-    other firms in your market." and repeats the chat rules.
+    other firms in your market." and repeats the chat rules. There is no transition call (see 33).
+35. Chat turns carry no notes (2026-10-20, Rodrigo's decision, DECISIONS.md §6 item 3): chat answers are
+    `{"message": ...}` only; the instructions' chat format, the chat reminder and the chat-price re-ask drop the
+    notes field, and a notes field on a chat turn is ignored with a warning (kept in the record as
+    `notes_ignored`, never shown to the firm). Notes go with each price (and the transition call), and the latest
+    notes are still shown in every request, chat turns included. The notes sentence in "How to answer" now reads
+    "You write notes with each price. They are shown to you in every later request until you next write notes,
+    which then replace them, so write in them everything you want to remember. Keep them to about 500 words at
+    most." (neutral about the transition call, which also replaces them). Mechanics only.
 
 ## Open questions for the PI
 

@@ -125,7 +125,7 @@ def tidy(records: list[dict[str, Any]]) -> Tables:
         mk.append(key | {"part1_len": lengths[0], "part2_len": lengths[1], "phase1": PHASE[talk["part1"]],
                          "phase2": PHASE[talk["part2"]], "pilot": rec["settings"].get("pilot", False),
                          "paper_lengths": tuple(lengths) == (b.PART1_PERIODS, b.PART2_PERIODS),
-                         "transition": bool(rec["settings"]["experiment"].get("transition", False))})
+                         "transition": rec.get("transition") is not None})  # the call ran in this market
         for L, d in (rec.get("transition") or {}).items():
             tr.append(key | {"part": 2, "period": 0, "firm": L, "notes": d["notes"] or "", "valid": d["valid"],
                              "fallback": d["fallback"], "reasks": d["reasks"], "invalid_attempts": len(d["errors"]),

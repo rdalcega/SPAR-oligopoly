@@ -90,7 +90,8 @@ require_parameters = true
 
 ["qwen3-14b"]
 # Older Qwen generation, added for the small end. DeepInfra context is 40,960 tokens (input + output). With the
-# summaries layout (DECISIONS.md, 2026-10-20) the synthetic worst case (project_context.py --synthetic: notes, chat
+# summaries layout (DECISIONS.md, 2026-10-20) the pilot-based projection with notes at the cap peaks at ~15.5k
+# tokens incl. max_tokens (T-T, n = 10), and the synthetic worst case (project_context.py --synthetic: notes, chat
 # and re-asks at their caps, ASCII) peaks at ~19.6k tokens incl. max_tokens (T-T, n = 10): no exclusions. The strict
 # 4-byte-character bound (--utf8-max) exceeds the 32,768 limit in Talk cells from n = 6; not applied (no real run
 # writes 4-byte text throughout; the runtime context guard still stops any request over the limit).

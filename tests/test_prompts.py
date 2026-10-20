@@ -194,8 +194,8 @@ def test_part_over_and_reask():
 def test_notes_formats_and_round_messages():
     from oligopoly.prompts import NO_MESSAGES_YET, chat_text, round_text
 
-    p = chat_prompt(1, 2, 1, ChatSpec(), notes=True)
-    assert p.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>" or null}')
+    p = chat_prompt(1, 2, 1, ChatSpec())  # chat answers carry no notes
+    assert p.endswith('Reply with JSON: {"message": "<your message, at most 300 characters>" or null}')
     # every firm in the viewer's listing order; the viewer's own message shown in full; passes as "(no message)"
     r1 = round_text(1, {"B": "hi", "A": "hello"}, ["C", "A", "B"], "A")
     assert r1 == 'Round 1:\nFirm C: (no message)\nFirm A (you): "hello"\nFirm B: "hi"'
@@ -242,8 +242,10 @@ def test_full_answer_format_once_per_part(n):
     assert '"price": <integer from 0 to 100>}' in nt2 and '"message"' not in nt2
     plain = part_instructions(n, "A", 1, False)
     assert '{"price": <integer from 0 to 100>}' in plain and "notes" not in plain
-    no_pass = chat_prompt(1, 1, 1, ChatSpec(allow_pass=False, end_when_all_pass=False), notes=True)
-    assert no_pass.endswith('Reply with JSON: {"notes": ..., "message": "<your message, at most 300 characters>"}')
+    no_pass = chat_prompt(1, 1, 1, ChatSpec(allow_pass=False, end_when_all_pass=False))
+    assert no_pass.endswith('Reply with JSON: {"message": "<your message, at most 300 characters>"}')
+    # the chat format in the instructions has no notes; the price format does
+    assert '{"message": "<your message, at most 250 characters>"} or {"message": null}' in t1
 
 
 def test_last_chat_round_says_prices_come_next():
@@ -267,14 +269,13 @@ def test_every_chat_prompt_says_prices_come_after_the_chat():
                               "chat closes.")
     spec = ChatSpec(max_rounds=3)
     for r in (1, 2, 3):
-        for notes in (False, True):
-            assert CHAT_TURN_LINE in chat_prompt(1, 4, r, spec, notes=notes)
+        assert CHAT_TURN_LINE in chat_prompt(1, 4, r, spec)
     assert CHAT_TURN_LINE not in period_prompt(1, 4, talk=True)
-    r = chat_price_reask_text(spec, notes=True)
+    r = chat_price_reask_text(spec)
     assert r.startswith("You answered with a price, but this is a chat turn. Prices are set after the chat "
                         "closes. Post a message, or null to post nothing.")
     assert '"message": null} to post nothing' in r
-    assert "or null" not in chat_price_reask_text(ChatSpec(allow_pass=False, end_when_all_pass=False), notes=False)
+    assert "or null" not in chat_price_reask_text(ChatSpec(allow_pass=False, end_when_all_pass=False))
     for w in BANNED_EVERYWHERE:
         assert w not in (r + CHAT_TURN_LINE).lower()
 
@@ -305,8 +306,9 @@ def test_window_and_memory_mechanics_without_behavioural_hints(n):
             assert ("Earlier periods, earlier chat messages and your earlier answers are not shown again." if talk
                     else "Earlier periods and your earlier answers are not shown again.") in h
             assert f'The "notes" field is private: {others}.' in h
-            assert ("Your notes are shown to you at your next decision, where they replace your previous notes, "
-                    "so write in them everything you want to remember. Keep them to about 500 words at most.") in h
+            assert ("You write notes with each price. They are shown to you in every later request until you next "
+                    "write notes, which then replace them, so write in them everything you want to remember. "
+                    "Keep them to about 500 words at most.") in h
             low = h.lower()
             for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
                 assert w not in low, w

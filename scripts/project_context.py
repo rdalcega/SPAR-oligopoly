@@ -142,8 +142,9 @@ class ReplayClient:
                                  ensure_ascii=False)
         else:
             notes = rng.choice(self.s.notes)
-            obj: dict[str, Any] = {"notes": notes} if notes is not None else {}
-            if kind == "price":
+            obj: dict[str, Any] = {}
+            if kind == "price":  # notes go with prices only
+                obj = {"notes": notes} if notes is not None else {}
                 obj["price"] = rng.choice(self.s.prices)
             else:
                 r, used = int(tag["phase"][4:]), self._rounds(tag)

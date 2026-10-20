@@ -397,12 +397,12 @@ def price_format(notes: bool, notes_words: int = NOTES_WORDS) -> str:
     return '{"price": <integer from 0 to 100>}'
 
 
-def message_format(chat_spec: ChatSpec, notes: bool = False, notes_words: int = NOTES_WORDS) -> str:
+def message_format(chat_spec: ChatSpec) -> str:
+    """A chat answer: the message only (notes are written with price answers; DECISIONS.md §6 item 3)."""
     limit = f", at most {chat_spec.char_limit} characters" if chat_spec.char_limit else ""
-    pre = f"{_notes_field(notes_words)}, " if notes else ""
-    s = f'{{{pre}"message": "<your message{limit}>"}}'
+    s = f'{{"message": "<your message{limit}>"}}'
     if chat_spec.allow_pass:
-        s += f' or {{{pre}"message": null}} to post nothing in this round'
+        s += ' or {"message": null} to post nothing in this round'
     return s
 
 
@@ -415,14 +415,14 @@ def response_format_text(n: int, chat_spec: ChatSpec | None, notes: bool, memory
         f"{price_format(notes, notes_words)}"
     if chat_spec is not None:
         s += (f"\nWhen you are asked for a chat message, respond with JSON only, in this format: "
-              f"{message_format(chat_spec, notes, notes_words)}.")
+              f"{message_format(chat_spec)}.")
     others = "the other firm never sees it" if n == 2 else "the other firms never see it"
     if memory_window is not None:
         s += "\n" + window_text(memory_window, chat_spec is not None, notes)
         if notes:
-            s += (f'\nThe "notes" field is private: {others}. Your notes are shown to you at your next decision, '
-                  "where they replace your previous notes, so write in them everything you want to remember. Keep "
-                  f"them to about {notes_words} words at most.")
+            s += (f'\nThe "notes" field is private: {others}. You write notes with each price. They are shown to '
+                  "you in every later request until you next write notes, which then replace them, so write in "
+                  f"them everything you want to remember. Keep them to about {notes_words} words at most.")
     elif notes:
         s += f'\nThe "notes" field is private: {others}. Keep it to about {notes_words} words at most.'
     s += "\nEach request ends with a short reminder of the format."
@@ -519,12 +519,11 @@ def price_reminder(notes: bool) -> str:
     return f'Reply with JSON: {{{pre}"price": <integer from 0 to 100>}}'
 
 
-def message_reminder(chat_spec: ChatSpec, notes: bool) -> str:
+def message_reminder(chat_spec: ChatSpec) -> str:
     """One-line format reminder closing every chat prompt (keeps the character limit in view)."""
     limit = f", at most {chat_spec.char_limit} characters" if chat_spec.char_limit else ""
     value = f'"<your message{limit}>"' + (" or null" if chat_spec.allow_pass else "")
-    pre = '"notes": ..., ' if notes else ""
-    return f'Reply with JSON: {{{pre}"message": {value}}}'
+    return f'Reply with JSON: {{"message": {value}}}'
 
 
 # Stated in every chat-turn prompt (2026-10-20, after the n = 10 pilot, where ~19% of chat turns ended as forced
@@ -542,7 +541,7 @@ def period_prompt(part: int, period: int, talk: bool = False, notes: bool = Fals
     return "\n".join(lines)
 
 
-def chat_prompt(part: int, period: int, round_: int, chat_spec: ChatSpec, notes: bool = False) -> str:
+def chat_prompt(part: int, period: int, round_: int, chat_spec: ChatSpec) -> str:
     """Asks for a chat message in round `round_` (the earlier rounds are in the chat section above it)."""
     if round_ == chat_spec.max_rounds:
         lines = [f"Part {part}, period {period}: chat round {round_} of {chat_spec.max_rounds} "
@@ -550,7 +549,7 @@ def chat_prompt(part: int, period: int, round_: int, chat_spec: ChatSpec, notes:
     else:
         lines = [f"Part {part}, period {period}: chat round {round_} of at most {chat_spec.max_rounds}."]
     lines.append(CHAT_TURN_LINE)
-    lines.append(message_reminder(chat_spec, notes))
+    lines.append(message_reminder(chat_spec))
     return "\n".join(lines)
 
 
@@ -605,11 +604,11 @@ def fallback_text(value: int, period: int) -> str:
 CHAT_PRICE_ERROR = 'a price was given on a chat turn (no "message" field)'
 
 
-def chat_price_reask_text(chat_spec: ChatSpec, notes: bool, notes_words: int = NOTES_WORDS) -> str:
+def chat_price_reask_text(chat_spec: ChatSpec) -> str:
     """Re-ask after a chat turn was answered with a price object (and no message object)."""
     s = "You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message"
     s += ", or null to post nothing." if chat_spec.allow_pass else "."
-    return s + f" Respond with JSON only, in this format: {message_format(chat_spec, notes, notes_words)}"
+    return s + f" Respond with JSON only, in this format: {message_format(chat_spec)}"
 
 
 # The transition call (DECISIONS.md §6 item 3, 2026-10-20): once Part 1 is over and Part 2's instructions have been
@@ -681,14 +680,14 @@ def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = N
           for p, t, pt in ((1, t1, None), (2, t2, t1))),
         period_prompt(1, 21, notes=notes),
         period_prompt(2, 5, talk=True, notes=notes),
-        chat_prompt(1, 21, 1, chat_spec, notes=notes),
-        chat_prompt(1, 5, chat_spec.max_rounds, chat_spec, notes=notes),
+        chat_prompt(1, 21, 1, chat_spec),
+        chat_prompt(1, 5, chat_spec.max_rounds, chat_spec),
         results_text(2, 3, "A", {"A": 90, "B": 80}, {"A": 0, "B": 24000}, ["B", "A"]),
         die_line(21, 3), part_over_text(2, 22, final_part=True, total_profit=10),
         fallback_text(7, 3),
-        reask_text("e", price_format(notes, notes_words)), reask_text("e", message_format(chat_spec, notes, notes_words)),
+        reask_text("e", price_format(notes, notes_words)), reask_text("e", message_format(chat_spec)),
         reask_text("e" * (REASK_ERROR_CHARS + 1), "F"),
-        chat_price_reask_text(chat_spec, notes, notes_words),
+        chat_price_reask_text(chat_spec),
         summaries_text([], totals_text(1, 0)), summaries_text(["s1", "s2"], totals_text(2, 1.5, 2.5)),
         notes_text(None), notes_text("x"), chat_text([]), chat_text(rounds),
         probe_prompt(["A", "B"]), reask_text("e", probe_format(["A", "B"])),

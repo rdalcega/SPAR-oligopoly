@@ -624,7 +624,7 @@ async def test_history_stores_value_used(tmp_path):
                            client=Scripted(answer))
     a = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
     b = [json.loads(m["content"]) for m in rec["transcripts"]["B"] if m["role"] == "assistant"]
-    assert a[0] == {"notes": "hi", "message": "x" * 300}  # truncated as posted
+    assert a[0] == {"message": "x" * 300}  # truncated as posted; chat answers carry no notes
     assert b[0] == {"message": None}  # "pass" stored as a pass
     assert a[1] == {"notes": '{"plan": 1}', "price": 99}  # coerced price; notes as carried (coerced to text)
 
@@ -1300,7 +1300,8 @@ async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
     assert d["notes"] == capped and d["notes_truncated"] and d["notes_full"] == long
     assert any("notes truncated" in w for w in d["warnings"])
     assert "notes_truncated" not in rec["periods"][0]["decisions"]["B"]
-    assert rec["totals"]["A"]["notes_truncated"] == 4 and rec["totals"]["B"]["notes_truncated"] == 0  # 3 + transition
+    # 3 price answers (NT-NT has no transition call)
+    assert rec["totals"]["A"]["notes_truncated"] == 3 and rec["totals"]["B"]["notes_truncated"] == 0
     blob = json.dumps([c["messages"] for c in client.calls if c["tag"]["firm"] == "A"], ensure_ascii=False)
     assert long not in blob and json.dumps(f"Your most recent notes:\n[start of your notes]\n{capped}")[1:-1] in blob
     a_answers = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
@@ -1350,11 +1351,9 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
                 assert f"msg-A-P1T{q}" not in text and f"msg-B-P1T{q}" not in text
         if g > 1 and t["phase"] != "probe":
             prev = f"P{1 if g - 1 <= 8 else 2}T{g - 1 if g - 1 <= 8 else g - 9}"
-            # memory = this firm's latest notes only: this period's chat notes for a Talk price, else the
-            # previous period's price notes
-            cur = f"P{t['part']}T{t['period']}"
-            latest = f"memo-{t['firm']}-{cur}-chat" if t["part"] == 1 and t["phase"] == "price" else \
-                f"memo-{t['firm']}-transition" if g == 9 and t["phase"] != "transition" else \
+            # memory = this firm's latest notes: the previous price's (chat answers carry none, so notes written
+            # on a chat turn never show), or the transition call's at the start of Part 2
+            latest = f"memo-{t['firm']}-transition" if g == 9 and t["phase"] != "transition" else \
                 f"memo-{t['firm']}-{prev}"
             assert f"Your most recent notes:\n[start of your notes]\n{latest}\n" in c["messages"][1]["content"]
             assert f"memo-{t['firm']}-{prev}-chat" not in text
@@ -1442,8 +1441,8 @@ async def test_structured_outputs_payload(tmp_path, structured):
     for b in kinds["chat"]:
         assert b["response_format"] == {"type": "json_schema", "json_schema": {
             "name": "chat_turn", "strict": True, "schema": {
-                "type": "object", "properties": {"notes": {"type": "string"}, "message": {"type": ["string", "null"]}},
-                "required": ["notes", "message"], "additionalProperties": False}}}
+                "type": "object", "properties": {"message": {"type": ["string", "null"]}},
+                "required": ["message"], "additionalProperties": False}}}
     for b in kinds["price"]:
         assert b["response_format"] == {"type": "json_schema", "json_schema": {
             "name": "price_decision", "strict": True, "schema": {
@@ -1564,7 +1563,7 @@ async def test_cancel_during_checkpoint_save_keeps_paid_results(tmp_path, monkey
 # ---------------------------------------------------------------- transition call
 
 
-@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT", "T-T"])
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT"])
 async def test_transition_call(tmp_path, ordering):
     """Once Part 1 is over, before Part 2 period 1, every firm is asked for notes only: both parts' instructions,
     the summaries (Part 1's final one included), its notes, no chat section; its notes then replace the memory."""
@@ -1597,8 +1596,45 @@ async def test_transition_call(tmp_path, ordering):
     check_contexts(rec, client, SHORT)
 
 
+@pytest.mark.parametrize("ordering", ["NT-NT", "T-T"])
+async def test_no_transition_without_a_change_in_communication(tmp_path, ordering):
+    rec, client, _ = await play(spec(2, ordering), tmp_path)
+    assert rec["transition"] is None and not any(c["tag"]["phase"] == "transition" for c in client.calls)
+    assert not any("write your notes for Part 2" in m["content"] for tr in rec["transcripts"].values() for m in tr)
+    check_contexts(rec, client, SHORT)
+
+
+async def test_chat_turns_carry_no_notes(tmp_path):
+    """Chat answers have no notes field: notes written there anyway are ignored (with a warning), so the notes of
+    the last price answer stay in every chat round."""
+    def answer(tag):
+        if tag["phase"].startswith("chat"):
+            return json.dumps({"notes": f"chat-{tag['firm']}-{tag['period']}", "message": None})
+        if tag["phase"] == "transition":
+            return json.dumps({"notes": f"t-{tag['firm']}"})
+        if tag["phase"] == "probe":
+            return json.dumps({"max_consumer_price": 100, "best_common_price": 100,
+                               "last_period_prices": {"A": 100, "B": 100}, "deviations": "none"})
+        return json.dumps({"notes": f"p-{tag['firm']}-{tag['part']}-{tag['period']}", "price": 100})
+
+    rec, client, _ = await play(spec(2, "T-NT"), tmp_path, client=Scripted(answer))
+    for c in client.calls:
+        assert "chat-" not in c["messages"][1]["content"]
+        if c["tag"]["phase"] == "chat1" and c["tag"]["period"] > 1:
+            assert f"[start of your notes]\np-{c['tag']['firm']}-1-{c['tag']['period'] - 1}\n" in c["messages"][1][
+                "content"]
+    d = rec["periods"][0]["chat"][0]["decisions"]["A"]
+    assert d["notes"] is None and "notes on a chat turn ignored" in d["warnings"]
+    assert d["notes_ignored"] == "chat-A-1"  # kept in the record for the analysis, never shown to the firm
+    assert all("notes" not in json.loads(m["content"]) for m in rec["transcripts"]["A"]
+               if m["kind"] == "answer" and m["content"].startswith('{"message"'))
+    check_contexts(rec, client, SHORT)
+
+
 async def test_transition_fallback_keeps_notes_and_switch_off(tmp_path):
     def answer(tag):
+        if tag["phase"].startswith("chat"):
+            return '{"message": null}'
         if tag["phase"] == "transition":
             return "I will think about it." if tag["firm"] == "A" else '{"notes": "B-t", "price": 5}'
         if tag["phase"] == "probe":
@@ -1606,18 +1642,18 @@ async def test_transition_fallback_keeps_notes_and_switch_off(tmp_path):
                                "last_period_prices": {"A": 100, "B": 100}, "deviations": "none"})
         return json.dumps({"notes": f"{tag['firm']}-{tag['part']}-{tag['period']}", "price": 100})
 
-    rec, client, _ = await play(spec(2, "NT-NT"), tmp_path / "on", client=Scripted(answer))
+    rec, client, _ = await play(spec(2, "NT-T"), tmp_path / "on", client=Scripted(answer))
     a, b = rec["transition"]["A"], rec["transition"]["B"]
     assert a["fallback"] and a["reasks"] == 2 and rec["totals"]["A"]["transition_fallback"]
     assert not b["fallback"] and b["notes"] == "B-t" and any("ignored" in w for w in b["warnings"])
     first = {c["tag"]["firm"]: c["messages"][1]["content"] for c in client.calls
-             if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"]) == (2, 1, "price")}
+             if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"]) == (2, 1, "chat1")}
     assert "Your most recent notes:\n[start of your notes]\nA-1-6\n" in first["A"]  # unchanged after the fallback
     assert "Your most recent notes:\n[start of your notes]\nB-t\n" in first["B"]
     assert "could not be used" not in json.dumps(rec["transcripts"]["A"][-12:])  # no fallback notice is told
     check_contexts(rec, client, SHORT)
 
-    off, c_off, _ = await play(spec(2, "NT-NT"), tmp_path / "off", exp=dataclasses.replace(SHORT, transition=False))
+    off, c_off, _ = await play(spec(2, "NT-T"), tmp_path / "off", exp=dataclasses.replace(SHORT, transition=False))
     assert off["transition"] is None and not any(c["tag"]["phase"] == "transition" for c in c_off.calls)
     with pytest.raises(ConfigError):
         ExperimentConfig(notes=False)  # the transition call asks for notes only

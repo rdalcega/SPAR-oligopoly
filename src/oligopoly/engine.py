@@ -10,8 +10,9 @@ end-of-experiment text open one more user message per firm with comprehension qu
 into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
 period, so a market whose probe failed reruns only the probe.
 
-Transition call (`transition`, DECISIONS.md §6 item 3, 2026-10-20): once Part 1 is over (its final summary written
-and Part 2's instructions given), before Part 2 period 1, every firm is asked for its notes only
+Transition call (`transition`, DECISIONS.md §6 item 3, 2026-10-20), only where communication changes between the
+parts (NT-T, T-NT): once Part 1 is over (its final summary written and Part 2's instructions given), before Part 2
+period 1, every firm is asked for its notes only
 (`prompts.transition_prompt`), with the usual sections and no chat section. Its answer replaces the firm's notes
 like any other; an unusable answer after the re-asks leaves them unchanged. It is checkpointed like a period
 and recorded under `transition` (decisions keyed by firm; call ids `.../p2/t0/transition/a<k>`). The probe sees the same sections as any call
@@ -114,7 +115,9 @@ def fingerprint(obj: Any) -> str:
 def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
     """OpenRouter `response_format` for a structured-outputs call (`structured_outputs` in models.toml): a strict
     JSON schema with `notes` (if the run uses notes) and `message` (string or null) or `price` (integer 0-100)."""
-    props: dict[str, Any] = {"notes": {"type": "string"}} if notes or kind == "transition" else {}
+    # notes go with price answers (if the run uses notes) and make up the transition answer; chat answers have none
+    props: dict[str, Any] = {"notes": {"type": "string"}} if (notes and kind == "price") or kind == "transition" \
+        else {}
     if kind == "price":
         props["price"] = {"type": "integer", "minimum": 0, "maximum": market.P_MAX}
     elif kind == "message":
@@ -255,6 +258,7 @@ class Decision:
     fallback: bool = False
     notes_truncated: bool = False  # notes over the cap: `notes` is the capped text the firm carries
     notes_full: str | None = None  # the notes as written, when truncated
+    notes_ignored: str | None = None  # notes written on a chat turn anyway: recorded, never shown to the firm
     errors: list[str] = field(default_factory=list)  # one per invalid attempt
     warnings: list[str] = field(default_factory=list)  # coercions, truncations, missing notes
     attempts: list[dict[str, Any]] = field(default_factory=list)
@@ -267,6 +271,7 @@ class Decision:
         return {"value": self.value, "notes": self.notes, "valid": not self.fallback, "fallback": self.fallback,
                 "reasks": self.reasks, "errors": self.errors, "warnings": self.warnings,
                 **({"notes_truncated": True, "notes_full": self.notes_full} if self.notes_truncated else {}),
+                **({"notes_ignored": self.notes_ignored} if self.notes_ignored is not None else {}),
                 "attempts": self.attempts}
 
 
@@ -420,7 +425,7 @@ class Market:
             fmt = prompts.transition_format(self.exp.notes_words)
             parse = parse_notes
         else:
-            fmt = prompts.message_format(self.chat_spec, self.exp.notes, self.exp.notes_words)
+            fmt = prompts.message_format(self.chat_spec)
             def parse(c: str | None) -> Parsed:
                 return parse_message(c, self.exp.char_limit)
         d = Decision(kind)
@@ -447,8 +452,7 @@ class Market:
             reask = None
             if kind == "message" and p.obj is None and extract_object(r.content, "price") is not None:
                 # a price object on a chat turn: say so plainly (the generic re-ask did not fix it in the pilots)
-                p.error, reask = prompts.CHAT_PRICE_ERROR, prompts.chat_price_reask_text(
-                    self.chat_spec, self.exp.notes, self.exp.notes_words)
+                p.error, reask = prompts.CHAT_PRICE_ERROR, prompts.chat_price_reask_text(self.chat_spec)
             d.attempts.append({
                 "call_id": call_id, "seed": seed, "generation_id": r.generation_id, "provider": r.provider,
                 "finish_reason": r.finish_reason, "seed_possibly_ignored": r.seed_possibly_ignored,
@@ -458,6 +462,9 @@ class Market:
             if p.ok:  # the firm's transcript keeps the value actually used, and its notes as it carries them
                 # (coerced to text, capped): the request's notes section is rebuilt from this answer
                 d.value, d.notes, d.warnings = (None if kind == "transition" else p.value), p.notes, p.warnings
+                if kind == "message" and "notes" in p.obj:  # evidence of private plans: keep it for the analysis
+                    n = p.obj["notes"]
+                    d.notes_ignored = n if isinstance(n, str) else json.dumps(n, ensure_ascii=False)
                 capped, notes = None, {}
                 if p.notes is not None:
                     capped, cut = cap_notes(p.notes, self.exp.notes_max_words, self.exp.notes_max_chars)
@@ -482,6 +489,11 @@ class Market:
         if kind == "price":  # a chat fallback shows in the firm's own line of that round instead
             firm.tell(prompts.fallback_text(d.value, period))
         return d
+
+    @property
+    def has_transition(self) -> bool:
+        """The transition call runs only where communication changes between the parts (NT-T, T-NT)."""
+        return self.exp.transition and self.talk[0] != self.talk[1]
 
     async def run_transition(self) -> None:
         """The transition call before Part 2 (see the module docstring)."""
@@ -584,7 +596,7 @@ class Market:
         g = self.global_period(part, period)
         for r in range(1, self.exp.chat_rounds + 1):
             ds = await self.gather({L: self.decide(
-                L, "message", prompts.chat_prompt(part, period, r, self.chat_spec, self.exp.notes),
+                L, "message", prompts.chat_prompt(part, period, r, self.chat_spec),
                 part, period, f"chat{r}") for L in self.letters})
             posted = {L: d.value for L, d in ds.items() if d.value is not None}
             for L, firm in self.firms.items():  # each firm sees the round in its own listing order
@@ -641,7 +653,7 @@ class Market:
         if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:
             raise RuntimeError("completed periods do not match the schedule")
         for part, t in schedule[len(self.periods):]:
-            if (part, t) == (2, 1) and self.exp.transition and self.transition is None:
+            if (part, t) == (2, 1) and self.has_transition and self.transition is None:
                 await self.run_transition()
                 await self.save_checkpoint()
             await self.period(part, t)
@@ -770,7 +782,8 @@ class Market:
             "transcripts": {L: f.transcript for L, f in self.firms.items()},
             "resumed_from_period": self.resumed_from,
             "probe": self.probe,  # None when the probe is off (or, in a failure record, not yet asked)
-            "transition": self.transition,  # None when the transition call is off (or not yet asked)
+            # None when the call is off, in NT-NT and T-T (no change in communication), or not yet asked
+            "transition": self.transition,
         }
 
 

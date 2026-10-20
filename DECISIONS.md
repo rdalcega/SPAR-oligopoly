@@ -148,8 +148,9 @@ reasoning are private.
   instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take
   it into account." with the format `{"notes": "<private notes, at most about N words>"}`. The answer's notes
   replace the memory like any other; an answer still unusable after the re-asks leaves the notes unchanged and
-  nothing is told. It runs in every ordering, also where nothing changes (NT-NT, T-T), so the orderings stay
-  comparable. **This departs from the paper** (human subjects only read the Part 2 sheet): it invites a
+  nothing is told. ~~It runs in every ordering.~~ **Revised the same day (Rodrigo): it runs only where
+  communication changes between the parts (NT-T, T-NT); NT-NT and T-T have no transition call, since nothing
+  changes there.** **This departs from the paper** (human subjects only read the Part 2 sheet): it invites a
   reflection the humans were not prompted for and may strengthen how firms carry Part 1 into Part 2. It is a
   setting, `transition` (default on; it needs `notes`), so a run for the human comparison can switch it off;
   whichever value a run uses is held fixed across its models. Recorded under the market record's
@@ -159,7 +160,34 @@ reasoning are private.
 - **2026-10-20: fourth ordering T-T** (Talk in both parts; requested by Rodrigo so every NoTalk/Talk ordering is
   supported). An extension with no human benchmark: it is not among the paper's cells (`oligopoly.run` plays it
   only as a grid cell, e.g. `--grid --n 4 --orderings T-T`), and its results stay apart from the human comparison.
-  Part 2's instructions say "As in Part 1, you will be able to communicate…" and repeat the chat rules.
+  Part 2's instructions say "As in Part 1, you will be able to communicate…" and repeat the chat rules. The
+  statistics module treats both of its parts as Talk windows (price-vs-n trends, Part 1 vs Part 2 within
+  markets) and adds T-T comparisons per n: Talk after Talk vs Talk after NoTalk (T-T vs NT-T Part 2), the same
+  Part 1 as T-NT (a replication check), and Talk kept vs removed (T-T vs T-NT Part 2); the hysteresis table gains
+  T-T's Part 1 and Part 2 means.
+- **2026-10-20: chat turns carry no notes** (decided by Rodrigo). Notes are written with each price answer (and
+  in the transition call) only; the chat answer format is `{"message": ...}`, and a `notes` field there is
+  ignored with the warning "notes on a chat turn ignored" (`PARSER_VERSION` 4). The notes of the last price
+  answer therefore stay in every chat round of the next period, and a terse chat-turn note can no longer wipe the
+  memory, so memory works the same way in Talk and NoTalk parts. Nothing is lost: the current period's chat is
+  shown in full in every request of that period, including the price call, where the firm writes its next
+  notes. The instructions say: "You write notes with each price. They are shown to you in every later request
+  until you next write notes, which then replace them, …" (neutral about the transition call, which the Part 1
+  instructions may not describe). This supersedes "rewritten in full at every decision (chat turns and prices)"
+  above. With structured outputs, `chat_turn` has no `notes` property. Notes a model writes on a chat turn anyway
+  are kept in that decision's record as `notes_ignored` (evidence of private plans for the analysis) and never
+  shown. **Discontinuity:** the chat-turn misread rates in the mistakes tables also read chat-turn notes, which
+  older records have and new ones do not, so those rates drop for a mechanical reason across this change.
+- **2026-10-20: transition-call confound in the analysis.** With the call in NT-T and T-NT only, Part 2
+  comparisons between an ordering with it and one without (T-NT vs NT-NT, T-T vs NT-T, T-T vs T-NT) include its
+  effect: such `mw_orderings` rows carry a caveat, as do the hysteresis rows of a model whose markets had the call.
+  Human-comparison rows carry the transition caveat only for Part 2 windows of orderings whose markets had it.
+- **2026-10-20: projections from the pilot records** (`data/runs/` of the `experiments` worktree;
+  `--pilots .claude/worktrees/experiments/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10 x four
+  orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
+  `project_cost.py` (6 markets per paper cell, 36 markets): gpt-oss-20b ~$4.97 ($6.29 with the guard's token
+  bound), qwen3-14b ~$11.70 ($15.42); price and transition calls carry the stated 500-word notes (+~760 output
+  tokens each), chat calls none.
 - **2026-10-20: final review fixes** (Claude/Codex review of the branch; firm-facing wording changes in the first
   four points):
   - Own cumulative profit names the part ("Your total profit in Part 2 so far"): "this part" right after a summary

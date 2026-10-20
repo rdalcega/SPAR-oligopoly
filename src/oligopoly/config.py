@@ -141,7 +141,7 @@ class ExperimentConfig:
     notes_max_words: int = 650
     notes_max_chars: int = 4500
     # the transition call between the parts: each firm writes notes for Part 2 before it starts (DECISIONS.md §6
-    # item 3, 2026-10-20); needs notes
+    # item 3, 2026-10-20), only in orderings where communication changes (NT-T, T-NT); needs notes
     transition: bool = True
 
     def __post_init__(self) -> None:

@@ -12,7 +12,7 @@ from oligopoly.analysis import mistakes as X
 from oligopoly.analysis.load import tidy
 from oligopoly.analysis.report import build, write
 
-TALK = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False)}
+TALK = {"NT-T": (False, True), "T-NT": (True, False), "NT-NT": (False, False), "T-T": (True, True)}
 
 
 def dec(value, notes="", fallback=False, errors=(), warnings=()):
@@ -247,9 +247,10 @@ def test_build_and_write(tmp_path):
     runs = tmp_path / "runs" / "r" / "markets"
     runs.mkdir(parents=True)
     chats = {(2, t): [{"A": "Let's all set 100", "B": None}, {"A": None, "B": "ok"}] for t in range(1, 4)}
-    for o in ("NT-T", "T-NT", "NT-NT"):
+    for o in ("NT-T", "T-NT", "NT-NT", "T-T"):
         for i in range(3):
-            ch = chats if o == "NT-T" else {(1, t): v for (_, t), v in chats.items()} if o == "T-NT" else {}
+            p1 = {(1, t): v for (_, t), v in chats.items()}
+            ch = {"NT-T": chats, "T-NT": p1, "NT-NT": {}, "T-T": {**p1, **chats}}[o]
             rec = record({1: flat(*[(i * 10, 50)] * 7), 2: flat(*[(100, 100 - i)] * 6)}, ordering=o, idx=i, chats=ch,
                          n=2)
             rec.pop("_market_id")
@@ -263,7 +264,12 @@ def test_build_and_write(tmp_path):
     assert set(comp["ordering"]) == {"NT-T"}  # n=2 controls are extensions, not compared
     assert not s["meta"]["paper_lengths_all"] and comp["caveat"].str.contains("Part lengths").all()
     ext = pd.DataFrame(s["extensions"])
-    assert set(ext["ordering"]) == {"T-NT", "NT-NT"}
+    assert set(ext["ordering"]) == {"T-NT", "NT-NT", "T-T"}
+    tests = pd.DataFrame(s["tests"])  # T-T (Talk in both parts) gets its own windows and comparisons
+    groups = " | ".join(tests["group"].astype(str))
+    for label in ("prior talk: T-T p2_all vs NT-T p2_all", "replication: T-T p1_from6 vs T-NT p1_from6",
+                  "talk kept vs removed: T-T p2_all vs T-NT p2_all", "n=2 T-T p1_from6 vs p2_all"):
+        assert label in groups, label
     talk = pd.DataFrame(s["chat"]).query("ordering == 'NT-T'").iloc[0]
     assert talk["agreements"] == 9
 

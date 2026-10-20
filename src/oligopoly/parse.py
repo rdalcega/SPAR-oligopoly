@@ -17,13 +17,15 @@ from __future__ import annotations
 import ast
 import json
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 # Version of the parsing rules, part of every market fingerprint and of run_config.json, so a run never mixes
 # markets parsed under different rules. Bump it whenever a change can turn an invalid answer valid or change
 # the value read from an answer. 1: initial rules; 2: structural typographic quotes straightened (2026-10-20).
-PARSER_VERSION = 3  # 3: no "notes long" warning (the stated length is a setting; the engine caps notes)
+PARSER_VERSION = 4  # 3: no "notes long" warning (the stated length is a setting; the engine caps notes);
+# 4: chat answers carry no notes (any "notes" field there is ignored)
 
 _THINK = re.compile(r"<(think|thinking|reasoning)>.*?</\1>", re.S | re.I)
 _THINK_CLOSE = re.compile(r"</(think|thinking|reasoning)>", re.I)
@@ -83,7 +85,9 @@ def _load(s: str) -> Any:
     pythonish = re.sub(r"\bnull\b", "None", re.sub(r"\btrue\b", "True", re.sub(r"\bfalse\b", "False", s)))
     for cand in (s, pythonish):
         try:
-            obj = ast.literal_eval(cand)
+            with warnings.catch_warnings():  # model text such as "\\p" would print an invalid-escape warning
+                warnings.simplefilter("ignore", SyntaxWarning)
+                obj = ast.literal_eval(cand)
         except (ValueError, SyntaxError, MemoryError, RecursionError):
             continue
         # Only JSON-shaped values: `{"notes": ..., "price": 5}` (the format line copied literally) evaluates to
@@ -236,7 +240,8 @@ def parse_message(content: str | None, char_limit: int | None = 300) -> Parsed:
         p.warnings.append(f"message truncated from {len(text)} to {char_limit} characters")
         text = text[:char_limit]
     p.value = text
-    _notes(obj, p)
+    if "notes" in obj:  # notes are written with price answers only: never read from a chat turn
+        p.warnings.append("notes on a chat turn ignored")
     return p
 
 

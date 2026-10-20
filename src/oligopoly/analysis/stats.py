@@ -19,8 +19,8 @@ from .. import benchmarks as b
 from .load import num
 from .measures import CELL
 
-# (label, ordering, window) of the NoTalk and Talk observations in each ordering
-TALK_WINDOWS = {"NT-T": ("p2_all", "p2_from6"), "T-NT": ("p1_from6",)}
+# (label, ordering, window) of the NoTalk and Talk observations in each ordering (T-T: an extension, Talk in both)
+TALK_WINDOWS = {"NT-T": ("p2_all", "p2_from6"), "T-NT": ("p1_from6",), "T-T": ("p1_from6", "p2_all", "p2_from6")}
 NOTALK_WINDOWS = {"NT-T": ("p1_from6",), "T-NT": ("p2_all", "p2_from6"), "NT-NT": ("p1_from6", "p2_all", "p2_from6")}
 
 
@@ -64,8 +64,8 @@ def run_tests(mt: pd.DataFrame, mp: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for model, m in mt.groupby("model"):
         # trend in n (paper: the 4 paper n; extension: all n present)
-        for o, wins in NOTALK_WINDOWS.items():
-            for w in sorted(set(wins) | set(TALK_WINDOWS.get(o, ()))):
+        for o in dict.fromkeys([*NOTALK_WINDOWS, *TALK_WINDOWS]):  # every ordering with a window
+            for w in sorted(set(NOTALK_WINDOWS.get(o, ())) | set(TALK_WINDOWS.get(o, ()))):
                 for scope, sub in (("paper_n", m[m["n"].isin(b.NS)]), ("all_n", m)):
                     sub = sub[(sub["ordering"] == o)].dropna(subset=[f"sp_{w}"])
                     if sub["n"].nunique() > 1:
@@ -101,7 +101,8 @@ def run_tests(mt: pd.DataFrame, mp: pd.DataFrame) -> pd.DataFrame:
                 if len(x) and len(y):
                     u, p = mannwhitney(x, y)
                     rows.append(_row(model, "mw_orderings", f"n={n} {label}", u, p, len(x) + len(y),
-                                     mean_a=float(x.mean()), mean_b=float(y.mean())))
+                                     mean_a=float(x.mean()), mean_b=float(y.mean()),
+                                     caveat=transition_caveat(sub, (o1, w1), (o2, wb))))
     rows += trend_tests(mp)
     return pd.DataFrame(rows)
 
@@ -115,7 +116,26 @@ ORDERING_COMPARISONS = (
     ("hysteresis: T-NT p2_from6 vs NT-NT p2_from6", ("T-NT", "p2_from6"), ("NT-NT", "p2_from6")),
     ("learning: NT-NT p1_from6 vs NT-T p1_from6", ("NT-NT", "p1_from6"), ("NT-T", "p1_from6")),
     ("learning: NT-NT p2_all vs NT-T p1_from6", ("NT-NT", "p2_all"), ("NT-T", "p1_from6")),
+    # T-T (extension): Talk after Talk vs Talk after NoTalk; the same Part 1 as T-NT; Talk kept vs Talk removed
+    ("prior talk: T-T p2_all vs NT-T p2_all", ("T-T", "p2_all"), ("NT-T", "p2_all")),
+    ("prior talk: T-T p2_from6 vs NT-T p2_from6", ("T-T", "p2_from6"), ("NT-T", "p2_from6")),
+    ("replication: T-T p1_from6 vs T-NT p1_from6", ("T-T", "p1_from6"), ("T-NT", "p1_from6")),
+    ("talk kept vs removed: T-T p2_all vs T-NT p2_all", ("T-T", "p2_all"), ("T-NT", "p2_all")),
+    ("talk kept vs removed: T-T p2_from6 vs T-NT p2_from6", ("T-T", "p2_from6"), ("T-NT", "p2_from6")),
 )
+
+
+TRANSITION_CAVEAT = ("Only one side's markets had the transition call (notes written between the parts), so a "
+                     "Part 2 difference includes its effect.")
+
+
+def transition_caveat(sub: pd.DataFrame, a: tuple[str, str], b_: tuple[str, str]) -> str | None:
+    """The caveat for an ordering comparison involving a Part 2 window where exactly one side had the transition call
+    (it runs in NT-T and T-NT only; DECISIONS.md §6 item 3)."""
+    if "transition" not in sub or not any(w.startswith("p2") for _, w in (a, b_)):
+        return None
+    had = [bool(sub.loc[sub["ordering"] == o, "transition"].any()) for o, _ in (a, b_)]
+    return TRANSITION_CAVEAT if had[0] != had[1] else None
 
 
 def trend_tests(mp: pd.DataFrame) -> list[dict]:
@@ -142,8 +162,12 @@ def hysteresis(mt: pd.DataFrame) -> pd.DataFrame:
         for label, o, w in (("tnt_p1_talk", "T-NT", "p1_from6"), ("tnt_p2_all", "T-NT", "p2_all"),
                             ("tnt_p2_from6", "T-NT", "p2_from6"), ("ntnt_p2_all", "NT-NT", "p2_all"),
                             ("ntnt_p2_from6", "NT-NT", "p2_from6"), ("ntt_p1", "NT-T", "p1_from6"),
-                            ("ntt_p2_talk", "NT-T", "p2_all")):
+                            ("ntt_p2_talk", "NT-T", "p2_all"), ("tt_p1_talk", "T-T", "p1_from6"),
+                            ("tt_p2_talk", "T-T", "p2_all")):
             r[label], r[f"{label}_sd"], r[f"{label}_n"] = mean(o, w)
+        if "transition" in sub and sub["transition"].any():
+            r["caveat"] = ("T-NT and NT-T markets had the transition call, NT-NT and T-T did not: Part 2 "
+                           "differences between them include its effect.")
         if n == 4:
             r |= {"human_tnt_p2": b.CONTROLS_SELLING[("Talk->NoTalk", 2)][1].mean,
                   "human_ntnt_p2": b.CONTROLS_SELLING[("NoTalk->NoTalk", 2)][1].mean,

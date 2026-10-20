@@ -81,7 +81,8 @@ def test_malformed_json_is_reported_as_unparseable():
 def test_structural_curly_quotes_coerced():
     # pilot 1, gpt-oss firm B: a string closed with a curly quote right before }
     p = parse_message('{"notes": "ok", "message": "Let us all set 88.”}')
-    assert p.ok and p.value == "Let us all set 88." and p.notes == "ok"
+    assert p.ok and p.value == "Let us all set 88." and p.notes is None  # chat answers carry no notes
+    assert "notes on a chat turn ignored" in p.warnings
     assert any("coerced" in w and "typographic" in w for w in p.warnings)
     p = parse_price('{"notes": "keep high” , "price": 99}')  # before a comma, with whitespace
     assert p.ok and p.value == 99 and p.notes == "keep high" and any("typographic" in w for w in p.warnings)
@@ -93,7 +94,7 @@ def test_curly_quotes_in_content_untouched():
     # a strictly valid answer keeps every curly quote, even next to commas, and has no coercion warning
     p = parse_price('{"notes": "they said “stay at 100”, so I will”", "price": 100}')
     assert p.ok and p.notes == "they said “stay at 100”, so I will”" and not p.warnings
-    p = parse_message('{"notes": "n", "message": "“Deal”, everyone: “100”."}')
+    p = parse_message('{"message": "“Deal”, everyone: “100”."}')
     assert p.ok and p.value == "“Deal”, everyone: “100”." and not p.warnings
     # the retry only straightens structural quotes: content quotes would break the object, so it is re-asked
     assert not parse_price('{"notes": "a “b”, c”, "price": 9}').ok
