@@ -6,7 +6,8 @@
         --orderings NT-T T-NT NT-NT --markets-per-cell 6 --budget-usd 40 --dry-run
 
 Output goes to data/runs/<run-id>/: markets/<key>.json per completed market (skipped on rerun),
-markets/<key>.failed.json for failed ones (retried on rerun), calls.jsonl (every LLM call), budget.json,
+markets/<key>.failed.json for failed ones (retried on rerun, resuming from markets/<key>.ckpt.json, written
+after every period), calls.jsonl (every LLM call), budget.json,
 run.json (one entry per invocation) and run_config.json (the settings every market of the run shares: base
 seed, experiment, the digest of the firm-facing wording and each model's settings; a rerun with different
 settings, or with changed prompt wording, is refused before any market is scheduled, while new models may be
@@ -33,7 +34,8 @@ from typing import IO, Any
 
 from .config import ROOT, ConfigError, ExperimentConfig, ModelConfig, load_experiment, load_models
 from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failure_path, failure_reason, is_complete,
-                     market_fingerprint, record_texts_digest_matches, run_market, texts_digest, write_json_atomic)
+                     is_market_record_file, market_fingerprint, record_texts_digest_matches, run_market, texts_digest,
+                     write_json_atomic)
 from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
 
@@ -232,7 +234,7 @@ async def dry_run(specs: list[MarketSpec], out_dir: Path, exp: ExperimentConfig,
 
 def _records_off_digest(out_dir: Path, digest: str) -> list[str]:
     """Completed market records of the run not played under the wording with digest `digest`."""
-    files = sorted(p for p in (out_dir / "markets").glob("*.json") if not p.name.endswith(".failed.json"))
+    files = sorted(p for p in (out_dir / "markets").glob("*.json") if is_market_record_file(p))
     return [p.stem for p in files if not record_texts_digest_matches(json.loads(p.read_text()), digest)]
 
 

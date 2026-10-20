@@ -4,6 +4,17 @@ Per period: in Talk parts up to `chat_rounds` simultaneous chat rounds (every fi
 on the same state; a round's messages are revealed only after all firms have answered; the chat closes
 early when everyone passes), then all firms price concurrently, then payoffs. The results of period t
 open period t + 1's user message; the final period's results go with the end-of-part text.
+
+Checkpoints: `run_market` writes `markets/<key>.ckpt.json` atomically when the market starts and after every
+completed period (part boundaries included): the firms' histories and queued text, the period records,
+cumulative profits, last prices, usage so far, the market fingerprint and the wording digest. When a market
+fails, the checkpoint is rewritten with the results of the calls already made in the period in progress
+(`partial_calls`, keyed by call id and checked against the request's messages). A rerun with a matching
+checkpoint resumes after its last completed period and reuses those results instead of calling again, so
+paid calls are not repeated; a checkpoint that does not match (fingerprint, wording, die schedule or listing
+orders) is ignored with a printed notice and the market restarts. The checkpoint is deleted once the market
+record is written; the record lists in `resumed_from_period` the (1-based, over both parts) period each
+resume started from.
 """
 
 from __future__ import annotations
@@ -21,7 +32,7 @@ from typing import Any, Literal, Protocol
 from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
-from .llm import BudgetExceeded, ChatResult, ContextOverflow
+from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage
 from .parse import Parsed, parse_message, parse_price, strip_reasoning
 
 Kind = Literal["price", "message"]
@@ -116,6 +127,15 @@ def failure_path(out_dir: Path, spec: MarketSpec) -> Path:
     return Path(out_dir) / "markets" / f"{spec.key}.failed.json"
 
 
+def checkpoint_path(out_dir: Path, spec: MarketSpec) -> Path:
+    return Path(out_dir) / "markets" / f"{spec.key}.ckpt.json"
+
+
+def is_market_record_file(path: Path) -> bool:
+    """Whether a file in markets/ is a completed market record (not a failure record or a checkpoint)."""
+    return path.name.endswith(".json") and not path.name.endswith((".failed.json", ".ckpt.json"))
+
+
 def write_json_atomic(path: Path, obj: Any) -> None:
     """Write to a temporary file in the same directory, fsync, then rename over `path`."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,11 +180,29 @@ def pick_error(eg: BaseExceptionGroup) -> BaseException:
 
 
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
+CHECKPOINT_VERSION = 1
+# ChatResult fields kept for a call made in a period that did not complete (enough for decide and _account)
+RESULT_FIELDS = ("content", "finish_reason", "native_finish_reason", "provider", "model", "generation_id",
+                 "cost_usd", "latency_s", "attempts", "seed_possibly_ignored", "provider_mismatch")
+
+
+def result_to_dict(r: ChatResult) -> dict[str, Any]:
+    return {**{k: getattr(r, k) for k in RESULT_FIELDS}, "usage": asdict(r.usage)}
+
+
+def result_from_dict(d: dict[str, Any]) -> ChatResult:
+    return ChatResult(**{k: d[k] for k in RESULT_FIELDS}, usage=Usage(**d["usage"]), reasoning=None,
+                      reasoning_details=None)
 
 
 class Market:
-    def __init__(self, spec: MarketSpec, client: ChatClient, exp: ExperimentConfig):
+    def __init__(self, spec: MarketSpec, client: ChatClient, exp: ExperimentConfig, checkpoint: Path | None = None):
         self.spec, self.client, self.exp = spec, client, exp
+        self.checkpoint = Path(checkpoint) if checkpoint else None
+        self.resumed_from: list[int] = []  # global period index each resume started from
+        self.partial_calls: dict[str, dict[str, Any]] = {}  # results of calls in the period in progress
+        self.replay: dict[str, dict[str, Any]] = {}  # from a checkpoint: results to reuse instead of calling
+        self._boundary: str | None = None  # JSON of the last checkpoint written (a period boundary)
         self.letters = prompts.firm_letters(spec.n)
         self.talk = ORDERINGS[spec.ordering]
         self.chat_spec = prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit)
@@ -217,8 +255,14 @@ class Market:
             seed = self.call_seed(L, part, period, phase, attempt)
             tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": part, "period": period,
                    "phase": phase, "attempt": attempt, "call_id": call_id}
-            r = await self.client.chat(messages, seed=seed, tag=tag, cache_upto=-1 if cfg.cache_control else None,
-                                       **cfg.chat_kwargs())
+            msha = fingerprint(messages)
+            cached = self.replay.pop(call_id, None)
+            if cached is not None and cached["messages_sha256"] == msha:  # paid for before a failure: reuse
+                r = result_from_dict(cached["result"])
+            else:
+                r = await self.client.chat(messages, seed=seed, tag=tag,
+                                           cache_upto=-1 if cfg.cache_control else None, **cfg.chat_kwargs())
+            self.partial_calls[call_id] = {"messages_sha256": msha, "result": result_to_dict(r)}
             self._account(r)
             p = parse(r.content)
             d.attempts.append({
@@ -317,15 +361,77 @@ class Market:
                                                         chat_spec=self.chat_spec, notes=self.exp.notes))
 
     async def run(self) -> None:
-        for L, firm in self.firms.items():
-            firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
-                                                 chat_spec=self.chat_spec if self.talk[0] else None,
-                                                 notes=self.exp.notes))
-        for part in (1, 2):
-            for t in range(1, self.exp.part_lengths[part - 1] + 1):
-                await self.period(part, t)
+        """Play the market, or its remaining periods after `restore`."""
+        if not any(f.messages for f in self.firms.values()):
+            for L, firm in self.firms.items():
+                firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
+                                                     chat_spec=self.chat_spec if self.talk[0] else None,
+                                                     notes=self.exp.notes))
+            self.save_checkpoint()
+        schedule = [(part, t) for part in (1, 2) for t in range(1, self.exp.part_lengths[part - 1] + 1)]
+        if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:
+            raise RuntimeError("completed periods do not match the schedule")
+        for part, t in schedule[len(self.periods):]:
+            await self.period(part, t)
+            self.save_checkpoint()
         for firm in self.firms.values():
             firm.flush()
+
+    # ------------------------------------------------------------------ checkpoints
+
+    def snapshot(self) -> dict[str, Any]:
+        """Everything needed to continue after the last completed period."""
+        return {"version": CHECKPOINT_VERSION, "spec": self.spec.to_dict(),
+                "fingerprint": market_fingerprint(self.spec, self.exp), "texts_digest": texts_digest(self.exp),
+                "periods_completed": len(self.periods), "die_schedules": self.dies,
+                "listing_orders": {L: f.order for L, f in self.firms.items()},
+                "firms": {L: {"messages": f.messages, "pending": f.pending} for L, f in self.firms.items()},
+                "periods": self.periods, "profit": self.profit, "prev_price": self.prev_price, "usage": self.usage,
+                "resumed_from_period": self.resumed_from, "partial_calls": {}}
+
+    def save_checkpoint(self) -> None:
+        """At a period boundary: write the checkpoint and forget the finished period's call results."""
+        self.partial_calls, self.replay = {}, {}
+        if self.checkpoint is None:
+            return
+        self._boundary = json.dumps(self.snapshot(), ensure_ascii=False)
+        write_json_atomic(self.checkpoint, json.loads(self._boundary))
+
+    def save_failure_checkpoint(self) -> None:
+        """After a failure: the last boundary checkpoint plus the results of the calls already made (or still
+        unused from an earlier resume) in the period in progress."""
+        if self.checkpoint is None or self._boundary is None:
+            return
+        ck = json.loads(self._boundary)
+        ck["partial_calls"] = {**self.replay, **self.partial_calls}
+        write_json_atomic(self.checkpoint, ck)
+
+    def restore(self, ck: dict[str, Any]) -> str | None:
+        """Load checkpoint `ck` into this fresh market. Returns why it does not match (nothing is changed
+        then), or None once restored."""
+        firms = ck.get("firms") or {}
+        checks = [
+            (ck.get("version") == CHECKPOINT_VERSION, "version"),
+            (ck.get("fingerprint") == market_fingerprint(self.spec, self.exp), "market fingerprint"),
+            (ck.get("texts_digest") == texts_digest(self.exp), "prompt wording digest"),
+            (ck.get("spec") == self.spec.to_dict(), "spec"),
+            (ck.get("die_schedules") == self.dies, "die schedule"),
+            (ck.get("listing_orders") == {L: f.order for L, f in self.firms.items()}, "listing orders"),
+            (sorted(firms) == sorted(self.letters), "firms"),
+            (ck.get("periods_completed") == len(ck.get("periods") or []), "period count"),
+        ]
+        if bad := [what for ok, what in checks if not ok]:
+            return "checkpoint does not match: " + ", ".join(bad)
+        for L, f in self.firms.items():
+            f.messages, f.pending = list(firms[L]["messages"]), list(firms[L]["pending"])
+        self.periods, self.usage = ck["periods"], ck["usage"]
+        self.profit = {L: list(v) for L, v in ck["profit"].items()}
+        self.prev_price = dict(ck["prev_price"])
+        self.resumed_from = [*ck.get("resumed_from_period", []), len(self.periods) + 1]
+        self.replay = dict(ck.get("partial_calls") or {})
+        self._boundary = json.dumps({**ck, "resumed_from_period": self.resumed_from, "partial_calls": {}},
+                                    ensure_ascii=False)
+        return None
 
     # ------------------------------------------------------------------ output
 
@@ -352,6 +458,7 @@ class Market:
             "totals": totals,
             "usage": self.usage,
             "histories": {L: f.messages for L, f in self.firms.items()},
+            "resumed_from_period": self.resumed_from,
         }
 
 
@@ -366,15 +473,33 @@ def failure_reason(e: BaseException) -> str:
 
 async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
                      exp: ExperimentConfig | None = None) -> Path:
-    """Play one market and write its JSON record atomically; returns the path. On failure, writes a
-    `.failed.json` record (with the periods completed so far) and re-raises."""
+    """Play one market, resuming from its checkpoint if one matches, and write its JSON record atomically;
+    returns the path. On failure, writes a `.failed.json` record (with the periods completed so far) and a
+    checkpoint with the calls made in the unfinished period, and re-raises."""
     exp = exp or ExperimentConfig()
     out, fail = market_path(Path(out_dir), spec), failure_path(Path(out_dir), spec)
+    ckpt = checkpoint_path(Path(out_dir), spec)
     m: Market | None = None
     try:
-        m = Market(spec, client, exp)
+        m = Market(spec, client, exp, checkpoint=ckpt)
+        if ckpt.exists():
+            try:
+                problem = m.restore(json.loads(ckpt.read_text()))
+            except (ValueError, KeyError, TypeError, AttributeError) as e:
+                problem = f"checkpoint unreadable: {type(e).__name__}: {e}"
+            if problem:
+                print(f"CHECKPOINT ignored {spec.key}: {problem}; restarting the market", flush=True)
+                m = Market(spec, client, exp, checkpoint=ckpt)
+            else:
+                print(f"resume  {spec.key} from period {m.resumed_from[-1]} "
+                      f"({len(m.replay)} paid call result(s) to reuse)", flush=True)
         await m.run()
     except BaseException as e:
+        if m is not None:
+            try:
+                m.save_failure_checkpoint()
+            except Exception as ce:  # never mask the market's own error
+                print(f"CHECKPOINT not saved {spec.key}: {type(ce).__name__}: {ce}", flush=True)
         write_json_atomic(fail, {"spec": spec.to_dict(), "reason": failure_reason(e),
                                  **({"guard": e.guard} if isinstance(e, ContextOverflow) else {}),
                                  "error_type": type(e).__name__, "error": str(e),
@@ -383,4 +508,5 @@ async def run_market(spec: MarketSpec, client: ChatClient, out_dir: str | Path,
         raise
     write_json_atomic(out, m.record())
     fail.unlink(missing_ok=True)
+    ckpt.unlink(missing_ok=True)
     return out

@@ -77,7 +77,7 @@ def load_samples(paths: list[Path]) -> dict[str, Sample]:
     """Per model name (and "*" for all models pooled). Only completed markets are used."""
     out: dict[str, Sample] = {}
     for path in paths:
-        if path.name.endswith(".failed.json"):
+        if path.name.endswith((".failed.json", ".ckpt.json")):
             continue
         rec = json.loads(path.read_text())
         name = rec["spec"]["model"]

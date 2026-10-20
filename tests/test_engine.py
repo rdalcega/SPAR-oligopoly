@@ -629,3 +629,113 @@ async def test_dry_run_counts_only_markets_that_would_run(tmp_path, capsys):
     capsys.readouterr()
     assert await main(rc_args(tmp_path, "--markets-per-cell", "4", "--dry-run")) == 0
     assert "To run: 1 markets" in capsys.readouterr().out  # only m3
+
+
+# ---------------------------------------------------------------- checkpoints
+
+
+class FailOnce(MockClient):
+    """Raises RetriesExhausted on the call at `at` = (firm, part, period, phase, attempt); otherwise the mock."""
+
+    def __init__(self, at):
+        super().__init__(record=True)
+        self.at = at
+
+    async def chat(self, messages, *, tag=None, **kw):
+        if (tag["firm"], tag["part"], tag["period"], tag["phase"], tag["attempt"]) == self.at:
+            raise RetriesExhausted("injected")
+        return await super().chat(messages, tag=tag, **kw)
+
+
+def without_resume(rec):
+    return {k: v for k, v in rec.items() if k != "resumed_from_period"}
+
+
+@pytest.mark.parametrize("at", [("B", 1, 3, "price", 0), ("A", 2, 1, "chat1", 0), ("C", 2, 4, "price", 0)])
+async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
+    s = spec(3, "NT-T")
+    ref, ref_client, _ = await play(s, tmp_path / "ref")
+    assert ref["resumed_from_period"] == [] and not engine.checkpoint_path(tmp_path / "ref", s).exists()
+    out = tmp_path / "run"
+    c1 = FailOnce(at)
+    with pytest.raises(RetriesExhausted):
+        await run_market(s, c1, out, SHORT)
+    ck = engine.checkpoint_path(out, s)
+    k = at[2] if at[1] == 1 else SHORT.part_lengths[0] + at[2]  # 1-based over both parts
+    saved = json.loads(ck.read_text())
+    assert saved["periods_completed"] == k - 1 and saved["partial_calls"]  # siblings' results kept
+    c2 = MockClient(record=True)
+    rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
+    assert not ck.exists() and not engine.failure_path(out, s).exists()
+    assert rec["resumed_from_period"] == [k]
+    assert without_resume(rec) == without_resume(ref)  # same histories, periods, totals and usage
+    first, second = [c["tag"]["call_id"] for c in c1.calls], [c["tag"]["call_id"] for c in c2.calls]
+    assert not set(first) & set(second)  # no completed call is made again, not even within period k
+    assert all((c["tag"]["part"], c["tag"]["period"]) >= at[1:3] for c in c2.calls)
+    assert len(first) + len(second) == len(ref_client.calls)
+
+
+async def test_boundary_only_checkpoint_resumes_at_period(tmp_path):
+    """A process killed mid-period leaves only the last boundary checkpoint: the period is replayed, earlier
+    ones are not."""
+    s = spec(2, "T-NT")
+    ref, _, _ = await play(s, tmp_path / "ref")
+    out = tmp_path / "run"
+    with pytest.raises(RetriesExhausted):
+        await run_market(s, FailOnce(("A", 1, 4, "chat1", 0)), out, SHORT)
+    ck = engine.checkpoint_path(out, s)
+    engine.write_json_atomic(ck, {**json.loads(ck.read_text()), "partial_calls": {}})
+    c2 = MockClient(record=True)
+    rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
+    assert without_resume(rec) == without_resume(ref) and rec["resumed_from_period"] == [4]
+    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls) == (1, 4)
+
+
+@pytest.mark.parametrize("field", ["die_schedules", "listing_orders", "fingerprint", "texts_digest", "garbage"])
+async def test_mismatched_checkpoint_is_ignored(tmp_path, capsys, field):
+    s = spec(2, "NT-T")
+    ref, _, _ = await play(s, tmp_path / "ref")
+    out = tmp_path / "run"
+    with pytest.raises(RetriesExhausted):
+        await run_market(s, FailOnce(("B", 1, 3, "price", 0)), out, SHORT)
+    ck = engine.checkpoint_path(out, s)
+    saved = json.loads(ck.read_text())
+    if field == "garbage":
+        ck.write_text("{not json")
+    else:
+        saved[field] = {"die_schedules": [[1], [2]], "listing_orders": {"A": ["B", "A"], "B": ["A", "B"]}}.get(
+            field, "0" * 64)
+        engine.write_json_atomic(ck, saved)
+    c2 = MockClient(record=True)
+    rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
+    assert "CHECKPOINT ignored" in capsys.readouterr().out
+    assert rec == ref and rec["resumed_from_period"] == []  # restarted from scratch
+    assert min((c["tag"]["part"], c["tag"]["period"]) for c in c2.calls) == (1, 1)
+
+
+async def test_checkpoint_files_are_not_market_records(tmp_path):
+    assert engine.is_market_record_file(tmp_path / "x__n2__NT-T__m0.json")
+    assert not engine.is_market_record_file(tmp_path / "x__n2__NT-T__m0.ckpt.json")
+    assert not engine.is_market_record_file(tmp_path / "x__n2__NT-T__m0.failed.json")
+
+
+async def test_budget_exhaustion_checkpoints_and_rerun_resumes(tmp_path):
+    class Exhausted(FailOnce):
+        async def chat(self, messages, *, tag=None, **kw):
+            if (tag["firm"], tag["part"], tag["period"], tag["phase"], tag["attempt"]) == self.at:
+                raise BudgetExceeded("cap exhausted")
+            return await MockClient.chat(self, messages, tag=tag, **kw)
+
+    [s] = build_specs("test", [MOCK], [3], ["NT-T"], 1)
+    ref, _, _ = await play(s, tmp_path / "ref")
+    c1 = Exhausted(("B", 2, 2, "price", 0))
+    s1 = await run_all([s], {"mock": c1}, tmp_path / "run", SHORT)
+    assert s1["failed"] == [s.key]
+    ck = json.loads(engine.checkpoint_path(tmp_path / "run", s).read_text())
+    assert ck["periods_completed"] == 7 and {"A", "C"} <= {k.split("/")[1] for k in ck["partial_calls"]}
+    c2 = MockClient(record=True)
+    s2 = await run_all([s], {"mock": c2}, tmp_path / "run", SHORT)
+    assert s2["done"] == [s.key]
+    rec = json.loads(market_path(tmp_path / "run", s).read_text())
+    assert without_resume(rec) == without_resume(ref) and rec["resumed_from_period"] == [8]
+    assert not {c["tag"]["call_id"] for c in c1.calls} & {c["tag"]["call_id"] for c in c2.calls}

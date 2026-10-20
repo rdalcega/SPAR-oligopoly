@@ -174,6 +174,11 @@ sampling rule and reading notes saved alongside the analysis.
 8. Pilot runs with parts shorter than 20 periods are for testing only: they keep the instruction text and show
    the die (a 6) only in the final period.
 9. A failed market writes `<key>.failed.json` and is retried on the next invocation.
+   **2026-10-20:** markets checkpoint after every period (`<key>.ckpt.json`); a retried market resumes after
+   its last completed period, reusing the results of calls already paid for in the unfinished period
+   (matched by call id and request messages), so the firms see exactly what an uninterrupted run would have
+   shown them. A firm's failure no longer cancels the other firms' calls in flight. Records list resumes in
+   `resumed_from_period`.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
 
 ### Analysis — heuristic definitions (2026-10-19)

@@ -12,7 +12,7 @@ import pandas as pd
 
 from .. import benchmarks as b
 from ..config import ConfigError, ModelConfig
-from ..engine import record_texts_digest_matches
+from ..engine import is_market_record_file, record_texts_digest_matches
 
 PHASE = {True: "Talk", False: "NoTalk"}
 KEY_COLS = ["run_id", "market_id", "model", "n", "ordering", "market_index"]
@@ -43,7 +43,7 @@ def load_records(run_ids: list[str], runs_root: str | Path,
     recs = []
     for rid in run_ids:
         d = Path(runs_root) / rid / "markets"
-        files = sorted(p for p in d.glob("*.json") if not p.name.endswith(".failed.json"))
+        files = sorted(p for p in d.glob("*.json") if is_market_record_file(p))
         if not files:
             raise FileNotFoundError(f"no completed markets in {d}")
         digest = run_texts_digest(d.parent)
