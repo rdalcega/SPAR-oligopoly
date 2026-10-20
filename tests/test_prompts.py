@@ -20,7 +20,8 @@ from oligopoly.prompts import (
 )
 
 NS = [2, 4, 6, 8, 10]
-ORDERINGS = {"NoTalk-Talk": (False, True), "Talk-NoTalk": (True, False), "NoTalk-NoTalk": (False, False)}
+ORDERINGS = {"NoTalk-Talk": (False, True), "Talk-NoTalk": (True, False), "NoTalk-NoTalk": (False, False),
+             "Talk-Talk": (True, True)}
 SPECS = [
     ChatSpec(),
     ChatSpec(max_rounds=1, order="sequential", char_limit=None, allow_pass=False, end_when_all_pass=False),
@@ -330,3 +331,17 @@ def test_request_sections():
     for text in (summaries_text([], totals_text(1, 0)), notes_text(None)):
         for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE:
             assert w not in text.lower()
+
+
+def test_transition_prompt_is_mechanics_only():
+    from oligopoly.prompts import TRANSITION_LINE, reask_text, transition_format, transition_prompt
+
+    assert TRANSITION_LINE == ("Part 1 is over. Part 2 starts with the next period; its instructions are shown above. "
+                               "Before it starts, write your notes for Part 2: what changes and how you will take it "
+                               "into account.")
+    assert transition_prompt(80).endswith('Respond with JSON only, in this format: {"notes": "<private notes, at most '
+                                          'about 80 words>"}')
+    assert transition_format() in reask_text("e", transition_format())
+    low = transition_prompt().lower()
+    for w in BEHAVIOURAL_HINTS + BANNED_EVERYWHERE + COMMUNICATION_WORDS:
+        assert w not in low, w

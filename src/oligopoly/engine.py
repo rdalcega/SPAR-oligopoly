@@ -8,7 +8,13 @@ open period t + 1's user message; the final period's results go with the end-of-
 Post-game probe (`post_game_probe`, DECISIONS.md 2026-10-20): after the final period, the final results and
 end-of-experiment text open one more user message per firm with comprehension questions (`probe_firm`), scored
 into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
-period, so a market whose probe failed reruns only the probe. The probe sees the same sections as any call
+period, so a market whose probe failed reruns only the probe.
+
+Transition call (`transition`, DECISIONS.md §6 item 3, 2026-10-20): once Part 1 is over (its final summary written
+and Part 2's instructions given), before Part 2 period 1, every firm is asked for its notes only
+(`prompts.transition_prompt`), with the usual sections and no chat section. Its answer replaces the firm's notes
+like any other; an unusable answer after the re-asks leaves them unchanged. It is checkpointed like a period
+and recorded under `transition` (decisions keyed by firm; call ids `.../p2/t0/transition/a<k>`). The probe sees the same sections as any call
 (no chat), so its question about the last part's chat tests the firm's notes.
 
 Context (DECISIONS.md §6 item 3, summaries layout): every request is the firm's instructions and one user
@@ -53,11 +59,12 @@ from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
 from .llm import BudgetExceeded, BudgetWaitTimeout, ChatResult, ContextOverflow, Usage, messages_sha256
-from .parse import PARSER_VERSION, Parsed, extract_object, parse_message, parse_price, parse_probe, strip_reasoning
+from .parse import (PARSER_VERSION, Parsed, extract_object, parse_message, parse_notes, parse_price, parse_probe,
+                    strip_reasoning)
 
 log = logging.getLogger(__name__)
 
-Kind = Literal["price", "message"]
+Kind = Literal["price", "message", "transition"]
 
 
 class ChatClient(Protocol):
@@ -107,13 +114,16 @@ def fingerprint(obj: Any) -> str:
 def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
     """OpenRouter `response_format` for a structured-outputs call (`structured_outputs` in models.toml): a strict
     JSON schema with `notes` (if the run uses notes) and `message` (string or null) or `price` (integer 0-100)."""
-    props: dict[str, Any] = {"notes": {"type": "string"}} if notes else {}
-    if kind == "price":
+    props: dict[str, Any] = {"notes": {"type": "string"}} if notes or kind == "transition" else {}
+    if kind == "transition":
+        pass
+    elif kind == "price":
         props["price"] = {"type": "integer", "minimum": 0, "maximum": market.P_MAX}
     else:
         props["message"] = {"type": ["string", "null"]}
     return {"type": "json_schema", "json_schema": {
-        "name": "price_decision" if kind == "price" else "chat_turn", "strict": True,
+        "name": {"price": "price_decision", "message": "chat_turn", "transition": "transition_notes"}[kind],
+        "strict": True,
         "schema": {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}}}
 
 
@@ -352,6 +362,7 @@ class Market:
         self.profit = {L: [0.0, 0.0] for L in self.letters}
         self.periods: list[dict[str, Any]] = []
         self.probe: dict[str, Any] | None = None  # post-game probe result, once asked
+        self.transition: dict[str, Any] | None = None  # the transition call's decisions, once asked
         self.usage: dict[str, Any] = {k: 0 for k in USAGE_KEYS} | {
             "calls": 0, "cost_usd": 0.0, "cost_unknown_calls": 0, "seed_possibly_ignored_calls": 0,
             "provider_mismatch_calls": 0, "providers_served": []}
@@ -407,13 +418,18 @@ class Market:
         if kind == "price":
             fmt = prompts.price_format(self.exp.notes, self.exp.notes_words)
             parse = parse_price
+        elif kind == "transition":
+            fmt = prompts.transition_format(self.exp.notes_words)
+            parse = parse_notes
         else:
             fmt = prompts.message_format(self.chat_spec, self.exp.notes, self.exp.notes_words)
             def parse(c: str | None) -> Parsed:
                 return parse_message(c, self.exp.char_limit)
         d = Decision(kind)
-        g = self.global_period(part, period)  # the sections are fixed within a decision
-        messages, ctx, cache = self.ask(L, prompt, g, part, self.talk[part - 1])
+        # the sections are fixed within a decision; the transition call (Part 2 "period 0") opens Part 2, so its
+        # turns carry Part 2 period 1's global index
+        g = self.global_period(part, period) + (kind == "transition")
+        messages, ctx, cache = self.ask(L, prompt, g, part, self.talk[part - 1] and kind != "transition")
         for attempt in range(self.exp.max_reasks + 1):
             call_id = f"{s.key}/{L}/p{part}/t{period}/{phase}/a{attempt}"
             seed = self.call_seed(L, part, period, phase, attempt)
@@ -443,7 +459,7 @@ class Market:
                 **({"content": r.content} if p.error else {})})
             if p.ok:  # the firm's transcript keeps the value actually used, and its notes as it carries them
                 # (coerced to text, capped): the request's notes section is rebuilt from this answer
-                d.value, d.notes, d.warnings = p.value, p.notes, p.warnings
+                d.value, d.notes, d.warnings = (None if kind == "transition" else p.value), p.notes, p.warnings
                 capped, notes = None, {}
                 if p.notes is not None:
                     capped, cut = cap_notes(p.notes, self.exp.notes_max_words, self.exp.notes_max_chars)
@@ -453,7 +469,8 @@ class Market:
                         d.warnings = [*p.warnings, f"notes truncated to {self.exp.notes_max_words} words / "
                                                    f"{self.exp.notes_max_chars} characters ({len(p.notes)} chars)"]
                 # the latest notes replace the memory; an answer without notes keeps it
-                firm.answer(json.dumps({**notes, kind: p.value}, ensure_ascii=False), notes=capped)
+                answer = notes if kind == "transition" else {**notes, kind: p.value}
+                firm.answer(json.dumps(answer, ensure_ascii=False), notes=capped)
                 firm.close()
                 return d
             d.errors.append(p.error)
@@ -467,6 +484,12 @@ class Market:
         if kind == "price":  # a chat fallback shows in the firm's own line of that round instead
             firm.tell(prompts.fallback_text(d.value))
         return d
+
+    async def run_transition(self) -> None:
+        """The transition call before Part 2 (see the module docstring)."""
+        ds = await self.gather({L: self.decide(L, "transition", prompts.transition_prompt(self.exp.notes_words),
+                                               2, 0, "transition") for L in self.letters})
+        self.transition = {L: d.to_dict() for L, d in ds.items()}
 
     async def probe_firm(self, L: str) -> dict[str, Any]:
         """Ask firm L the post-game probe in its own conversation (after all play, so no decision can depend
@@ -620,6 +643,9 @@ class Market:
         if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:
             raise RuntimeError("completed periods do not match the schedule")
         for part, t in schedule[len(self.periods):]:
+            if (part, t) == (2, 1) and self.exp.transition and self.transition is None:
+                await self.run_transition()
+                await self.save_checkpoint()
             await self.period(part, t)
             await self.save_checkpoint()
         if self.exp.post_game_probe and self.probe is None:  # after all play; a resume reruns only this
@@ -637,7 +663,8 @@ class Market:
                 "firms": {L: {"instructions": f.instructions, "transcript": f.transcript, "pending": f.pending,
                               "notes": f.notes, "notes_at": f.notes_at} for L, f in self.firms.items()},
                 "periods": self.periods, "profit": self.profit, "prev_price": self.prev_price, "usage": self.usage,
-                "resumed_from_period": self.resumed_from, "probe": self.probe, "partial_calls": {}}
+                "resumed_from_period": self.resumed_from, "probe": self.probe, "transition": self.transition,
+                "partial_calls": {}}
 
     async def save_checkpoint(self) -> None:
         """At a period boundary: write the checkpoint and forget the finished period's call results. The
@@ -705,6 +732,7 @@ class Market:
         self.profit = {L: list(v) for L, v in ck["profit"].items()}
         self.prev_price = dict(ck["prev_price"])
         self.probe = ck.get("probe")
+        self.transition = ck.get("transition")
         self.resumed_from = [*ck.get("resumed_from_period", []), len(self.periods) + 1]
         self.replay = dict(ck.get("partial_calls") or {})
         self._seq = ck["seq"] if isinstance(ck.get("seq"), int) else 0
@@ -718,11 +746,13 @@ class Market:
         totals = {}
         for L in self.letters:
             decs = [p["decisions"][L] for p in self.periods] + [
-                r["decisions"][L] for p in self.periods for r in p["chat"]]
+                r["decisions"][L] for p in self.periods for r in p["chat"]] + (
+                [self.transition[L]] if self.transition else [])
             totals[L] = {"profit_part1": self.profit[L][0], "profit_part2": self.profit[L][1],
                          "profit_total": sum(self.profit[L]),
                          "price_fallbacks": sum(p["decisions"][L]["fallback"] for p in self.periods),
                          "chat_fallbacks": sum(r["decisions"][L]["fallback"] for p in self.periods for r in p["chat"]),
+                         "transition_fallback": bool(self.transition and self.transition[L]["fallback"]),
                          "reasks": sum(d["reasks"] for d in decs),
                          "notes_truncated": sum(bool(d.get("notes_truncated")) for d in decs),
                          "invalid_attempts": sum(len(d["errors"]) for d in decs)}
@@ -742,6 +772,7 @@ class Market:
             "transcripts": {L: f.transcript for L, f in self.firms.items()},
             "resumed_from_period": self.resumed_from,
             "probe": self.probe,  # None when the probe is off (or, in a failure record, not yet asked)
+            "transition": self.transition,  # None when the transition call is off (or not yet asked)
         }
 
 

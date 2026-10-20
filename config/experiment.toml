@@ -11,4 +11,5 @@ memory_window = 3        # §6 item 3 (summaries layout): summaries of the last 
 notes_words = 500        # §6 item 3: notes length stated to firms ("at most about 500 words")
 notes_max_words = 650    # engine details 12: hard cap on the notes carried as memory
 notes_max_chars = 4500
+transition = true        # §6 item 3: notes-only call between the parts, before Part 2 period 1
 post_game_probe = true   # DECISIONS.md 2026-10-20: comprehension questions after the last period (after all play)

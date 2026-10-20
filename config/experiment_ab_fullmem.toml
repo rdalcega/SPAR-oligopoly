@@ -12,4 +12,5 @@ memory_window = 60  # PILOT ONLY: A/B check vs the 3-period window (effectively 
 notes_words = 150        # the A/B ran with 150-word notes (before the summaries layout)
 notes_max_words = 200    # engine details 12: hard cap on the notes carried as memory (instructions say ~150 words)
 notes_max_chars = 1400
+transition = false       # the A/B had no transition call
 post_game_probe = true   # DECISIONS.md 2026-10-20: comprehension questions after the last period (after all play)

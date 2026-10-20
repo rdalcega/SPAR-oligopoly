@@ -17,6 +17,11 @@ model whose context length is unknown is reported and left unchanged.
 
 --notes-at-cap: worst case for the notes cap (DECISIONS.md engine details 12): every notes field the replay writes
 is exactly at the cap (notes_max_words words, notes_max_chars characters, ASCII) instead of a pilot sample.
+
+--synthetic: no pilot markets needed. A worst-case sample instead of pilot outputs: notes at the cap (as
+--notes-at-cap), every chat message at the character limit, every firm posting in every round of every Talk
+period (the chat never closes early), and SYNTHETIC_INVALID of answers invalid (2,000 characters, the most the
+engine keeps), so re-ask chains occur. An upper envelope for the context limits, not a cost estimate.
 """
 
 from __future__ import annotations
@@ -129,6 +134,9 @@ class ReplayClient:
             content = json.dumps(probe_answer(messages, rng))
         elif self.s.invalid[kind] and rng.random() < self.s.p_invalid(kind):
             content = rng.choice(self.s.invalid[kind])
+        elif tag.get("phase") == "transition":  # notes only (the pilots had no transition call)
+            content = json.dumps({"notes": rng.choice([x for x in self.s.notes if x is not None] or [""])},
+                                 ensure_ascii=False)
         else:
             notes = rng.choice(self.s.notes)
             obj: dict[str, Any] = {"notes": notes} if notes is not None else {}
@@ -144,6 +152,19 @@ class ReplayClient:
                           native_finish_reason="stop", provider="replay", model=kw.get("model"),
                           generation_id=None, usage=Usage(), cost_usd=0.0, latency_s=0.0, attempts=1,
                           seed_possibly_ignored=False, provider_mismatch=False)
+
+
+SYNTHETIC_INVALID = 0.2  # share of invalid answers in the --synthetic sample
+
+
+def synthetic_sample(exp: ExperimentConfig) -> Sample:
+    """The --synthetic worst-case sample (see the module docstring)."""
+    bad = "z" * 2000
+    return Sample(notes=[cap_note(exp.notes_max_words, exp.notes_max_chars)],
+                  messages=["m" * (exp.char_limit or 300)], prices=list(range(101)),
+                  rounds_used=Counter({exp.chat_rounds: 1}), passes=0, posts=1,
+                  attempts={k: 10 for k in KINDS}, invalid={k: [bad] * int(10 * SYNTHETIC_INVALID) for k in KINDS},
+                  markets=0)
 
 
 def cap_note(max_words: int, max_chars: int) -> str:
@@ -224,6 +245,8 @@ async def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--write", action="store_true", help="write exclude_cells into the models file")
     ap.add_argument("--notes-at-cap", action="store_true",
                     help="worst case: every notes field at the cap (notes_max_words / notes_max_chars)")
+    ap.add_argument("--synthetic", action="store_true",
+                    help="worst-case synthetic sample instead of pilot outputs (no pilot markets needed)")
     a = ap.parse_args(argv)
 
     registry = load_models(a.models_file)
@@ -231,9 +254,11 @@ async def main(argv: list[str] | None = None) -> int:
     if unknown := [k for k in names if k not in registry]:
         raise SystemExit(f"unknown models {unknown}")
     exp = load_experiment(a.experiment_file)
-    samples = load_samples(sorted(Path(a.pilots).glob("pilot*/markets/*.json")))
-    if not samples.get("*") or not samples["*"].usable:
-        raise SystemExit(f"no completed pilot markets with chat under {a.pilots}")
+    samples = {} if a.synthetic else load_samples(sorted(Path(a.pilots).glob("pilot*/markets/*.json")))
+    if a.synthetic:
+        samples["*"] = synthetic_sample(exp)
+    elif not samples.get("*") or not samples["*"].usable:
+        raise SystemExit(f"no completed pilot markets with chat under {a.pilots} (--synthetic needs none)")
     ctx = dict(zip(names, await asyncio.gather(*(context_length(registry[k]) for k in names))))
     cells = select_cells(a.n, a.orderings, a.grid)
     ns, orderings = sorted({n for n, _ in cells}), [o for o in ORDERINGS if any(c[1] == o for c in cells)]
@@ -246,7 +271,8 @@ async def main(argv: list[str] | None = None) -> int:
         sample = own if own and own.usable else samples["*"]
         if a.notes_at_cap:
             sample = dataclasses.replace(sample, notes=[cap_note(exp.notes_max_words, exp.notes_max_chars)])
-        src = f"{own.markets} pilot market(s)" if own and own.usable else "no usable pilot of its own: all pooled"
+        src = "synthetic worst case" if a.synthetic else f"{own.markets} pilot market(s)" if own and own.usable \
+            else "no usable pilot of its own: all pooled"
         length, problem = ctx[name]
         limit = int(length * a.threshold) if length else None
         print(f"\n{name}  ({src}; bytes/token {cfg.bytes_per_token_min}; max_tokens {cfg.max_tokens}; "

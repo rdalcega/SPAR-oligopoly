@@ -36,9 +36,12 @@ def calls_by_firm(client):
 
 
 def firm_decisions(rec, L):
-    """Firm L's decisions in the order they were made: per period its chat rounds then its price; the probe last."""
+    """Firm L's decisions in the order they were made: per period its chat rounds then its price, the transition
+    call before Part 2's first period; the probe last."""
     out = []
     for p in rec["periods"]:
+        if (p["part"], p["period"]) == (2, 1) and rec.get("transition"):
+            out.append(rec["transition"][L])
         out += [r["decisions"][L] for r in p["chat"]] + [p["decisions"][L]]
     if rec.get("probe"):
         f = rec["probe"]["firms"][L]
@@ -96,6 +99,9 @@ def check_contexts(rec, client, exp):
                 if tag["phase"] == "probe":
                     assert (tag["part"], tag["period"]) == ("probe", None)
                     g, part, chat = sum(exp.part_lengths) + 1, 2, None
+                elif tag["phase"] == "transition":  # opens Part 2, before its first period; no chat section
+                    assert (tag["part"], tag["period"]) == (2, 0) and done == L1
+                    g, part, chat = L1 + 1, 2, None
                 else:
                     g, part = (tag["period"], 1) if tag["part"] == 1 else (L1 + tag["period"], 2)
                     p = rec["periods"][g - 1]
@@ -141,7 +147,7 @@ def check_contexts(rec, client, exp):
 
 
 @pytest.mark.parametrize("n", [2, 10])
-@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT"])
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT", "T-T"])
 async def test_mock_market(tmp_path, n, ordering):
     rec, client, _ = await play(spec(n, ordering), tmp_path)
     talk = engine.ORDERINGS[ordering]
@@ -156,7 +162,7 @@ async def test_mock_market(tmp_path, n, ordering):
         if len(p["chat"]) < 3 and p["chat"]:
             assert not p["chat"][-1]["messages"]  # closed early only when everyone passed
     for c in client.calls:
-        assert c["tag"]["phase"] in ("price", "probe") or \
+        assert c["tag"]["phase"] in ("price", "probe", "transition") or \
             c["tag"]["phase"].startswith("chat") == talk[c["tag"]["part"] - 1]
 
     # payoffs consistent with market.payoffs, totals consistent with periods
@@ -189,6 +195,8 @@ async def test_mock_market(tmp_path, n, ordering):
         text = "\n".join(m["content"] for m in c["messages"])
         if t["phase"] == "probe":  # after all play
             assert (t["part"], t["period"]) == ("probe", None) and "Results of period 4 (Part 2)" in text
+        elif t["phase"] == "transition":  # after Part 1, before any Part 2 play
+            assert "Results of period 6 (Part 1)" in text and "(Part 2)" not in text.split("Results of", 1)[1]
         elif t["phase"] == "price":
             assert f"Results of period {t['period']} (Part {t['part']})" not in text
         else:
@@ -440,7 +448,9 @@ async def test_market_with_openrouter_client(tmp_path):
     p2 = next(x for x in bodies if x["messages"][1]["content"].startswith("Part 1 is over."))
     assert "\n\nYour most recent notes:" in p2["messages"][1]["content"] or "\n\nYou have not written" in p2["messages"][1][
         "content"]
-    assert rec["usage"]["calls"] == len(bodies) == 2 * (2 + 1 + 1)  # 2 firms x (2 NoTalk + 1 chat + 1 price)
+    # 2 firms x (2 NoTalk + transition + 1 chat + 1 price)
+    assert rec["usage"]["calls"] == len(bodies) == 2 * (2 + 1 + 1 + 1)
+    assert all(not d["fallback"] for d in rec["transition"].values())  # a message object carries notes too
     assert rec["usage"]["seed_possibly_ignored_calls"] == 0
 
 
@@ -917,7 +927,8 @@ def without_resume(rec):
     return {k: v for k, v in rec.items() if k != "resumed_from_period"}
 
 
-@pytest.mark.parametrize("at", [("B", 1, 3, "price", 0), ("A", 2, 1, "chat1", 0), ("C", 2, 4, "price", 0)])
+@pytest.mark.parametrize("at", [("B", 1, 3, "price", 0), ("A", 2, 1, "chat1", 0), ("C", 2, 4, "price", 0),
+                                ("B", 2, 0, "transition", 0)])
 async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
     s = spec(3, "NT-T")
     ref, ref_client, _ = await play(s, tmp_path / "ref")
@@ -927,7 +938,8 @@ async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
     with pytest.raises(RetriesExhausted):
         await run_market(s, c1, out, SHORT)
     ck = engine.checkpoint_path(out, s)
-    k = at[2] if at[1] == 1 else SHORT.part_lengths[0] + at[2]  # 1-based over both parts
+    # 1-based over both parts (the transition call comes before Part 2 period 1)
+    k = at[2] if at[1] == 1 else SHORT.part_lengths[0] + max(at[2], 1)
     saved = json.loads(ck.read_text())
     assert saved["periods_completed"] == k - 1 and saved["partial_calls"]  # siblings' results kept
     # the replay key is the request's context hash (one scheme: messages_sha256 of the messages sent)
@@ -1066,7 +1078,7 @@ async def test_parser_version_in_fingerprint_and_run_config(tmp_path, monkeypatc
 NO_PROBE = dataclasses.replace(SHORT, post_game_probe=False)
 
 
-@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT"])
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT", "T-T"])
 async def test_probe_does_not_change_play(tmp_path, ordering):
     s = spec(3, ordering)
     on, c_on, _ = await play(s, tmp_path / "on")
@@ -1238,7 +1250,7 @@ async def test_price_on_chat_turn_gets_its_own_reask(tmp_path):
 
 
 @pytest.mark.parametrize("window", [1, 2, 3, 12])
-@pytest.mark.parametrize("ordering", ["NT-T", "T-NT"])
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT", "T-T"])
 async def test_window_sizes(tmp_path, window, ordering):
     exp = dataclasses.replace(SHORT, memory_window=window)
     rec, client, _ = await play(spec(3, ordering), tmp_path, exp=exp)
@@ -1275,6 +1287,8 @@ async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
     def answer(tag):
         if tag["phase"] == "price":
             return json.dumps({"notes": long if tag["firm"] == "A" else "short-B", "price": 100})
+        if tag["phase"] == "transition":
+            return json.dumps({"notes": long if tag["firm"] == "A" else "transition-B"})
         return '{"notes": "n", "message": null}'
 
     exp = ExperimentConfig(part_lengths=(2, 1), post_game_probe=False)
@@ -1287,7 +1301,7 @@ async def test_long_notes_are_capped_in_memory_and_window(tmp_path):
     assert d["notes"] == capped and d["notes_truncated"] and d["notes_full"] == long
     assert any("notes truncated" in w for w in d["warnings"])
     assert "notes_truncated" not in rec["periods"][0]["decisions"]["B"]
-    assert rec["totals"]["A"]["notes_truncated"] == 3 and rec["totals"]["B"]["notes_truncated"] == 0
+    assert rec["totals"]["A"]["notes_truncated"] == 4 and rec["totals"]["B"]["notes_truncated"] == 0  # 3 + transition
     blob = json.dumps([c["messages"] for c in client.calls if c["tag"]["firm"] == "A"], ensure_ascii=False)
     assert long not in blob and json.dumps(f"Your most recent notes:\n{capped}")[1:-1] in blob
     a_answers = [json.loads(m["content"]) for m in rec["transcripts"]["A"] if m["role"] == "assistant"]
@@ -1318,6 +1332,8 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
         if tag["phase"] == "probe":
             return json.dumps({"max_consumer_price": 100, "best_common_price": 100,
                                "last_period_prices": {"A": 100, "B": 100}, "deviations": "none"})
+        if tag["phase"] == "transition":
+            return json.dumps({"notes": f"memo-{tag['firm']}-transition"})
         return json.dumps({"notes": f"memo-{tag['firm']}-{mark}-chat", "message": f"msg-{tag['firm']}-{mark}"})
 
     exp = ExperimentConfig(part_lengths=(8, 8), chat_rounds=1, memory_window=3)
@@ -1326,7 +1342,8 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
     sizes = []
     for c in client.calls:
         t = c["tag"]
-        g = 17 if t["phase"] == "probe" else t["period"] if t["part"] == 1 else 8 + t["period"]
+        g = 17 if t["phase"] == "probe" else 9 if t["phase"] == "transition" else \
+            t["period"] if t["part"] == 1 else 8 + t["period"]
         text = "\n".join(m["content"] for m in c["messages"])
         sizes.append(len(text))
         for q in range(1, 9):  # chat messages of earlier periods are never shown again
@@ -1338,6 +1355,7 @@ async def test_context_is_bounded_and_old_play_is_gone(tmp_path):
             # previous period's price notes
             cur = f"P{t['part']}T{t['period']}"
             latest = f"memo-{t['firm']}-{cur}-chat" if t["part"] == 1 and t["phase"] == "price" else \
+                f"memo-{t['firm']}-transition" if g == 9 and t["phase"] != "transition" else \
                 f"memo-{t['firm']}-{prev}"
             assert f"Your most recent notes:\n{latest}\n" in c["messages"][1]["content"]
             assert f"memo-{t['firm']}-{prev}-chat" not in text
@@ -1391,6 +1409,8 @@ async def test_structured_outputs_payload(tmp_path, structured):
         if "Please answer these questions" in last:
             content = json.dumps({"max_consumer_price": 100, "best_common_price": 100,
                                   "last_period_prices": {"A": 99, "B": 99}, "deviations": "no"})
+        elif "write your notes for Part 2" in last:
+            content = '{"notes": "t"}'
         elif '"price": <integer' in last.splitlines()[-1]:
             content = '{"notes": "n", "price": 99}'
         else:
@@ -1406,10 +1426,11 @@ async def test_structured_outputs_payload(tmp_path, structured):
         async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="k") as client:
             s = MarketSpec("live", cfg, 2, "T-NT", 0, 1)
             await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(1, 1)))
-    kinds = {"chat": [], "price": [], "probe": []}
+    kinds = {"chat": [], "price": [], "probe": [], "transition": []}
     for b in bodies:
         last = b["messages"][-1]["content"]
         kind = ("probe" if "Please answer these questions" in last else
+                "transition" if "write your notes for Part 2" in last else
                 "price" if '"price": <integer' in last.splitlines()[-1] else "chat")
         kinds[kind].append(b)
     assert all(kinds.values())
@@ -1430,9 +1451,14 @@ async def test_structured_outputs_payload(tmp_path, structured):
                 "type": "object", "properties": {"notes": {"type": "string"},
                                                  "price": {"type": "integer", "minimum": 0, "maximum": 100}},
                 "required": ["notes", "price"], "additionalProperties": False}}}
+    for b in kinds["transition"]:
+        assert b["response_format"] == {"type": "json_schema", "json_schema": {
+            "name": "transition_notes", "strict": True, "schema": {
+                "type": "object", "properties": {"notes": {"type": "string"}},
+                "required": ["notes"], "additionalProperties": False}}}
     log = [json.loads(x) for x in (tmp_path / "calls.jsonl").read_text().splitlines()]
     assert {x["response_format"]["json_schema"]["name"] for x in log if x.get("response_format")} == \
-        {"chat_turn", "price_decision"}
+        {"chat_turn", "price_decision", "transition_notes"}
 
 
 def test_structured_outputs_config():
@@ -1534,3 +1560,66 @@ async def test_cancel_during_checkpoint_save_keeps_paid_results(tmp_path, monkey
     assert not {c["tag"]["call_id"] for c in c1.calls} & {c["tag"]["call_id"] for c in c2.calls}
     assert len(c1.calls) + len(c2.calls) == len(ref_client.calls)
     assert without_resume(rec) == without_resume(ref)
+
+
+# ---------------------------------------------------------------- transition call
+
+
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT", "T-T"])
+async def test_transition_call(tmp_path, ordering):
+    """Once Part 1 is over, before Part 2 period 1, every firm is asked for notes only: both parts' instructions,
+    the summaries (Part 1's final one included), its notes, no chat section; its notes then replace the memory."""
+    from oligopoly import prompts
+
+    rec, client, _ = await play(spec(3, ordering), tmp_path, client=MockClient(record=True, malformed_rate=0.0))
+    L1 = SHORT.part_lengths[0]
+    calls = [c for c in client.calls if c["tag"]["phase"] == "transition"]
+    assert sorted(c["tag"]["firm"] for c in calls) == ["A", "B", "C"]
+    order = [c["tag"]["phase"] for c in client.calls if c["tag"]["firm"] == "A"]
+    i = order.index("transition")
+    assert order[i - 1] == "price" and order[i + 1] == ("chat1" if engine.ORDERINGS[ordering][1] else "price")
+    for c in calls:
+        L, msgs = c["tag"]["firm"], c["messages"]
+        body = msgs[1]["content"]
+        assert (c["tag"]["part"], c["tag"]["period"], len(msgs)) == (2, 0, 2)
+        assert body.startswith("Part 1 is over.\n\nInstructions – Part 2") and rec["instructions"][L][1] in body
+        assert body.endswith(prompts.transition_prompt())
+        assert f"Results of period {L1} (Part 1)" in body and "showed 6, so this part of the experiment is over" in body
+        assert "Chat messages posted" not in body and prompts.NO_MESSAGES_YET not in body
+        assert "Your total profit in this part so far: 0 ECU" in body  # Part 2's totals: it has not started
+        d = rec["transition"][L]
+        assert d["valid"] and d["value"] is None and d["notes"].endswith("(for Part 2)")
+        # Part 2's first request shows the transition notes
+        first = next(x for x in client.calls if x["tag"]["firm"] == L and (x["tag"]["part"], x["tag"]["period"]) == (2, 1))
+        assert f"Your most recent notes:\n{d['notes']}\n" in first["messages"][1]["content"]
+    for L, tr in rec["transcripts"].items():  # the transition opens Part 2 in the transcript
+        t = [m for m in tr if m["kind"] == "prompt" and m["content"].startswith(prompts.TRANSITION_LINE)]
+        assert len(t) == 1 and t[0]["period"] == L1 + 1
+    check_contexts(rec, client, SHORT)
+
+
+async def test_transition_fallback_keeps_notes_and_switch_off(tmp_path):
+    def answer(tag):
+        if tag["phase"] == "transition":
+            return "I will think about it." if tag["firm"] == "A" else '{"notes": "B-t", "price": 5}'
+        if tag["phase"] == "probe":
+            return json.dumps({"max_consumer_price": 100, "best_common_price": 100,
+                               "last_period_prices": {"A": 100, "B": 100}, "deviations": "none"})
+        return json.dumps({"notes": f"{tag['firm']}-{tag['part']}-{tag['period']}", "price": 100})
+
+    rec, client, _ = await play(spec(2, "NT-NT"), tmp_path / "on", client=Scripted(answer))
+    a, b = rec["transition"]["A"], rec["transition"]["B"]
+    assert a["fallback"] and a["reasks"] == 2 and rec["totals"]["A"]["transition_fallback"]
+    assert not b["fallback"] and b["notes"] == "B-t" and any("ignored" in w for w in b["warnings"])
+    first = {c["tag"]["firm"]: c["messages"][1]["content"] for c in client.calls
+             if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"]) == (2, 1, "price")}
+    assert "Your most recent notes:\nA-1-6\n" in first["A"]  # unchanged after the fallback
+    assert "Your most recent notes:\nB-t\n" in first["B"]
+    assert "could not be used" not in json.dumps(rec["transcripts"]["A"][-12:])  # no fallback notice is told
+    check_contexts(rec, client, SHORT)
+
+    off, c_off, _ = await play(spec(2, "NT-NT"), tmp_path / "off", exp=dataclasses.replace(SHORT, transition=False))
+    assert off["transition"] is None and not any(c["tag"]["phase"] == "transition" for c in c_off.calls)
+    with pytest.raises(ConfigError):
+        ExperimentConfig(notes=False)  # the transition call asks for notes only
+    assert ExperimentConfig(notes=False, transition=False).transition is False

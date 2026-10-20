@@ -42,6 +42,23 @@ async def test_context_projection_covers_the_probe():
         await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2), post_game_probe=False), 1)
 
 
+async def test_synthetic_projection_is_an_upper_envelope():
+    """--synthetic needs no pilots; its worst case (notes at the cap, full chat, re-asks) exceeds a light sample's
+    peak in every ordering, and the transition call is answered with notes."""
+    from collections import Counter
+
+    from oligopoly.config import ExperimentConfig, ModelConfig
+
+    exp = ExperimentConfig(part_lengths=(3, 2))
+    syn = pctx.synthetic_sample(exp)
+    assert syn.usable and syn.p_pass == 0 and syn.p_invalid("price") == pctx.SYNTHETIC_INVALID
+    assert len(syn.notes[0]) <= exp.notes_max_chars and len(syn.messages[0]) == exp.char_limit
+    light = pctx.Sample(notes=["n"], messages=["hi"], prices=[100], rounds_used=Counter({1: 1}), passes=1, posts=1)
+    cfg = ModelConfig("m", "acme/m", "p", max_tokens=10)
+    for o in ("NT-T", "T-NT", "NT-NT", "T-T"):
+        assert await pctx.project(cfg, syn, 3, o, exp, 1) > await pctx.project(cfg, light, 3, o, exp, 1)
+
+
 async def test_audit_rebuilds_windowed_requests_and_checks_the_log(tmp_path):
     """On a windowed-context run, the audit rebuilds every attempt's request from the record, matches it to the
     record's hash and to the call log's, and runs the leak checks on it; tampering is caught."""

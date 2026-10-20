@@ -39,14 +39,16 @@ class MockClient:
         pass
 
     def respond(self, kind: str, seed: int) -> str:
-        """Raw content for a `kind` ("price" or "message") prompt."""
+        """Raw content for a `kind` ("price", "message" or "transition") prompt."""
         rng = random.Random(seed)
         if rng.random() < self.malformed_rate:
             bad = (["I think a high price is best.", '{"price": 150}', '{"price": 57.5}', '{"notes": "x", "price": ',
                     ""] if kind == "price" else ['{"msg": "hi"}', '{"message": ["a"]}', "Sure, I will write.", ""])
             return rng.choice(bad)
         notes = f"note #{seed}: " + rng.choice(["watching rivals", "keep high", "test a cut", "match lowest"])
-        if kind == "price":
+        if kind == "transition":
+            obj: dict[str, Any] = {"notes": notes + " (for Part 2)"}
+        elif kind == "price":
             value: Any = rng.choice([100, 100, 100, 99, 99, rng.randint(0, 100)])
             if rng.random() < 0.05:
                 value = rng.choice([str(value), float(value)])
@@ -82,7 +84,7 @@ class MockClient:
         if phase == "probe":
             content = self.respond_probe(messages, seed or 0)
         else:
-            content = self.respond("price" if phase == "price" else "message", seed or 0)
+            content = self.respond(phase if phase in ("price", "transition") else "message", seed or 0)
         prompt_chars = sum(len(m["content"]) for m in messages)
         usage = Usage(prompt_tokens=prompt_chars // 4, completion_tokens=len(content) // 4 + 20,
                       reasoning_tokens=20, total_tokens=prompt_chars // 4 + len(content) // 4 + 20)

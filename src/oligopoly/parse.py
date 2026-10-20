@@ -232,6 +232,22 @@ def parse_message(content: str | None, char_limit: int | None = 300) -> Parsed:
     return p
 
 
+def parse_notes(content: str | None) -> Parsed:
+    """Notes only (the transition call): an object with a "notes" field, coerced to text like any notes; its value
+    is the notes. Missing or null notes are an error here, since they are the whole answer."""
+    obj, curly = _extract(content, "notes")
+    if obj is None:
+        return Parsed(error=_no_object(content, "notes"))
+    p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
+    _notes(obj, p)
+    if p.notes is None:
+        p.error = 'the "notes" field is null'
+    if extra := sorted(k for k in obj if k != "notes"):
+        p.warnings.append(f"fields other than notes ignored: {', '.join(extra)}")
+    p.value = p.notes
+    return p
+
+
 PROBE_KEYS = ("max_consumer_price", "best_common_price", "last_period_prices", "deviations")
 
 

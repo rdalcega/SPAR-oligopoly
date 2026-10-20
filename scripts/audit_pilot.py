@@ -316,6 +316,8 @@ def record_attempts(rec: dict) -> list[tuple[str, tuple, dict]]:
                 out += [(L, (x["part"], x["period"], f"chat{r['round']}"), a) for a in d["attempts"]]
         for L, d in x["decisions"].items():
             out += [(L, (x["part"], x["period"], "price"), a) for a in d["attempts"]]
+    for L, d in (rec.get("transition") or {}).items():
+        out += [(L, (2, 0, "transition"), a) for a in d["attempts"]]
     for L, f in ((rec.get("probe") or {}).get("firms") or {}).items():
         out += [(L, ("probe", None, "probe"), a) for a in f["attempts"]]
     return out

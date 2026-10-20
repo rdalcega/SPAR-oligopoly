@@ -1,8 +1,8 @@
 """Text shown to LLM firms.
 
 Adapted from the subject instructions in Appendix A of the working paper (transcribed verbatim in
-`fonseca-normann-summary.md` §4), generalised to any number of firms and to the three part orderings
-(NoTalk->Talk, Talk->NoTalk, NoTalk->NoTalk). Every edit to the published wording is listed in
+`fonseca-normann-summary.md` §4), generalised to any number of firms and to the four part orderings
+(NoTalk->Talk, Talk->NoTalk, NoTalk->NoTalk, and the extension Talk->Talk). Every edit to the published wording is listed in
 `docs/prompts-draft.md`.
 
 All functions are pure: they take plain values and return strings. Design choices that DECISIONS.md has
@@ -602,6 +602,21 @@ def chat_price_reask_text(chat_spec: ChatSpec, notes: bool, notes_words: int = N
     return s + f" Respond with JSON only, in this format: {message_format(chat_spec, notes, notes_words)}"
 
 
+# The transition call (DECISIONS.md §6 item 3, 2026-10-20): once Part 1 is over and Part 2's instructions have been
+# shown, before Part 2's first period, each firm is asked for its notes only. Mechanics only: no behavioural hint.
+TRANSITION_LINE = ("Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it "
+                   "starts, write your notes for Part 2: what changes and how you will take it into account.")
+
+
+def transition_format(notes_words: int = NOTES_WORDS) -> str:
+    return f"{{{_notes_field(notes_words)}}}"
+
+
+def transition_prompt(notes_words: int = NOTES_WORDS) -> str:
+    """The transition call's prompt: the full format, since the instructions only describe price and chat answers."""
+    return f"{TRANSITION_LINE}\nRespond with JSON only, in this format: {transition_format(notes_words)}"
+
+
 def reask_text(error: str, expected_format: str) -> str:
     """Re-ask after an unusable answer (unparseable JSON, out-of-range price, over-long message...)."""
     return (
@@ -644,7 +659,7 @@ def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = N
     texts = [
         *(part_instructions(n, "A", p, t, previous_talk=pt, chat_spec=chat_spec, notes=notes,
                             memory_window=memory_window, notes_words=notes_words)
-          for n in (2, 4) for t1, t2 in ((False, True), (True, False), (False, False))
+          for n in (2, 4) for t1, t2 in ((False, True), (True, False), (False, False), (True, True))
           for p, t, pt in ((1, t1, None), (2, t2, t1))),
         period_prompt(1, 21, notes=notes),
         period_prompt(2, 5, talk=True, notes=notes),
@@ -658,5 +673,6 @@ def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = N
         summaries_text([], totals_text(1, 0)), summaries_text(["s1", "s2"], totals_text(2, 1.5, 2.5)),
         notes_text(None), notes_text("x"), chat_text([]), chat_text(rounds),
         probe_prompt(["A", "B"]), reask_text("e", probe_format(["A", "B"])),
+        transition_prompt(notes_words), reask_text("e", transition_format(notes_words)),
     ]
     return hashlib.sha256("\x00".join(texts).encode()).hexdigest()

@@ -141,6 +141,25 @@ reasoning are private.
   the hard cap rises to 650 words / 4,500 characters. Results from this layout are not comparable with the
   verbatim-window sweeps (gpt-oss, Qwen3-14B) and the window A/B; those runs keep their records and remain
   rebuildable. Exact definition: engine details 11.
+- **2026-10-20: transition call between the parts** (decided by Rodrigo; wording approved by him). Once Part 1 is
+  over (its final summary written and Part 2's instructions given), before Part 2 period 1, every firm gets one
+  notes-only call: the usual sections without chat (Part 2's instructions, the summaries of the last W periods,
+  its totals as of Part 2's start, its notes), then "Part 1 is over. Part 2 starts with the next period; its
+  instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take
+  it into account." with the format `{"notes": "<private notes, at most about N words>"}`. The answer's notes
+  replace the memory like any other; an answer still unusable after the re-asks leaves the notes unchanged and
+  nothing is told. It runs in every ordering, also where nothing changes (NT-NT, T-T), so the orderings stay
+  comparable. **This departs from the paper** (human subjects only read the Part 2 sheet): it invites a
+  reflection the humans were not prompted for and may strengthen how firms carry Part 1 into Part 2. It is a
+  setting, `transition` (default on; it needs `notes`), so a run for the human comparison can switch it off;
+  whichever value a run uses is held fixed across its models. Recorded under the market record's
+  `transition` (decisions by firm; call ids `.../p2/t0/transition/a<k>`, tag part 2, period 0, phase
+  `transition`; its transcript turns carry Part 2 period 1's global index). Fields other than `notes` in the
+  answer are ignored with a warning.
+- **2026-10-20: fourth ordering T-T** (Talk in both parts; requested by Rodrigo so every NoTalk/Talk ordering is
+  supported). An extension with no human benchmark: it is not among the paper's cells (`oligopoly.run` plays it
+  only as a grid cell, e.g. `--grid --n 4 --orderings T-T`), and its results stay apart from the human comparison.
+  Part 2's instructions say "As in Part 1, you will be able to communicate…" and repeat the chat rules.
 
 ### §6 item 11 — number of markets
 
