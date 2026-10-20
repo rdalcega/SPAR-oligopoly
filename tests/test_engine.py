@@ -223,10 +223,10 @@ max_tokens = 100
 
 def test_models_config(tmp_path):
     models = load_models()
-    assert "mock" in models and len(models) == 9
+    assert "mock" in models and len(models) == 8
     live = [m for m in models.values() if not m.is_mock]
     assert all(not m.provider_pending and m.max_tokens for m in live)
-    assert models["qwen3.5-9b"].chat_kwargs()["extra_body"] == {"top_k": 20, "presence_penalty": 1.5}
+    assert models["qwen3.5-27b"].chat_kwargs()["extra_body"] == {"top_k": 20, "presence_penalty": 1.5}
     (tmp_path / "m.toml").write_text(PENDING_TOML)
     with pytest.raises(ConfigError):
         load_models(tmp_path / "m.toml")["pending"].check_live()

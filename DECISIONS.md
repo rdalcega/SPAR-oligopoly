@@ -55,6 +55,16 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   with the same bound and writes `exclude_cells`.
 - **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
   supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
+- **2026-10-20: Qwen3.5-9B dropped.** DeepInfra's shared pool rate-limited it (HTTP 429) so badly that its
+  pilot market failed before period 1, and calls took ~220 s when they worked.
+- **2026-10-20: one model only — `openai/gpt-oss-20b`** (decided by Rodrigo; this supersedes the lineup above
+  for the experiment). Running many models complicated the work too much. gpt-oss-20b (21B MoE, 3.6B active)
+  was chosen for being LoRA-able on a budget, the cheapest and fastest in the pilots, and the richest in
+  strategic behaviour there (agreements made and broken, threats, a price war and recovery). The other models
+  stay in `config/models.toml` for possible later use but are not part of the experiment. Pinned to
+  `deepinfra/bf16`, T 1.0, top_p 1.0, reasoning effort medium. `max_tokens` lowered from 8,000 to 6,000 (largest
+  pilot output 4,200 tokens) so that every cell, including T-NT n = 10, passes the context rule; no cells are
+  excluded. With one model, the "LLMs vs LLMs" goal is deferred.
 
 ### §6 item 1 — chat structure
 

@@ -64,17 +64,6 @@ max_tokens = 16000
 reasoning = { effort = "medium" }
 require_parameters = true
 
-["qwen3.5-9b"]
-model = "qwen/qwen3.5-9b"
-provider = "deepinfra/bf16"
-temperature = 1.0
-top_p = 0.95
-top_k = 20
-extra = { presence_penalty = 1.5 }
-max_tokens = 16000
-reasoning = { effort = "medium" }
-require_parameters = true
-
 ["gemma-4-26b-a4b"]
 model = "google/gemma-4-26b-a4b-it"
 provider = "deepinfra/fp8"
@@ -90,7 +79,7 @@ model = "openai/gpt-oss-20b"
 provider = "deepinfra/bf16"
 temperature = 1.0
 top_p = 1.0
-max_tokens = 8000
+max_tokens = 6000  # largest pilot output was 4,200 tokens; 6000 keeps T-NT n=10 within the context rule
 reasoning = { effort = "medium" }
 require_parameters = true
 
@@ -105,6 +94,7 @@ top_k = 20
 max_tokens = 8000
 reasoning = { effort = "medium" }
 require_parameters = true
+exclude_cells = [["NT-T", 2], ["T-NT", 2], ["NT-T", 4], ["T-NT", 4], ["NT-T", 6], ["T-NT", 6], ["NT-T", 8], ["T-NT", 8], ["NT-T", 10], ["T-NT", 10]]
 
 ["granite-4.2-8b"]
 model = "ibm-granite/granite-4.2-8b"
