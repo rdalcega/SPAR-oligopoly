@@ -10,7 +10,7 @@ markets/<key>.failed.json for failed ones (retried on rerun, resuming from marke
 after every period), calls.jsonl (every LLM call), budget.json,
 run.json (one entry per invocation) and run_config.json (the settings every market of the run shares: base
 seed, experiment, the digest of the firm-facing wording and each model's settings; a rerun with different
-settings, or with changed prompt wording, is refused before any market is scheduled, while new models may be
+settings, with changed prompt wording or answer-parsing rules (parse.PARSER_VERSION), is refused before any market is scheduled, while new models may be
 added). A live invocation holds an exclusive lock on <run-dir>/.lock for its whole life, so a second
 invocation on the same run fails at once; --dry-run only reads and takes no lock. Part lengths below 20 are for pilots only: the instructions still
 say "at least 20 periods" while the die schedule shrinks to the part length.
@@ -38,6 +38,7 @@ from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failur
                      write_json_atomic)
 from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
+from .parse import PARSER_VERSION
 
 
 def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings: list[str],
@@ -240,17 +241,21 @@ def _records_off_digest(out_dir: Path, digest: str) -> list[str]:
 
 def run_config(out_dir: Path, base_seed: int, exp: ExperimentConfig, models: list[ModelConfig]) -> dict[str, Any]:
     """The run's shared settings, merged with `out_dir/run_config.json` if the run exists. Raises ConfigError
-    if the base seed, the experiment, the firm-facing wording (`texts_digest`) or any model already in the run
-    differs; new models are appended. A run_config.json from before the digest was recorded adopts the
+    if the base seed, the experiment, the firm-facing wording (`texts_digest`), the answer-parsing rules
+    (`parser_version`; absent in older runs, which therefore cannot be resumed) or any model already in the
+    run differs; new models are appended. A run_config.json from before the digest was recorded adopts the
     current digest only if every completed market record of the run was played under it."""
     new = json.loads(json.dumps({"base_seed": base_seed, "experiment": exp.to_dict(),
-                                 "texts_digest": texts_digest(exp),
+                                 "texts_digest": texts_digest(exp), "parser_version": PARSER_VERSION,
                                  "models": {m.name: m.identity() for m in models}}))
     path = out_dir / "run_config.json"
     if not path.exists():
         return new
     old = json.loads(path.read_text())
     diffs = [k for k in ("base_seed", "experiment") if old[k] != new[k]]
+    if old.get("parser_version") != new["parser_version"]:  # absent: played before the version was recorded
+        diffs.append(f"parser_version: {old.get('parser_version')} -> {new['parser_version']} (answer parsing rules "
+                     f"changed)")
     if "texts_digest" in old:
         if old["texts_digest"] != new["texts_digest"]:
             diffs.append("texts_digest: the firm-facing prompt wording changed")
@@ -261,7 +266,7 @@ def run_config(out_dir: Path, base_seed: int, exp: ExperimentConfig, models: lis
     if diffs:
         raise ConfigError(f"run {out_dir.name!r} was started with different settings ({'; '.join(diffs)}; see "
                           f"{path}); use a new --run-id")
-    return {**old, "texts_digest": new["texts_digest"], "models": {**old["models"], **new["models"]}}
+    return {**old, "texts_digest": new["texts_digest"], "parser_version": new["parser_version"], "models": {**old["models"], **new["models"]}}
 
 
 def lock_run_dir(out_dir: Path) -> IO[str]:

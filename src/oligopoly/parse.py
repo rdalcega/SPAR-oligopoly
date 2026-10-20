@@ -20,6 +20,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+# Version of the parsing rules, part of every market fingerprint and of run_config.json, so a run never mixes
+# markets parsed under different rules. Bump it whenever a change can turn an invalid answer valid or change
+# the value read from an answer. 1: initial rules; 2: structural typographic quotes straightened (2026-10-20).
+PARSER_VERSION = 2
+
 _THINK = re.compile(r"<(think|thinking|reasoning)>.*?</\1>", re.S | re.I)
 _THINK_CLOSE = re.compile(r"</(think|thinking|reasoning)>", re.I)
 _INT_STR = re.compile(r"^\s*[+-]?\d+(\.0*)?\s*$")

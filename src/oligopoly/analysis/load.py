@@ -89,13 +89,14 @@ def model_identity(settings_model: dict[str, Any]) -> dict[str, Any]:
 
 def check_uniform_design(records: list[dict[str, Any]]) -> None:
     """Refuse to pool markets of one model played under different settings (experiment config, model
-    identity or firm-facing prompt wording), e.g. a pilot with a full run or a record left over from an
+    identity, firm-facing prompt wording or answer-parsing rules), e.g. a pilot with a full run or a record left over from an
     earlier configuration."""
     seen: dict[str, dict[str, str]] = {}
     for rec in records:
         st = rec["settings"]
         key = json.dumps({"experiment": st["experiment"], "model": model_identity(st.get("model", {})),
-                          "texts_digest": st.get("texts_digest")}, sort_keys=True, default=str)
+                          "texts_digest": st.get("texts_digest"), "parser_version": st.get("parser_version")},
+                         sort_keys=True, default=str)
         seen.setdefault(rec["spec"]["model"], {}).setdefault(key, rec["_market_id"])
     mixed = {m: list(v.values()) for m, v in seen.items() if len(v) > 1}
     if mixed:

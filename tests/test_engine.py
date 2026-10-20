@@ -739,3 +739,31 @@ async def test_budget_exhaustion_checkpoints_and_rerun_resumes(tmp_path):
     rec = json.loads(market_path(tmp_path / "run", s).read_text())
     assert without_resume(rec) == without_resume(ref) and rec["resumed_from_period"] == [8]
     assert not {c["tag"]["call_id"] for c in c1.calls} & {c["tag"]["call_id"] for c in c2.calls}
+
+
+async def test_parser_version_in_fingerprint_and_run_config(tmp_path, monkeypatch):
+    import oligopoly.run as run_mod
+    from oligopoly.parse import PARSER_VERSION
+
+    s = build_specs("r", [MOCK], [2], ["NT-NT"], 1)[0]
+    before = engine.market_fingerprint(s, SHORT)
+    monkeypatch.setattr(engine, "PARSER_VERSION", PARSER_VERSION + 1)
+    assert engine.market_fingerprint(s, SHORT) != before
+    monkeypatch.undo()
+    assert await main(rc_args(tmp_path, "--markets-per-cell", "1")) == 0
+    run = tmp_path / "runs" / "rc"
+    assert json.loads((run / "run_config.json").read_text())["parser_version"] == PARSER_VERSION
+    [rec_path] = (run / "markets").glob("*.json")
+    rec = json.loads(rec_path.read_text())
+    assert rec["settings"]["parser_version"] == PARSER_VERSION
+    # a legacy record (no parser_version, no texts_digest) is still matched by its fingerprint
+    legacy = {**rec, "settings": {k: v for k, v in rec["settings"].items()
+                                  if k not in ("parser_version", "texts_digest")}}
+    st = legacy["settings"]
+    identity = {k: v for k, v in st["model"].items() if k not in ModelConfig.OPERATIONAL}
+    legacy["fingerprint"] = engine._fingerprint_from(legacy["spec"], identity, st["experiment"],
+                                                     rec["settings"]["texts_digest"])
+    assert engine.record_texts_digest_matches(legacy, rec["settings"]["texts_digest"])
+    monkeypatch.setattr(run_mod, "PARSER_VERSION", PARSER_VERSION + 1)
+    with pytest.raises(ConfigError, match="parser_version"):
+        await main(rc_args(tmp_path, "--markets-per-cell", "2"))

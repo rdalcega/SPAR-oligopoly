@@ -303,6 +303,10 @@ def test_uniform_design_ignores_operational_fields_only():
         check_uniform_design([rec(0), rec(1, temperature=0.5)])
     with pytest.raises(ValueError, match="different settings"):
         check_uniform_design([rec(0), rec(1, digest="d2")])
+    parsed_v2 = rec(1)
+    parsed_v2["settings"]["parser_version"] = 2
+    with pytest.raises(ValueError, match="different settings"):  # parsed under other rules
+        check_uniform_design([rec(0), parsed_v2])
 
 
 def test_records_off_the_run_prompt_digest_refused_or_skipped(tmp_path, capsys):

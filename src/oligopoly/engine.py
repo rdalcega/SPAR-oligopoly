@@ -33,7 +33,7 @@ from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
 from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage
-from .parse import Parsed, parse_message, parse_price, strip_reasoning
+from .parse import PARSER_VERSION, Parsed, parse_message, parse_price, strip_reasoning
 
 Kind = Literal["price", "message"]
 
@@ -88,13 +88,16 @@ def texts_digest(exp: ExperimentConfig) -> str:
 
 
 def _fingerprint_from(spec: dict[str, Any], model_identity: dict[str, Any], experiment: dict[str, Any],
-                      texts: str) -> str:
-    return fingerprint({**spec, "model": model_identity, "experiment": experiment, "texts": texts})
+                      texts: str, parser_version: int | None = None) -> str:
+    """`parser_version` None (records from before it was stored) leaves it out of the hash."""
+    parser = {"parser_version": parser_version} if parser_version is not None else {}
+    return fingerprint({**spec, "model": model_identity, "experiment": experiment, "texts": texts, **parser})
 
 
 def market_fingerprint(spec: MarketSpec, exp: ExperimentConfig) -> str:
-    """Everything that determines a market's play: its spec, the model's settings and the experiment."""
-    return _fingerprint_from(spec.to_dict(), spec.model.identity(), exp.to_dict(), texts_digest(exp))
+    """Everything that determines a market's play: its spec, the model's settings, the experiment, the
+    firm-facing wording and the parsing rules (`parse.PARSER_VERSION`)."""
+    return _fingerprint_from(spec.to_dict(), spec.model.identity(), exp.to_dict(), texts_digest(exp), PARSER_VERSION)
 
 
 def record_texts_digest_matches(rec: dict[str, Any], digest: str) -> bool:
@@ -105,7 +108,8 @@ def record_texts_digest_matches(rec: dict[str, Any], digest: str) -> bool:
         return st["texts_digest"] == digest
     try:
         identity = {k: v for k, v in st["model"].items() if k not in ModelConfig.OPERATIONAL}
-        return rec.get("fingerprint") == _fingerprint_from(rec["spec"], identity, st["experiment"], digest)
+        return rec.get("fingerprint") == _fingerprint_from(rec["spec"], identity, st["experiment"], digest,
+                                                           st.get("parser_version"))
     except (KeyError, TypeError, AttributeError):
         return False
 
@@ -450,7 +454,7 @@ class Market:
             "spec": self.spec.to_dict(),
             "fingerprint": market_fingerprint(self.spec, self.exp),
             "settings": {"model": self.spec.model.to_dict(), "experiment": self.exp.to_dict(),
-                         "texts_digest": texts_digest(self.exp),
+                         "texts_digest": texts_digest(self.exp), "parser_version": PARSER_VERSION,
                          "pilot": self.exp.pilot, "talk": dict(zip(("part1", "part2"), self.talk)),
                          "chat_spec": asdict(self.chat_spec), "feedback_all_profits": True, "exchange_rate": None,
                          "die_schedules": self.dies, "listing_orders": {L: f.order for L, f in self.firms.items()}},
