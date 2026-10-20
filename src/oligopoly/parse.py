@@ -83,10 +83,21 @@ def _load(s: str) -> Any:
     pythonish = re.sub(r"\bnull\b", "None", re.sub(r"\btrue\b", "True", re.sub(r"\bfalse\b", "False", s)))
     for cand in (s, pythonish):
         try:
-            return ast.literal_eval(cand)
+            obj = ast.literal_eval(cand)
         except (ValueError, SyntaxError, MemoryError, RecursionError):
             continue
+        # Only JSON-shaped values: `{"notes": ..., "price": 5}` (the format line copied literally) evaluates to
+        # an Ellipsis, which is unusable and unserialisable, so such an answer counts as unparseable.
+        return obj if _json_shaped(obj) else None
     return None
+
+
+def _json_shaped(v: Any) -> bool:
+    if isinstance(v, dict):
+        return all(isinstance(k, str) and _json_shaped(x) for k, x in v.items())
+    if isinstance(v, list):
+        return all(_json_shaped(x) for x in v)
+    return v is None or isinstance(v, (str, int, float, bool))
 
 
 _CURLY_CLOSE = re.compile(r"[\u201c\u201d](?=\s*[,}])")

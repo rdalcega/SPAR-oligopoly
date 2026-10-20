@@ -115,3 +115,10 @@ def test_parse_probe():
     assert not parse_probe("I don't remember.", ["A"]).ok and parse_probe("", ["A"]).value is None
     # an object found by another probe key still parses
     assert parse_probe('{"deviations": "no chat"}', ["A"]).value["deviations"] == "no chat"
+
+
+@pytest.mark.parametrize("content", ['{"notes": ..., "price": 50}', "{'notes': ..., 'message': 'hi'}",
+                                     '{"notes": {1, 2}, "price": 50}'])
+def test_python_only_literals_are_unparseable_not_a_crash(content):
+    p = parse_price(content) if "price" in content else parse_message(content)
+    assert not p.ok and p.error  # re-asked like any format slip; never an Ellipsis/set in the record

@@ -282,6 +282,12 @@ sampling rule and reading notes saved alongside the analysis.
     its own windowed answers. The decision records the capped `notes`, `notes_truncated: true`, the full text
     in `notes_full` and a warning; `totals[firm].notes_truncated` counts them. The instructions are unchanged
     (they already ask for about 150 words at most), so the cap is not announced; it is a backstop.
+13. **Python-only literals are unparseable (2026-10-20, found during the sweep).** gpt-oss sometimes copies the
+    one-line format reminder literally (`{"notes": ..., "price": 50}`). The parser's Python-literal fallback
+    turned `...` into an `Ellipsis`, which crashed the market (`gpt-oss-20b__n6__NT-T__m2`). Such answers now
+    count as unparseable and are re-asked like any format slip. Only answers that previously crashed parse
+    differently, so the parser version is not bumped and the sweep's markets stay resumable; the crashed
+    market resumes from its checkpoint under the fixed code.
 
 ### Post-game comprehension probe (2026-10-20)
 
