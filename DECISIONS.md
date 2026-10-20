@@ -135,3 +135,23 @@ sampling rule and reading notes saved alongside the analysis.
    the die (a 6) only in the final period.
 9. A failed market writes `<key>.failed.json` and is retried on the next invocation.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
+
+### Analysis — heuristic definitions (2026-10-19)
+
+Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py`; summary:
+
+- **Agreement:** a price endorsed by more than n/2 firms in a period's chat (a firm backs its last endorsed
+  price; a bare "ok" backs an earlier proposal or the previous period's agreement; a refusal clears it).
+  Conditional, past-tense, threat, accusation, refusal and turn-taking sentences don't endorse.
+- **Kept / broken:** kept iff every firm posts exactly the agreed price; breaches split into undercutters and
+  firms pricing above.
+- **Punishment:** a non-undercutting firm posts a lower price at t+1 (the paper's selling price < 99 at t+1 is
+  also reported). **Threatened before:** any non-negated threat earlier in the part.
+- **Deception:** a firm endorsed the agreed price while its private notes state a lower own price or a plan to
+  deviate; `deception_priced` also requires pricing below.
+- **Mistakes:** invalid / fallback / coerced outputs; notes stating a price different from the one posted;
+  price ≤ 1 after period 1 when all rivals were ≥ 90 with no threat or punishment wording; rule misreads
+  (highest price wins, ties get the whole market, end-of-game claims before period 20). Price 0 is counted but
+  not called a mistake.
+- **fn. 18 defection:** all firms at 100 at t−2 and some firm at 99 at t−1.
+- Regex coding is a screen: every category's saved examples are read before results are reported.
