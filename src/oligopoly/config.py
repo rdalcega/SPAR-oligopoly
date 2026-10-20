@@ -101,6 +101,9 @@ class ExperimentConfig:
     char_limit: int = 300
     max_reasks: int = 2
     notes: bool = True
+    # post-game comprehension probe after the final period (DECISIONS.md, 2026-10-20); adds calls and the
+    # record's "probe" entry, never changes play
+    post_game_probe: bool = True
 
     @property
     def pilot(self) -> bool:

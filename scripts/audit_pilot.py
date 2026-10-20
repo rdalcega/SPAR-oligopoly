@@ -222,7 +222,7 @@ def check_calls(rec: dict, calls: list[dict]) -> dict:
     posted = {(x["part"], x["period"], r["round"]): r["messages"] for x in rec["periods"] for r in x["chat"]}
     n_ok = 0
     for c in calls:
-        if c.get("error") is not None:
+        if c.get("error") is not None or c["tag"].get("phase") == "probe":  # the probe follows all play
             continue
         n_ok += 1
         if "request" not in c:

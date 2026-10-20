@@ -267,6 +267,32 @@ def test_build_and_write(tmp_path):
     assert talk["agreements"] == 9
 
 
+async def test_probe_accuracy_per_cell(tmp_path):
+    from oligopoly.config import ExperimentConfig, ModelConfig
+    from oligopoly.mock import MockClient
+    from oligopoly.run import build_specs, run_all
+
+    mock = ModelConfig("mock", "mock", "mock", max_tokens=100)
+    specs = build_specs("r", [mock], [2, 3], ["NT-T"], 2)
+    s = await run_all(specs, {"mock": MockClient()}, tmp_path / "runs" / "r", ExperimentConfig(part_lengths=(3, 2)))
+    assert len(s["done"]) == 4
+    tables, summary = build(["r"], tmp_path / "runs", {})
+    firms, cells = tables["probe_answers"], pd.DataFrame(summary["probe"])
+    assert len(firms) == 2 * 2 + 2 * 3 and set(cells["n"]) == {2, 3}
+    assert (cells["markets"] == 2).all() and cells["firms"].tolist() == [4, 6]
+    recs = [json.loads(p.read_text()) for p in sorted((tmp_path / "runs" / "r" / "markets").glob("*.json"))]
+    for n, row in cells.set_index("n").iterrows():
+        fs = [f for r in recs if r["spec"]["n"] == n for f in r["probe"]["firms"].values()]
+        assert row["max_price_correct_share"] == pytest.approx(
+            sum(f["score"]["max_consumer_price"] for f in fs) / len(fs))
+        assert row["last_period_recall_mean"] == pytest.approx(
+            sum(f["score"]["last_period_share"] for f in fs) / len(fs))
+        assert row["valid_share"] == pytest.approx(sum(f["valid"] for f in fs) / len(fs))
+    assert firms["deviations"].notna().any()  # kept as text for reading
+    out = write(tmp_path / "out", tables, summary)
+    assert "probe_answers.csv" in out and "probe_cells.csv" in out
+
+
 def test_excluded_cells_skipped_and_reported(tmp_path):
     runs = tmp_path / "runs" / "r" / "markets"
     runs.mkdir(parents=True)

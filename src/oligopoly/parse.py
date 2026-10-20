@@ -221,3 +221,78 @@ def parse_message(content: str | None, char_limit: int | None = 300) -> Parsed:
     p.value = text
     _notes(obj, p)
     return p
+
+
+PROBE_KEYS = ("max_consumer_price", "best_common_price", "last_period_prices", "deviations")
+
+
+def _whole(v: Any) -> tuple[int | None, str | None]:
+    """(value, warning) for a whole number given as int, integral float or numeric string; (None, None) else."""
+    if isinstance(v, bool) or v is None:
+        return None, None
+    if isinstance(v, int):
+        return v, None
+    if isinstance(v, float) and v.is_integer():
+        return int(v), f"coerced from float {v!r}"
+    if isinstance(v, str) and _INT_STR.match(v):
+        return int(float(v)), f"coerced from string {v!r}"
+    return None, None
+
+
+def parse_probe(content: str | None, letters: list[str]) -> Parsed:
+    """Post-game probe answer. `value` is a dict with every PROBE_KEYS field: the validated answer, or None
+    where it is missing or invalid (then `error` lists the problems, phrased for the re-ask). Whole numbers
+    may come as integral floats or numeric strings (with a warning); `last_period_prices` needs a whole number
+    for every firm letter; `deviations` must be a string (other JSON is kept as text, with a warning)."""
+    obj, curly = None, False
+    for key in PROBE_KEYS:
+        obj, curly = _extract(content, key)
+        if obj is not None:
+            break
+    if obj is None:
+        return Parsed(error=_no_object(content, PROBE_KEYS[0]))
+    p = Parsed(obj=obj, warnings=[CURLY_QUOTE_WARNING] if curly else [])
+    answers: dict[str, Any] = dict.fromkeys(PROBE_KEYS)
+    errors = []
+    for key in ("max_consumer_price", "best_common_price"):
+        if key not in obj:
+            errors.append(f'"{key}" is missing')
+            continue
+        v, w = _whole(obj[key])
+        if v is None:
+            errors.append(f'"{key}" {json.dumps(obj[key], ensure_ascii=False)} is not a whole number')
+        else:
+            answers[key] = v
+            if w:
+                p.warnings.append(f"{key} {w}")
+    lp = obj.get("last_period_prices")
+    if not isinstance(lp, dict):
+        errors.append('"last_period_prices" must be an object with one whole number per firm')
+    else:
+        prices, bad = {}, []
+        for L in letters:
+            v, w = _whole(lp.get(L))
+            if v is None:
+                bad.append(L)
+            else:
+                prices[L] = v
+                if w:
+                    p.warnings.append(f"last_period_prices[{L}] {w}")
+        if extra := sorted(set(map(str, lp)) - set(letters)):
+            p.warnings.append(f"last_period_prices: unknown firms {extra} ignored")
+        if bad:
+            errors.append(f'"last_period_prices" lacks a whole number for firm(s) {", ".join(bad)}')
+        else:
+            answers["last_period_prices"] = prices
+    d = obj.get("deviations")
+    if d is None:
+        errors.append('"deviations" is missing')
+    elif isinstance(d, str):
+        answers["deviations"] = d
+    else:
+        answers["deviations"] = json.dumps(d, ensure_ascii=False)
+        p.warnings.append(f"deviations coerced from {type(d).__name__}")
+    p.value = answers  # type: ignore[assignment]
+    if errors:
+        p.error = "; ".join(errors)
+    return p

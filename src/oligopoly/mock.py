@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,10 +69,20 @@ class MockClient:
             return f"Here is my decision:\n{js}\nThat is final."
         return repr(obj)  # Python-style single quotes
 
+    def respond_probe(self, messages: Sequence[dict[str, Any]], seed: int) -> str:
+        """A probe answer naming the firms the probe asks about; sometimes wrong or malformed."""
+        rng = random.Random(seed)
+        if rng.random() < self.malformed_rate:
+            return rng.choice(['{"max_consumer_price": 100}', "I am not sure.", ""])
+        return json.dumps(probe_answer(messages, rng))
+
     async def chat(self, messages: Sequence[dict[str, Any]], *, model: str, provider: str, seed: int | None = None,
                    tag: dict[str, Any] | None = None, **settings: Any) -> ChatResult:
-        kind = "price" if (tag or {}).get("phase") == "price" else "message"
-        content = self.respond(kind, seed or 0)
+        phase = (tag or {}).get("phase")
+        if phase == "probe":
+            content = self.respond_probe(messages, seed or 0)
+        else:
+            content = self.respond("price" if phase == "price" else "message", seed or 0)
         prompt_chars = sum(len(m["content"]) for m in messages)
         usage = Usage(prompt_tokens=prompt_chars // 4, completion_tokens=len(content) // 4 + 20,
                       reasoning_tokens=20, total_tokens=prompt_chars // 4 + len(content) // 4 + 20)
@@ -90,3 +101,14 @@ class MockClient:
                           finish_reason="stop", native_finish_reason="stop", provider="mock", model=model,
                           generation_id=f"mock-{seed}", usage=usage, cost_usd=0.0, latency_s=0.0, attempts=1,
                           seed_possibly_ignored=False, provider_mismatch=False)
+
+
+def probe_answer(messages: Sequence[dict[str, Any]], rng: random.Random) -> dict[str, Any]:
+    """A plausible post-game probe answer for the firms listed in the last message's JSON format (offline
+    clients only)."""
+    last = messages[-1]["content"] if messages else ""
+    text = last if isinstance(last, str) else "".join(b.get("text", "") for b in last)
+    letters = re.findall(r'"([A-Z])": <int>', text)
+    return {"max_consumer_price": rng.choice([100, 100, 100, 99]), "best_common_price": rng.choice([100, 100, 1]),
+            "last_period_prices": {L: rng.choice([100, 99, 50]) for L in letters},
+            "deviations": rng.choice(["no chat", "No firm deviated.", "Firm B undercut in period 3."])}

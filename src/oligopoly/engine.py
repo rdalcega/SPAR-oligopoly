@@ -5,6 +5,11 @@ on the same state; a round's messages are revealed only after all firms have ans
 early when everyone passes), then all firms price concurrently, then payoffs. The results of period t
 open period t + 1's user message; the final period's results go with the end-of-part text.
 
+Post-game probe (`post_game_probe`, DECISIONS.md 2026-10-20): after the final period, the final results and
+end-of-experiment text open one more user message per firm with comprehension questions (`probe_firm`), scored
+into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
+period, so a market whose probe failed reruns only the probe.
+
 Checkpoints: `run_market` writes `markets/<key>.ckpt.json` atomically when the market starts and after every
 completed period (part boundaries included): the firms' histories and queued text, the period records,
 cumulative profits, last prices, usage so far, the market fingerprint and the wording digest. When a market
@@ -34,7 +39,7 @@ from . import market, prompts
 from .config import ORDERINGS, ExperimentConfig, ModelConfig
 from .firm import Firm
 from .llm import BudgetExceeded, ChatResult, ContextOverflow, Usage
-from .parse import PARSER_VERSION, Parsed, parse_message, parse_price, strip_reasoning
+from .parse import PARSER_VERSION, Parsed, parse_message, parse_price, parse_probe, strip_reasoning
 
 Kind = Literal["price", "message"]
 
@@ -190,8 +195,28 @@ def pick_error(eg: BaseExceptionGroup) -> BaseException:
     return next((e for kind in (BudgetExceeded, ContextOverflow) for e in errs if isinstance(e, kind)), errs[0])
 
 
+PROBE_MAX_REASKS = 1  # post-game probe: one re-ask at most, then recorded as invalid
+
+
+def best_common_price(letters: list[str]) -> int:
+    """The common price that gives each firm the highest per-period profit when all firms set it."""
+    return max(range(market.P_MAX + 1), key=lambda p: (market.payoffs(dict.fromkeys(letters, p))[letters[0]], -p))
+
+
+def score_probe(answers: dict[str, Any] | None, truth: dict[str, Any]) -> dict[str, Any]:
+    """Probe answers against the truth: booleans for the two prices, the number and share of firms whose last
+    price was recalled exactly. Missing or invalid answers count as wrong."""
+    a = answers or {}
+    recalled = a.get("last_period_prices") or {}
+    right = sum(recalled.get(L) == v for L, v in truth["last_period_prices"].items())
+    return {"max_consumer_price": a.get("max_consumer_price") == truth["max_consumer_price"],
+            "best_common_price": a.get("best_common_price") == truth["best_common_price"],
+            "last_period_correct": right, "last_period_share": right / len(truth["last_period_prices"]),
+            "last_period_all": right == len(truth["last_period_prices"])}
+
+
 USAGE_KEYS = ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens", "cache_write_tokens")
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2  # 2: `probe` (post-game probe result, None until done)
 # ChatResult fields kept for a call made in a period that did not complete (enough for decide and _account)
 RESULT_FIELDS = ("content", "finish_reason", "native_finish_reason", "provider", "model", "generation_id",
                  "cost_usd", "latency_s", "attempts", "seed_possibly_ignored", "provider_mismatch")
@@ -224,6 +249,7 @@ class Market:
         self.prev_price = {L: market.P_MAX for L in self.letters}
         self.profit = {L: [0.0, 0.0] for L in self.letters}
         self.periods: list[dict[str, Any]] = []
+        self.probe: dict[str, Any] | None = None  # post-game probe result, once asked
         self.usage: dict[str, Any] = {k: 0 for k in USAGE_KEYS} | {
             "calls": 0, "cost_usd": 0.0, "cost_unknown_calls": 0, "seed_possibly_ignored_calls": 0,
             "provider_mismatch_calls": 0, "providers_served": []}
@@ -297,7 +323,64 @@ class Market:
         firm.tell(prompts.fallback_text(kind, d.value if kind == "price" else None))
         return d
 
-    async def gather(self, coros: dict[str, Any]) -> dict[str, Decision]:
+    async def probe_firm(self, L: str) -> dict[str, Any]:
+        """Ask firm L the post-game probe in its own conversation (after all play, so no decision can depend
+        on it), re-asking at most PROBE_MAX_REASKS times. A prompt that would overflow the context is
+        recorded as skipped rather than failing a market whose play is complete."""
+        firm, cfg, s = self.firms[L], self.spec.model, self.spec
+        part, period = 2, self.exp.part_lengths[1]
+        fmt = prompts.probe_format(self.letters)
+        out: dict[str, Any] = {"answers": None, "valid": False, "errors": [], "warnings": [], "attempts": [],
+                               "skipped": None}
+        messages = firm.ask(prompts.probe_prompt(self.letters))
+        for attempt in range(PROBE_MAX_REASKS + 1):
+            call_id = f"{s.key}/{L}/probe/a{attempt}"
+            seed = self.call_seed(L, part, period, "probe", attempt)
+            tag = {"run_id": s.run_id, "market": s.key, "firm": L, "part": part, "period": period,
+                   "phase": "probe", "attempt": attempt, "call_id": call_id}
+            msha = fingerprint(messages)
+            cached = self.replay.pop(call_id, None)
+            if cached is not None and cached["messages_sha256"] == msha:
+                r = result_from_dict(cached["result"])
+            else:
+                try:
+                    r = await self.client.chat(messages, seed=seed, tag=tag,
+                                               cache_upto=-1 if cfg.cache_control else None, **cfg.chat_kwargs())
+                except ContextOverflow as e:
+                    out["skipped"] = "context_overflow"
+                    out["errors"].append(f"ContextOverflow: {e}")
+                    return out
+            self.partial_calls[call_id] = {"messages_sha256": msha, "result": result_to_dict(r)}
+            self._account(r)
+            p = parse_probe(r.content, self.letters)
+            out["attempts"].append({
+                "call_id": call_id, "seed": seed, "generation_id": r.generation_id, "provider": r.provider,
+                "finish_reason": r.finish_reason, "seed_possibly_ignored": r.seed_possibly_ignored,
+                "provider_mismatch": r.provider_mismatch, "error": p.error, "warnings": p.warnings,
+                "usage": asdict(r.usage), "cost_usd": r.cost_usd, "content": r.content})
+            out["answers"], out["warnings"] = p.value, p.warnings
+            if p.ok:
+                firm.answer(json.dumps(p.value, ensure_ascii=False))
+                out["valid"] = True
+                return out
+            out["errors"].append(p.error)
+            bad = strip_reasoning(r.content or "")
+            firm.answer(bad[:2000] if bad else "(empty response)")
+            if attempt < PROBE_MAX_REASKS:
+                messages = firm.ask(prompts.reask_text(p.error, fmt))
+        return out
+
+    async def run_probe(self) -> None:
+        """The post-game comprehension probe (DECISIONS.md, 2026-10-20), scored against the truth."""
+        last = self.periods[-1]
+        truth = {"max_consumer_price": market.P_MAX, "best_common_price": best_common_price(self.letters),
+                 "last_period_prices": dict(last["prices"])}
+        firms = await self.gather({L: self.probe_firm(L) for L in self.letters})
+        for f in firms.values():
+            f["score"] = score_probe(f["answers"], truth)
+        self.probe = {"part": last["part"], "period": last["period"], "truth": truth, "firms": firms}
+
+    async def gather(self, coros: dict[str, Any]) -> dict[str, Any]:
         """Run the firms' decisions concurrently. A failure does not cancel the other firms' calls: they run to
         the end (their requests may already be billed, and their results are kept for a resume), then one error
         is re-raised as is (BudgetExceeded in preference, so the runner stops scheduling markets). The exception
@@ -394,6 +477,9 @@ class Market:
         for part, t in schedule[len(self.periods):]:
             await self.period(part, t)
             await self.save_checkpoint()
+        if self.exp.post_game_probe and self.probe is None:  # after all play; a resume reruns only this
+            await self.run_probe()
+            await self.save_checkpoint()
         for firm in self.firms.values():
             firm.flush()
 
@@ -407,7 +493,7 @@ class Market:
                 "listing_orders": {L: f.order for L, f in self.firms.items()},
                 "firms": {L: {"messages": f.messages, "pending": f.pending} for L, f in self.firms.items()},
                 "periods": self.periods, "profit": self.profit, "prev_price": self.prev_price, "usage": self.usage,
-                "resumed_from_period": self.resumed_from, "partial_calls": {}}
+                "resumed_from_period": self.resumed_from, "probe": self.probe, "partial_calls": {}}
 
     async def save_checkpoint(self) -> None:
         """At a period boundary: write the checkpoint and forget the finished period's call results. The
@@ -449,6 +535,7 @@ class Market:
         self.periods, self.usage = ck["periods"], ck["usage"]
         self.profit = {L: list(v) for L, v in ck["profit"].items()}
         self.prev_price = dict(ck["prev_price"])
+        self.probe = ck.get("probe")
         self.resumed_from = [*ck.get("resumed_from_period", []), len(self.periods) + 1]
         self.replay = dict(ck.get("partial_calls") or {})
         self._boundary = json.dumps({**ck, "resumed_from_period": self.resumed_from, "partial_calls": {}},
@@ -481,6 +568,7 @@ class Market:
             "usage": self.usage,
             "histories": {L: f.messages for L, f in self.firms.items()},
             "resumed_from_period": self.resumed_from,
+            "probe": self.probe,  # None when the probe is off (or, in a failure record, not yet asked)
         }
 
 

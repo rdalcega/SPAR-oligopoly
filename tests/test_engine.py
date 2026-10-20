@@ -51,7 +51,7 @@ async def test_mock_market(tmp_path, n, ordering):
         if len(p["chat"]) < 3 and p["chat"]:
             assert not p["chat"][-1]["messages"]  # closed early only when everyone passed
     for c in client.calls:
-        assert c["tag"]["phase"].startswith("chat") == talk[c["tag"]["part"] - 1] or c["tag"]["phase"] == "price"
+        assert c["tag"]["phase"].startswith("chat") == talk[c["tag"]["part"] - 1] or c["tag"]["phase"] in ("price", "probe")
 
     # payoffs consistent with market.payoffs, totals consistent with periods
     for p in rec["periods"]:
@@ -82,7 +82,9 @@ async def test_mock_market(tmp_path, n, ordering):
     for c in client.calls:
         t = c["tag"]
         text = "\n".join(m["content"] for m in c["messages"])
-        if t["phase"] == "price":
+        if t["phase"] == "probe":  # after all play
+            assert (t["part"], t["period"]) == (2, 4) and "Results of period 4 (Part 2)" in text
+        elif t["phase"] == "price":
             assert f"Results of period {t['period']} (Part {t['part']})" not in text
         else:
             for F, msg in posted[(t["part"], t["period"], int(t["phase"][4:]))].items():
@@ -167,7 +169,8 @@ async def test_full_horizon_die(tmp_path):
     assert "Period 20 is over. The computer threw the virtual dice" in text
     assert "Period 22 is over. The computer threw the virtual dice and it showed 6" in text
     assert "Period 21 is over. The computer threw the virtual dice and it showed 6" in text
-    assert "The experiment is over." in rec["histories"]["A"][-1]["content"]
+    probe = next(m for m in rec["histories"]["A"] if "Please answer these questions" in m["content"])
+    assert "The experiment is over. The sum of your firm's profits" in probe["content"]  # before the probe
     assert not {"21", "22"} & set(re.findall(r"(?<![\d,])\d+(?![\d,])", rec["histories"]["A"][0]["content"]))
 
 
@@ -277,7 +280,7 @@ async def test_market_with_openrouter_client(tmp_path):
         r.post(f"{BASE_URL}/chat/completions").mock(side_effect=reply)
         async with OpenRouterClient(tmp_path / "calls.jsonl", Budget(1.0), api_key="k") as client:
             s = MarketSpec("live", cfg, 2, "NT-T", 0, 1)
-            path = await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(2, 1)))
+            path = await run_market(s, client, tmp_path, ExperimentConfig(part_lengths=(2, 1), post_game_probe=False))
     rec = json.loads(path.read_text())
     assert [p["prices"] for p in rec["periods"]] == [{"A": 99, "B": 99}] * 3
     b = bodies[0]
@@ -844,3 +847,99 @@ async def test_parser_version_in_fingerprint_and_run_config(tmp_path, monkeypatc
     monkeypatch.setattr(run_mod, "PARSER_VERSION", PARSER_VERSION + 1)
     with pytest.raises(ConfigError, match="parser_version"):
         await main(rc_args(tmp_path, "--markets-per-cell", "2"))
+
+
+# ---------------------------------------------------------------- post-game probe
+
+
+NO_PROBE = dataclasses.replace(SHORT, post_game_probe=False)
+
+
+@pytest.mark.parametrize("ordering", ["NT-T", "T-NT", "NT-NT"])
+async def test_probe_does_not_change_play(tmp_path, ordering):
+    s = spec(3, ordering)
+    on, c_on, _ = await play(s, tmp_path / "on")
+    off, c_off, _ = await play(s, tmp_path / "off", exp=NO_PROBE)
+    play_calls = [c for c in c_on.calls if c["tag"]["phase"] != "probe"]
+    assert [(c["tag"], c["seed"], c["messages"], c["content"]) for c in play_calls] == \
+        [(c["tag"], c["seed"], c["messages"], c["content"]) for c in c_off.calls]
+    assert on["periods"] == off["periods"] and on["totals"] == off["totals"] and off["probe"] is None
+    probe_calls = [c for c in c_on.calls if c["tag"]["phase"] == "probe"]
+    assert {c["tag"]["firm"] for c in probe_calls} == {"A", "B", "C"}
+    assert all(c["tag"]["attempt"] <= engine.PROBE_MAX_REASKS for c in probe_calls)
+    assert on["usage"]["calls"] == off["usage"]["calls"] + len(probe_calls)
+    pr = on["probe"]
+    assert pr["truth"] == {"max_consumer_price": 100, "best_common_price": 100,
+                           "last_period_prices": on["periods"][-1]["prices"]}
+    for L, f in pr["firms"].items():
+        # the probe extends the history that play left: final results and part-over text, then the questions
+        n_play = len(off["histories"][L]) - 1  # the probe-off history ends with the flushed final texts
+        assert on["histories"][L][:n_play] == off["histories"][L][:n_play]
+        assert on["histories"][L][n_play]["content"].startswith(off["histories"][L][n_play]["content"])
+        assert "Please answer these questions" in on["histories"][L][n_play]["content"]
+        assert set(f["score"]) >= {"max_consumer_price", "best_common_price", "last_period_share"}
+
+
+async def test_probe_records_answers_scores_and_invalid(tmp_path):
+    def answer(tag):
+        if tag["phase"] == "probe":
+            if tag["firm"] == "B":
+                return "I would rather not say."
+            return json.dumps({"max_consumer_price": 100, "best_common_price": 99,
+                               "last_period_prices": {"A": 7, "B": 7}, "deviations": "B undercut in period 1."})
+        return '{"notes": "n", "price": 7}' if tag["phase"] == "price" else '{"notes": "n", "message": "hi"}'
+
+    rec, client, _ = await play(spec(2, "NT-T"), tmp_path, exp=ExperimentConfig(part_lengths=(2, 1)),
+                                client=Scripted(answer))
+    a, b = rec["probe"]["firms"]["A"], rec["probe"]["firms"]["B"]
+    assert a["valid"] and a["answers"]["deviations"] == "B undercut in period 1." and len(a["attempts"]) == 1
+    assert a["score"] == {"max_consumer_price": True, "best_common_price": False, "last_period_correct": 2,
+                          "last_period_share": 1.0, "last_period_all": True}
+    assert not b["valid"] and len(b["attempts"]) == 2 and len(b["errors"]) == 2  # one re-ask, then invalid
+    assert b["score"]["max_consumer_price"] is False and b["score"]["last_period_share"] == 0
+    assert "could not be used" in rec["histories"]["B"][-2]["content"]  # the re-ask is in B's history
+    assert sum(c["tag"]["phase"] == "probe" for c in client.calls) == 3
+
+
+async def test_probe_failure_resumes_only_the_probe(tmp_path):
+    s = spec(3, "NT-T")
+    ref, ref_client, _ = await play(s, tmp_path / "ref")
+    out = tmp_path / "run"
+    c1 = FailOnce(("B", 2, 4, "probe", 0))
+    with pytest.raises(RetriesExhausted):
+        await run_market(s, c1, out, SHORT)
+    ck = json.loads(engine.checkpoint_path(out, s).read_text())
+    assert ck["periods_completed"] == 10 and ck["probe"] is None
+    assert {k.split("/")[1] for k in ck["partial_calls"]} >= {"A", "C"}  # siblings' probe answers kept
+    fail = json.loads(engine.failure_path(out, s).read_text())
+    assert fail["periods_completed"] == 10
+    c2 = MockClient(record=True)
+    rec = json.loads((await run_market(s, c2, out, SHORT)).read_text())
+    assert {(c["tag"]["firm"], c["tag"]["phase"]) for c in c2.calls} <= {("B", "probe")} and c2.calls
+    assert without_resume(rec) == without_resume(ref) and rec["resumed_from_period"] == [11]
+    assert len(c1.calls) + len(c2.calls) == len(ref_client.calls)
+
+
+async def test_probe_context_overflow_does_not_fail_market(tmp_path):
+    from oligopoly.llm import ContextOverflow
+
+    class OverflowProbe(MockClient):
+        async def chat(self, messages, *, tag=None, **kw):
+            if tag["phase"] == "probe" and tag["firm"] == "A":
+                raise ContextOverflow("too long")
+            return await super().chat(messages, tag=tag, **kw)
+
+    s = spec(2, "NT-NT")
+    rec, _, _ = await play(s, tmp_path, client=OverflowProbe())
+    a = rec["probe"]["firms"]["A"]
+    assert a["skipped"] == "context_overflow" and not a["valid"] and a["score"]["last_period_share"] == 0
+    assert rec["probe"]["firms"]["B"]["skipped"] is None
+
+
+def test_probe_setting_and_wording_in_fingerprint(monkeypatch):
+    s = build_specs("r", [MOCK], [2], ["NT-NT"], 1)[0]
+    before = engine.market_fingerprint(s, SHORT)
+    assert engine.market_fingerprint(s, NO_PROBE) != before
+    monkeypatch.setitem(engine.prompts.PROBE_QUESTIONS, "deviations", "Did anyone cheat?")
+    assert engine.market_fingerprint(s, SHORT) != before
+    assert engine.best_common_price(["A", "B", "C"]) == 100

@@ -14,6 +14,7 @@ from .. import benchmarks as b
 from ..config import ROOT, load_models
 from . import chat as chat_mod
 from . import human, measures, mistakes, stats
+from . import probe as probe_mod
 from .load import load_records, tidy
 
 LIMITATIONS = [
@@ -120,6 +121,8 @@ def build(run_ids: list[str], runs_root: str | Path,
     comp = human.comparison(cells, t2, mk_summ, strat, tests, t.markets)
     ts = measures.timeseries(t.market_period)
     ns = sorted(t.markets["n"].unique())
+    probe_firms = probe_mod.firm_table(recs)
+    probe_cells = probe_mod.cell_table(probe_firms)
 
     tables = {
         "firm_period": ff, "market_period": t.market_period, "markets": mt, "cells": cells,
@@ -128,6 +131,7 @@ def build(run_ids: list[str], runs_root: str | Path,
         "human_comparison": comp, "chat_messages": msgs, "chat_turns": fc, "chat_periods": periods,
         "chat_cells": chat_cells, "mistakes_by_model": mis, "timeseries": ts,
         "excluded_cells": pd.DataFrame(excluded_rows, columns=["model", "ordering", "n", "markets_dropped"]),
+        "probe_answers": probe_firms, "probe_cells": probe_cells,
     }
     counts = t.markets.groupby(["model", "n", "ordering"]).size().rename("markets").reset_index()
     summary = {
@@ -138,12 +142,13 @@ def build(run_ids: list[str], runs_root: str | Path,
                  "paper_lengths_all": bool(t.markets["paper_lengths"].all()), "windows": measures.WINDOWS,
                  "excluded_cells": excluded_rows},
         "definitions": {"measures": b.__doc__, "chat_coding": chat_mod.__doc__, "mistakes": mistakes.__doc__,
-                        "tests": stats.__doc__},
+                        "tests": stats.__doc__, "probe": probe_mod.__doc__},
         "theory": measures.theory(ns),
         "cells": records(cells), "human_comparison": records(comp), "extensions": records(tables["extensions"]),
         "table2": records(t2), "markov": mk_summ, "strategy": records(strat), "tests": records(tests),
         "hysteresis": records(hyst), "chat": records(chat_cells), "mistakes": records(mis),
         "timeseries": records(ts),
+        "probe": records(probe_cells),  # deviation answers are in probe_answers.csv, for reading
         "caveats": {"human_data": list(b.CAVEATS), "analysis": LIMITATIONS},
     }
     tables["_examples_chat"] = chat_examples(msgs, periods, t.chat, t.firm_period)

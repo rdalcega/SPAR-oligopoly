@@ -311,6 +311,27 @@ Your previous response could not be used: price 150 is outside 0-100. Please res
 ```
 
 
+### Post-game comprehension probe (after all play; DECISIONS.md, 2026-10-20)
+
+Sent once to each firm after the final period of Part 2, in its own conversation, appended to the same user
+message as the final results and the end-of-experiment text above it. At most one re-ask (same wording as other
+re-asks); an answer still unusable after it is recorded as invalid. Nothing follows it.
+
+```text
+The experiment is over. Please answer these questions about it.
+- max_consumer_price: What is the highest price at which consumers would buy the good?
+- best_common_price: If all firms set the same price, which common price would give each firm the highest profit in a period?
+- last_period_prices: What price did each firm set in the very last period?
+- deviations: In the last part, did any firm price differently from what it had said in the chat or had agreed? If so, which firm, in which period, and how? If there was no chat, write 'no chat'.
+Reply with JSON: {"max_consumer_price": <integer>, "best_common_price": <integer>, "last_period_prices": {"A": <int>, "B": <int>, "C": <int>, "D": <int>}, "deviations": "<text>"}
+```
+
+Re-ask example:
+
+```text
+Your previous response could not be used: "last_period_prices" lacks a whole number for firm(s) D. Please respond again with JSON only, in this format: {"max_consumer_price": <integer>, "best_common_price": <integer>, "last_period_prices": {"A": <int>, "B": <int>, "C": <int>, "D": <int>}, "deviations": "<text>"}
+```
+
 ## Deviations from the verbatim Appendix A text
 
 Each is numbered, with a one-line justification. "Part 1" and "Part 2" refer to the published Part 1 and Part 2
@@ -419,6 +440,9 @@ texts.
     "chat round 3 of 3 (last round; prices are set after it)". The price prompt after a chat says "The chat box
     has closed for this period: no more messages can be posted." Both only restate the timing already in the
     instructions ("After the last round, the chat box will close and you will have to choose your price").
+29. Post-game comprehension probe (2026-10-20, approved by the PI): one extra user message after all play
+    (text above). It is not part of the paper's design and cannot affect any decision, since nothing is played
+    after it. Its wording is part of the prompt digest, and `post_game_probe` of the market fingerprint.
 
 ## Open questions for the PI
 

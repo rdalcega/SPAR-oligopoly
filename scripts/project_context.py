@@ -31,6 +31,7 @@ from typing import Any
 from oligopoly.config import ROOT, ExperimentConfig, ModelConfig, load_experiment, load_models
 from oligopoly.engine import ORDERINGS, Market, MarketSpec, derive_seed, environment_seed, is_market_record_file
 from oligopoly.llm import ChatResult, Usage, find_endpoint, get_endpoints, prompt_token_bound
+from oligopoly.mock import probe_answer
 from oligopoly.parse import strip_reasoning
 
 NS = (2, 4, 6, 8, 10)
@@ -120,7 +121,9 @@ class ReplayClient:
         self.peak_tokens = max(self.peak_tokens, prompt_token_bound(messages, self.bpt))
         rng = random.Random(derive_seed("replay", self.seed, seed))
         kind = "price" if tag.get("phase") == "price" else "message"
-        if self.s.invalid[kind] and rng.random() < self.s.p_invalid(kind):
+        if tag.get("phase") == "probe":  # post-game probe: a plausible answer (no pilot sample of these yet)
+            content = json.dumps(probe_answer(messages, rng))
+        elif self.s.invalid[kind] and rng.random() < self.s.p_invalid(kind):
             content = rng.choice(self.s.invalid[kind])
         else:
             notes = rng.choice(self.s.notes)

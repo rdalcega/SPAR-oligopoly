@@ -566,6 +566,31 @@ def reask_text(error: str, expected_format: str) -> str:
     )
 
 
+# Post-game comprehension probe (DECISIONS.md, 2026-10-20): asked once after all play, in each firm's own
+# conversation, so it cannot affect any decision. Neutral wording; field name -> question.
+PROBE_QUESTIONS = {
+    "max_consumer_price": "What is the highest price at which consumers would buy the good?",
+    "best_common_price": "If all firms set the same price, which common price would give each firm the highest "
+                         "profit in a period?",
+    "last_period_prices": "What price did each firm set in the very last period?",
+    "deviations": "In the last part, did any firm price differently from what it had said in the chat or had "
+                  "agreed? If so, which firm, in which period, and how? If there was no chat, write 'no chat'.",
+}
+
+
+def probe_format(letters: Sequence[str]) -> str:
+    prices = ", ".join(f'"{L}": <int>' for L in letters)
+    return (f'{{"max_consumer_price": <integer>, "best_common_price": <integer>, '
+            f'"last_period_prices": {{{prices}}}, "deviations": "<text>"}}')
+
+
+def probe_prompt(letters: Sequence[str]) -> str:
+    """The post-game probe: the questions, then the JSON format with one price per firm letter."""
+    questions = "\n".join(f"- {k}: {q}" for k, q in PROBE_QUESTIONS.items())
+    return (f"The experiment is over. Please answer these questions about it.\n{questions}\n"
+            f"Reply with JSON: {probe_format(letters)}")
+
+
 def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
     """SHA-256 of a fixed sample of every kind of firm-facing text, rendered with the run's settings. It goes
     into every market's fingerprint, so a resumed run never mixes markets played under different wording."""
@@ -583,6 +608,7 @@ def texts_digest(chat_spec: ChatSpec, notes: bool) -> str:
         part_over_text(2, 22, final_part=True, total_profit=10),
         fallback_text("price", 7), fallback_text("message"),
         reask_text("e", price_format(notes)), reask_text("e", message_format(chat_spec, notes)),
+        probe_prompt(["A", "B"]), reask_text("e", probe_format(["A", "B"])),
     ]
     return hashlib.sha256("\x00".join(texts).encode()).hexdigest()
 

@@ -29,6 +29,19 @@ def test_audit_reads_compact_log_lines(tmp_path):
     assert ap.request_bytes(calls[3]) == 11
 
 
+async def test_context_projection_covers_the_probe():
+    from collections import Counter
+
+    from oligopoly.config import ExperimentConfig, ModelConfig
+
+    sample = pctx.Sample(notes=["n"], messages=["hi"], prices=[100, 99], rounds_used=Counter({1: 1, 3: 1}),
+                         passes=1, posts=1)
+    cfg = ModelConfig("m", "acme/m", "p", max_tokens=10)
+    # the probe (answered by the replay client) is the last and longest prompt
+    assert await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2)), 1) > \
+        await pctx.project(cfg, sample, 2, "NT-T", ExperimentConfig(part_lengths=(3, 2), post_game_probe=False), 1)
+
+
 def test_scripts_skip_checkpoints(tmp_path):
     markets = tmp_path / "markets"
     markets.mkdir()

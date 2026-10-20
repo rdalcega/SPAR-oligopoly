@@ -7,3 +7,4 @@ chat_rounds = 3          # §6 item 1: simultaneous rounds, early close when all
 char_limit = 300
 max_reasks = 2           # §6 item 8
 notes = true             # §6 item 3: private notes field on every decision
+post_game_probe = true   # DECISIONS.md 2026-10-20: comprehension questions after the last period (after all play)

@@ -97,3 +97,21 @@ def test_curly_quotes_in_content_untouched():
     assert p.ok and p.value == "“Deal”, everyone: “100”." and not p.warnings
     # the retry only straightens structural quotes: content quotes would break the object, so it is re-asked
     assert not parse_price('{"notes": "a “b”, c”, "price": 9}').ok
+
+
+def test_parse_probe():
+    from oligopoly.parse import parse_probe
+
+    ok = parse_probe('```json\n{"max_consumer_price": 100, "best_common_price": "100", '
+                     '"last_period_prices": {"A": 99, "B": 99.0, "Z": 1}, "deviations": "no chat"}\n```', ["A", "B"])
+    assert ok.ok and ok.value == {"max_consumer_price": 100, "best_common_price": 100,
+                                  "last_period_prices": {"A": 99, "B": 99}, "deviations": "no chat"}
+    assert any("string" in w for w in ok.warnings) and any("unknown firms" in w for w in ok.warnings)
+    bad = parse_probe('{"max_consumer_price": "lots", "last_period_prices": {"A": 99}, "deviations": ["x"]}',
+                      ["A", "B"])
+    assert not bad.ok and bad.value["max_consumer_price"] is None and bad.value["last_period_prices"] is None
+    assert '"best_common_price" is missing' in bad.error and "firm(s) B" in bad.error
+    assert bad.value["deviations"] == '["x"]'
+    assert not parse_probe("I don't remember.", ["A"]).ok and parse_probe("", ["A"]).value is None
+    # an object found by another probe key still parses
+    assert parse_probe('{"deviations": "no chat"}', ["A"]).value["deviations"] == "no chat"

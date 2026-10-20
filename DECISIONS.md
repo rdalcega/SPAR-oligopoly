@@ -198,6 +198,33 @@ sampling rule and reading notes saved alongside the analysis.
    `resumed_from_period`.
 10. A prompt-cache breakpoint is placed on the newest message (switchable per model).
 
+### Post-game comprehension probe (2026-10-20)
+
+Approved by the PI (Rodrigo Delgado). After a market's final period, once the final results and the
+end-of-experiment text are in each firm's history, each firm is asked once, in its own full conversation, four
+neutral questions answered in JSON: the highest price consumers would pay (`max_consumer_price`, truth 100),
+the common price that gives each firm the highest per-period profit (`best_common_price`, truth 100), every
+firm's price in the very last period (`last_period_prices`, truth: the posted prices), and whether any firm
+priced differently from what it had said or agreed in the chat in the last part (`deviations`, free text; "no
+chat" if there was none). Exact wording in `docs/prompts-draft.md`.
+
+- Purpose: separate deliberate choices from misread rules or lost track of play (a firm that cannot name 100
+  as the best common price, or misremembers the last prices, is evidence of a mistake rather than a strategy),
+  and read how firms describe agreements kept or broken.
+- It comes after all play, so it cannot change any decision; play calls, seeds and periods are identical with
+  the probe on or off (tested). It adds n calls per market (plus re-asks) and the record's `probe` entry.
+- One call per firm, at most one re-ask stating the error; still unusable → recorded as invalid
+  (`valid: false`, every score false). A probe prompt that would overflow the context guard is recorded as
+  skipped (`skipped: "context_overflow"`) instead of failing a market whose play is complete. Other failures
+  (budget, retries) fail the market as usual; the rerun resumes from the checkpoint taken after the last period
+  and asks only the probe (reusing answers already paid for).
+- Switch: `post_game_probe = true` in `config/experiment.toml`, part of the experiment settings and so of every
+  market fingerprint and of run_config.json. Held fixed across the run.
+- Analysis: `summary.json` → `probe` gives per cell the share correct on the maximum price and on the best
+  common price, the mean share of last-period prices recalled exactly (and the share of firms recalling all),
+  the share of valid answers and the number skipped; `probe_answers.csv` keeps every firm's answers, with the
+  deviation text for reading (not scored).
+
 ### Analysis — heuristic definitions (2026-10-19)
 
 Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py`; summary:
