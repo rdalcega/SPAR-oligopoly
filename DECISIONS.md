@@ -500,3 +500,23 @@ Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py
   `summary.json` adds `mistakes_cells` (re-ask rates on price decisions and chat turns, i.e. format slips, apart
   from strategic mistakes) and, in `probe`, `knows_not_collude_share` (best common price answered 100 while the
   market's Talk-part mean selling price is below 90).
+- **2026-10-20, from the Qwen3.8-27B smoke market** (`smoke-q38-nt-t-2026-10-20`, all firms at 100 with chat that
+  counts its streak): chat prices skip streak counts ("11 clean periods", "49 streak", "43 total", "49 and
+  counting", and "let's make it 12" only when 12 is an earlier count + 1). The notes' stated price skips a price
+  cut weighed against a named cost ("undercutting to 99 gains 22,200 ECU this period, but triggers punishment"),
+  unless a first-person decision follows; "Setting 1 gives us a share" stays the decision with its reason.
+  tie_full skips "match to avoid/risk losing all customers". Checked on sweep-gptoss and sweep-qwen14b (152
+  markets) plus the smoke market: 17 endorsements (all in the smoke market), 9 stated prices and 7 tie_full
+  flags change, each a correction on reading; no agreed price, kept or broken verdict changes.
+- **2026-10-20, from the Qwen3.8-27B n = 2, 6, 8 markets** (`q38-n268-nt-t-2026-10-20`): an explicit decision label
+  ("MY DECISION: Setting 94", "Decision: GO TO 93", "P26 DECISION: Price 89") is the notes' stated price over any
+  other statement; moves under a deviation heading ("Deviation analysis/math/check: undercut to 99 gives ...",
+  "Deviation from 100: set 99 → ...") and condition → response rules ("severe (p≤50) → I go to 1") are
+  hypotheticals; numbered conditionals ("(7) If ..."), "0 (or 1)" ranges and hyphenated counts ("2-firm split")
+  are not stated prices (only the firm's own label counts: "Firm B's decision: 90" and "P25 DECISION" at period 26
+  don't; a heading or rule covers only its own clause). Chat: "7 of 8 firms" and "all 8" are counts, "N+" is a
+  count unless "price"/"ECU" follows, "lock(ing) in 95" is a commitment. horizon skips claims under a hypothetical
+  opening their clause ("if I can confirm it's the last period"). Checked as above: every changed stated price on
+  the earlier sweeps is a correction (29 wrong readings removed, 13 right ones gained, none lost); 4 more
+  endorsements there ("3 of 8 firms ... at 10 ECU", "all 0-price firms ... lift to 70", ...) and 2 horizon flags
+  change, each a correction; no agreed price, kept or broken verdict changes.

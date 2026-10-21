@@ -3,8 +3,10 @@
 Per message (`code_message`):
     prices      integers 0-100 in a price-like context (not followed by "periods", "%", "of us", "profit", ...;
                 not preceded by "period", "round", "firm", "#", ...). Counts and durations are not prices
-                ("5-period", "3 more rounds", "2 consecutive", "for the next 3", "per 2", "10 units"), nor is
-                the price of a punishment ("the 0-price penalty"). "N ECU" is a price ("Let's set 100 ECU")
+                ("5-period", "3 more rounds", "2 consecutive", "for the next 3", "per 2", "10 units"), nor are
+                streak counts ("11 clean periods", "49 streak", "43 total", "49 and counting", and "let's make it
+                12" after a count of 11) or shares ("7 of 8 firms"), nor is the price of a punishment ("the 0-price
+                penalty"). "N ECU" is a price ("Let's set 100 ECU")
                 unless profit wording precedes it in the sentence ("we each earn 75 ECU") or follows the ECU
                 ("75 ECU each", "75 ECU of profit"). A comma group is a thousands number ("7,500", "29,700")
                 unless every group is a plausible price and the sentence has no profit wording: "99,100" and
@@ -76,18 +78,29 @@ I = re.I
 # A whole number, thousands separators included ("7,500" is 7500, not 7); values > 100 are discarded later.
 NUMBER = r"\d{1,3}(?:,\d{3})+|\d+"
 NUM = re.compile(rf"(?<![\w#.\-‐‑–])\$?({NUMBER})(?![\d%]|,\d{{3}}(?!\d)|\.\d|[a-z])", I)
-# counts and durations, not prices: "period 5", "Part 2", "per 3", "for the next 5", "another 3", "every 2"
+# counts and durations, not prices: "period 5", "Part 2", "per 3", "for the next 5", "another 3", "every 2", "all 8"
 # ("period 5" but not "the 10-firm 100-price pact")
-NOT_BEFORE = re.compile(r"(?:(?<![\-‐‑–])(?:period|round|part|turn|firm|player)|number|no\.|step|day|#|top|first|"
+NOT_BEFORE = re.compile(r"(?:(?<![\-‐‑–])(?:period|round|part|turn|firm|player)|number|no\.|step|day|#|top|first|\ball|"
                         r"last|\bper|\bnext|\banother|\bevery|\bfor (?:the )?(?:next|following|first|last|remaining|"
                         r"another))\s*$", I)
-# "5 periods", "5-period", "5‑round", "3 more rounds", "2 consecutive", "4 firms", "10 units", "the other 3"
-NOT_AFTER = re.compile(r"^\s*[-‐‑–]?\s*(?:(?:more|consecutive|straight|additional|extra|further|full|subsequent|"
+# "5 periods", "5-period", "5‑round", "3 more rounds", "2 consecutive", "4 firms", "10 units", "the other 3";
+# streak counts: "11 clean periods", "12 solid cooperative rounds", "49 streak", "43 total", "49 and counting";
+# shares: "7 of 8 firms agree"
+_STREAK_WORD = (r"(?:clean|solid|perfect|successful|cooperative|stable|good|great|smooth|flawless|profitable|"
+                r"steady|unanimous|consistent|strong|collusive|peaceful|excellent)\b[\s\-‐‑–]*")
+NOT_AFTER = re.compile(r"^\s*[-‐‑–]?\s*(?:" + _STREAK_WORD + r"){0,2}(?:(?:more|consecutive|straight|additional|extra|further|full|subsequent|"
                        r"following|remaining)\b[\s\-‐‑–]*)?(?:periods?|rounds?|times?|turns?|firms?|players?|"
-                       r"of (?:us|you|them)|companies|competitors|rivals|others|percent|points|profits?|units?|"
+                       r"streak|total\b|and counting|\+(?!\s*(?:price|ecu)\b)|"
+                       r"of (?:us|you|them)|(?:out )?of \d+\s+(?:firms?|companies|players|competitors|rivals)\b|"
+                       r"companies|competitors|rivals|others|percent|points|profits?|units?|"
                        r"customers|buyers|consumers|(?:th|st|nd|rd|x)\b|consecutive|straight|in a row|"
                        # the price of a punishment, not an agreement: "the 0-price penalty", "a 0 punishment"
                        r"(?:price|ecu)?[\s\-‐‑–]*(?:penalt|punish|retaliat|deterr|reset|sanction|shock|threat))", I)
+# the next streak count, not a price: "11 clean periods of cooperation, let's make it 12" (N = an earlier count + 1;
+# "10 clean rounds at 90, let's make it 100" and "let's make it 50" are prices)
+STREAK_NEXT = re.compile(r"\b(?:make|making|made)(?:\s+(?:it|that|this))?\s*$|\bextend\w*\s+(?:it|that|the streak)\s+to\s*$", I)
+STREAK_COUNT = re.compile(r"(\d+)[\s\-‐‑–]+(?:[\w\-‐‑–]+\s+){0,2}(?:periods?|rounds?)\b|"
+                          r"(\d+)[\s\-‐‑–]*(?:\w+\s+)?(?:streak|in a row)\b", I)
 # profit wording: an "N ECU" amount with it before (same sentence) is a profit, not a price, and so is a comma group
 PROFIT_CTX = re.compile(r"profit|earn|payoff|income|revenue|\btotal|\bsplit|\bsum\b|"
                         r"\b(?:each|we|you|i|both|all|they|everyone)\s+(?:would\s+|will\s+|could\s+|can\s+|'d\s+|"
@@ -169,7 +182,7 @@ RIVALS_SET = re.compile(r"(?-i:\b(?:[Ff]irms? )?(?!I\b)[A-Z](?:(?:,\s*|\s+and\s+
 PROPOSE = re.compile(r"\b(?:let'?s|let us|shall we|how about|what about|propose|suggest|we'll|"
                      r"we (?:all )?(?:should|could|can|must|will|keep|stay|set|go|stick)|everyone|every firm|all of us|we all|both of us|agree|keep|stay|stick|"
                      r"maintain|hold|set|charge|price|go (?:with|for|back)|return|back to|i(?:'ll| will| am| shall)|"
-                     r"i'm|my price|(?:i|we) (?:am |are )?commit\w*)\b", I)
+                     r"i'm|my price|(?:i|we) (?:am |are )?commit\w*|lock(?:ing|ed)? (?:it )?in)\b", I)
 AGREE = re.compile(r"\b(?:agree[ds]?|agreed|ok(?:ay)?|deal|yes|yep|sure|sounds good|confirm(?:s|ed)?|count me in|i'?m in|"
                    r"i am in|same here|let'?s do (?:it|this|that)|on board|fine (?:by|with) me|works for me|"
                    r"happy to|absolutely|definitely|of course|will do|me too)\b", I)
@@ -257,14 +270,15 @@ def _price_list(groups: list[str]) -> bool:
     return all(g.isdigit() and int(g) <= 100 and (g == "0" or not g.startswith("0")) for g in groups)
 
 
-def prices_in(text: str, end: int | None = None) -> list[int]:
-    """Integers 0-100 in a price-like context, in order of appearance (only those starting before `end`)."""
+def prices_in(text: str, end: int | None = None, lead: str = "") -> list[int]:
+    """Integers 0-100 in a price-like context, in order of appearance (only those starting before `end`). `lead`
+    is the text before `text` when `text` is one of a sentence's clauses (where a streak count may sit)."""
     out = []
     text = text or ""
     for m in NUM.finditer(text):
         if end is not None and m.start() >= end:
             break
-        raw, after = m.group(1), text[m.end():m.end() + 25]
+        raw, after = m.group(1), text[m.end():m.end() + 60]
         if NOT_BEFORE.search(text[max(0, m.start() - 30):m.start()]) or NOT_AFTER.search(after):
             continue
         if "," in raw:  # "99,100" (a list of prices) vs "29,700" (a thousands number)
@@ -276,6 +290,10 @@ def prices_in(text: str, end: int | None = None) -> list[int]:
         v = int(raw)
         if v > 100:
             continue
+        if STREAK_NEXT.search(text[max(0, m.start() - 30):m.start()]) and not ECU_AFTER.search(after) \
+                and not m.group(0).startswith("$") \
+                and v - 1 in {int(x or y) for x, y in STREAK_COUNT.findall(lead + text[:m.start()])}:
+            continue  # "make it 11 ECU" and "make it $11" stay prices
         if ECU_AFTER.search(after) and (ECU_PROFIT_AFTER.search(after)
                                         or PROFIT_CTX.search(_sentence_before(text, m.start()))):
             continue  # "we each earn 75 ECU", "75 ECU each": a profit amount
@@ -317,9 +335,14 @@ def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | No
     # stay at 10")
     cued, clauses, punish_now, solo_now = [], [], None, None  # clauses: the prices of each usable clause
     floor = 1  # a later-period clause makes what follows later too, until this period is named again
+    spos = 0
     for s in usable:
         done = False
+        start = text.find(s, spos)
+        spos, pos = start + len(s), 0
         for c in _clauses(s):
+            at = s.find(c, pos)
+            lead, pos = text[:start] + s[:at], at + len(c)
             if done:
                 break
             punish = has_unnegated(PUNISH_RULE, c)
@@ -343,7 +366,7 @@ def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | No
             # "let's stay at 1 ... let's move to 2": about now, unless it continues a plan for a later period
             if STAY.search(c) and not STAY_LATER.search(c) and not inherited:
                 tier = 0
-            ps = prices_in(c)
+            ps = prices_in(c, lead=lead)
             if punish:
                 if PUNISH_ACT.search(c):  # this period's price is a punishment, not an agreement
                     if tier <= 1 and ps and punish_now is None:
@@ -351,7 +374,7 @@ def endorsement(text: str) -> tuple[int | None, int | None, int | None, int | No
                     continue
                 # a punishment rule mentioned alongside a price ("we stay at 10 this period, respecting the 0-price
                 # rule"): only prices before the rule count ("keep the 5-period 0-price penalty rule": none)
-                ps = prices_in(c, _unnegated(PUNISH_RULE, c).start())
+                ps = prices_in(c, _unnegated(PUNISH_RULE, c).start(), lead)
             if has_unnegated(SOLO, c) and OWN_BID.search(c) and not NOBODY.search(c):
                 if tier <= 1 and ps and solo_now is None:
                     solo_now = ps[0]
