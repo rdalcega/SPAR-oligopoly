@@ -274,6 +274,23 @@ def test_build_and_write(tmp_path):
     assert talk["agreements"] == 9
 
 
+def test_prompt_variant_is_an_extension(tmp_path):
+    """A paper cell played under a prompt variant gets no human comparison and counts as an extension."""
+    runs = tmp_path / "runs"
+    for run, model, variant in (("rb", "base", None), ("rv", "var", "identical_copies")):
+        (runs / run / "markets").mkdir(parents=True)
+        rec = record({1: flat(*[(50, 50)] * 7), 2: flat(*[(100, 100)] * 6)}, model=model, run=run, n=2)
+        if variant:
+            rec["settings"]["experiment"]["prompt_variant"] = variant
+        rec.pop("_market_id")
+        (runs / run / "markets" / f"{model}__n2__NT-T__m0.json").write_text(json.dumps(rec))
+    tables, _ = build(["rb", "rv"], runs)
+    assert set(tables["human_comparison"]["model"]) == {"base"}
+    assert set(tables["extensions"]["model"]) == {"var"}
+    assert dict(zip(tables["markets"]["model"], tables["markets"]["prompt_variant"])) == {
+        "base": "baseline", "var": "identical_copies"}
+
+
 async def test_probe_accuracy_per_cell(tmp_path):
     from oligopoly.config import ExperimentConfig, ModelConfig
     from oligopoly.mock import MockClient

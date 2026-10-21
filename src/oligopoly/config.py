@@ -9,6 +9,7 @@ from typing import Any
 
 from .benchmarks import NS as PAPER_NS
 from .llm import DEFAULT_BYTES_PER_TOKEN_MIN
+from .prompts import PROMPT_VARIANTS
 
 ROOT = Path(__file__).resolve().parents[2]
 # part orderings: name -> (part 1 has chat, part 2 has chat)
@@ -143,8 +144,13 @@ class ExperimentConfig:
     # the transition call between the parts: each firm writes notes for Part 2 before it starts (DECISIONS.md §6
     # item 3, 2026-10-20), only in orderings where communication changes (NT-T, T-NT); needs notes
     transition: bool = True
+    # one added sentence in the Part 1 instructions (prompts.PROMPT_VARIANTS; extension, DECISIONS.md 2026-10-21);
+    # left out of to_dict when "baseline", so records played before the field existed keep their fingerprints
+    prompt_variant: str = "baseline"
 
     def __post_init__(self) -> None:
+        if self.prompt_variant not in PROMPT_VARIANTS:
+            raise ConfigError(f"prompt_variant must be one of {sorted(PROMPT_VARIANTS)}, got {self.prompt_variant!r}")
         for name in ("notes", "post_game_probe", "transition"):  # a TOML string such as "false" must not pass
             if not isinstance(getattr(self, name), bool):
                 raise ConfigError(f"{name} must be true or false, got {getattr(self, name)!r}")
@@ -171,7 +177,10 @@ class ExperimentConfig:
         return replace(self, part_lengths=tuple(lengths))
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        if d["prompt_variant"] == "baseline":
+            del d["prompt_variant"]
+        return d
 
 
 def load_models(path: str | Path = CONFIG_DIR / "models.toml") -> dict[str, ModelConfig]:

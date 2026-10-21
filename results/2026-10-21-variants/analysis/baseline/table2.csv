@@ -1,0 +1,4 @@
+model,n,ordering,window,part,phase,n_obs,100,99,2-98,<=1
+qwen3-14b,4,NT-T,p1_from6,1,NoTalk,24,0.0,0.0,0.0,100.0
+qwen3-14b,4,NT-T,p2_all,2,Talk,24,0.0,0.0,0.0,100.0
+qwen3-14b,4,NT-T,p2_from6,2,Talk,19,0.0,0.0,0.0,100.0

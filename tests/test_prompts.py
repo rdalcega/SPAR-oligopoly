@@ -6,6 +6,7 @@ import re
 import pytest
 
 from oligopoly.prompts import (
+    PROMPT_VARIANTS,
     ChatMessage,
     ChatSpec,
     chat_prompt,
@@ -366,3 +367,36 @@ def test_reask_error_is_bounded():
     assert len(r) < REASK_ERROR_CHARS + 200 and "…" in r
     assert reask_text("short", "F") == "Your previous response could not be used: short. Please respond again with " \
                                        "JSON only, in this format: F"
+
+
+@pytest.mark.parametrize("variant", sorted(PROMPT_VARIANTS))
+@pytest.mark.parametrize("name,t1,t2", [(k, *v) for k, v in ORDERINGS.items()])
+def test_variants_keep_hard_rules(variant, name, t1, t2):
+    spec = ChatSpec()
+    p1 = part_instructions(4, "A", 1, t1, chat_spec=spec, notes=True, memory_window=3, variant=variant)
+    p2 = part_instructions(4, "A", 2, t2, previous_talk=t1, chat_spec=spec, notes=True, memory_window=3,
+                           variant=variant)
+    for text in (p1, p2):
+        for w in BANNED_EVERYWHERE:
+            assert w not in text.lower(), (w, variant)
+        assert not {"29", "24", "53"} & numbers(text)
+    for w in LATER_PART_WORDS + ([] if t1 else COMMUNICATION_WORDS):
+        assert w not in p1.lower(), (w, variant)
+    sentence = PROMPT_VARIANTS[variant]
+    if sentence is None:
+        assert p1 == part_instructions(4, "A", 1, t1, chat_spec=spec, notes=True, memory_window=3)
+    else:  # Part 1 only, right after the matching sentence
+        assert f"in every period.\n\n{sentence}\n\n" in p1 and sentence not in p2
+        for w in BEHAVIOURAL_HINTS:
+            assert w not in sentence.lower(), (w, variant)
+
+
+def test_identical_copies_lifts_only_the_model_ban():
+    for variant in PROMPT_VARIANTS:
+        p = part_instructions(4, "A", 2, True, previous_talk=False, chat_spec=ChatSpec(), variant=variant)
+        assert "identify yourself (e.g. age, gender, location" in p and "offensive language" in p
+        lifted = "you may say what kind of system or model you are" in p
+        assert lifted == (variant == "identical_copies")
+        assert ("location, what kind of system or model you are etc." in p) == (not lifted)
+    with pytest.raises(ValueError):
+        part_instructions(4, "A", 1, False, variant="nope")

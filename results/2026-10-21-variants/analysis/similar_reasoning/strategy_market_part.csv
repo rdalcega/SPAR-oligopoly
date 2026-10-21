@@ -1,0 +1,3 @@
+run_id,market_id,model,n,ordering,market_index,part,phase,first_all100,n_all100_spells,mean_all100_spell,all100_periods,turn_taking_periods,defections,defections_kept,defections_punished
+q14-v-similar_reasoning-2026-10-21,q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0,qwen3-14b,4,NT-T,0,1,NoTalk,False,0,,0,0,0,0,0
+q14-v-similar_reasoning-2026-10-21,q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0,qwen3-14b,4,NT-T,0,2,Talk,False,0,,0,0,0,0,0

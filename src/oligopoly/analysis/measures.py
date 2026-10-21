@@ -34,9 +34,17 @@ def window_mask(df: pd.DataFrame, w: str) -> pd.Series:
     }[w]
 
 
-def in_paper(n: int, ordering: str) -> bool:
-    """Cells with a human counterpart: NoTalk->Talk at n in {2,4,6,8}; both controls at n = 4."""
-    return (n, ordering) in PAPER_CELLS
+def in_paper(n: int, ordering: str, variant: str = "baseline") -> bool:
+    """Cells with a human counterpart: NoTalk->Talk at n in {2,4,6,8}; both controls at n = 4; baseline prompt
+    only (a prompt variant is an extension, DECISIONS.md 2026-10-21)."""
+    return (n, ordering) in PAPER_CELLS and variant == "baseline"
+
+
+def _variants(mt: pd.DataFrame) -> dict[str, str]:
+    """Each model's prompt variant (one per model: `load.check_uniform_design` refuses mixed settings)."""
+    if "prompt_variant" not in mt:
+        return {}
+    return mt.groupby("model")["prompt_variant"].first().to_dict()
 
 
 # ------------------------------------------------------------------------------------------- price levels
@@ -53,7 +61,8 @@ def market_table(mp: pd.DataFrame, markets: pd.DataFrame) -> pd.DataFrame:
     sign = out["ordering"].map({"NT-T": 1.0, "T-NT": -1.0, "NT-NT": np.nan})
     for w2 in ("p2_all", "p2_from6", "p2_last5"):
         out[f"gain_{w2}"] = sign * (out[f"sp_{w2}"] - out["sp_p1_from6"])
-    out["in_paper"] = [in_paper(n, o) for n, o in zip(out["n"], out["ordering"])]
+    v = out["prompt_variant"] if "prompt_variant" in out else ["baseline"] * len(out)
+    out["in_paper"] = [in_paper(n, o, x) for n, o, x in zip(out["n"], out["ordering"], v)]
     return out.reset_index()
 
 
@@ -63,7 +72,9 @@ def cell_stats(mt: pd.DataFrame) -> pd.DataFrame:
     long = mt.melt(id_vars=CELL + ["market_id"], value_vars=cols, var_name="measure").dropna(subset=["value"])
     g = long.groupby(CELL + ["measure"])["value"]
     out = g.agg(mean="mean", sd="std", median="median", min="min", max="max", n_markets="count").reset_index()
-    out["in_paper"] = [in_paper(n, o) for n, o in zip(out["n"], out["ordering"])]
+    variants = _variants(mt)
+    out["in_paper"] = [in_paper(n, o, variants.get(m, "baseline"))
+                       for m, n, o in zip(out["model"], out["n"], out["ordering"])]
     return out
 
 

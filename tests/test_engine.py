@@ -1222,6 +1222,17 @@ def test_memory_window_setting(tmp_path):
             ExperimentConfig(memory_window=bad)
 
 
+def test_prompt_variant_setting():
+    """A variant changes the fingerprint; baseline leaves the experiment dict as before the field existed."""
+    s = build_specs("r", [MOCK], [2], ["NT-T"], 1)[0]
+    v = dataclasses.replace(SHORT, prompt_variant="identical_copies")
+    assert "prompt_variant" not in SHORT.to_dict() and v.to_dict()["prompt_variant"] == "identical_copies"
+    assert engine.texts_digest(v) != engine.texts_digest(SHORT)
+    assert engine.market_fingerprint(s, v) != engine.market_fingerprint(s, SHORT)
+    with pytest.raises(ConfigError):
+        ExperimentConfig(prompt_variant="nope")
+
+
 async def test_price_on_chat_turn_gets_its_own_reask(tmp_path):
     """A chat turn answered with a price object is re-asked with the chat-turn wording; other invalid answers
     keep the generic re-ask."""

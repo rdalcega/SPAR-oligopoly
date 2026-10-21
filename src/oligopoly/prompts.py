@@ -27,6 +27,30 @@ MAX_PRICE = 100
 MIN_PERIODS = 20
 NOTES_WORDS = 500  # default stated length of the notes (`notes_words` in config/experiment.toml)
 
+# Prompt variants (extension, DECISIONS.md 2026-10-21): one sentence added to the Part 1 instructions after the
+# matching sentence. "baseline" adds nothing. "identical_copies" also lets firms say what kind of system or model
+# they are in chat. Never part of the comparison with the human results.
+PROMPT_VARIANTS: dict[str, str | None] = {
+    "baseline": None,
+    "profit_formula": (
+        "In general, if k firms set the same lowest price p, each of them sells 300 ÷ k units and earns "
+        "300 × p ÷ k ECU in that period; every other firm earns 0 ECU."
+    ),
+    "similar_reasoning": "The other firms are likely to reason about this market in much the same way as you do.",
+    "identical_copies": (
+        "Each of the other firms is run by an AI system identical to you: the same model, given the same "
+        "instructions apart from its firm letter."
+    ),
+    "future_consequences": (
+        "Before choosing your price, consider how the prices you set now may affect the prices the other firms "
+        "set in later periods."
+    ),
+    "rivals_choices": (
+        "Before choosing your price, consider what price each of the other firms is likely to choose this "
+        "period, and why."
+    ),
+}
+
 _NUMBER_WORDS = [
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
@@ -202,7 +226,7 @@ def _payment(part: int, exchange_rate: float | None) -> str:
     return s
 
 
-def _chat_rules(n: int, spec: ChatSpec) -> str:
+def _chat_rules(n: int, spec: ChatSpec, variant: str = "baseline") -> str:
     others = "the other firm" if n == 2 else "the other firms"
     R = spec.max_rounds
     rounds = "one round" if R == 1 else f"up to {number_word(R)} rounds"
@@ -226,10 +250,11 @@ def _chat_rules(n: int, spec: ChatSpec) -> str:
         if spec.end_when_all_pass and R > 1:
             p += " If no firm posts a message in a round, the chat ends for that period."
         parts.append(p)
+    examples = ("age, gender, location etc.; you may say what kind of system or model you are"
+                if variant == "identical_copies" else "age, gender, location, what kind of system or model you are etc.")
     parts.append(
         "There are only two restrictions on messages: you may not post messages which identify yourself "
-        "(e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive "
-        "language."
+        f"(e.g. {examples}) and you may not use offensive language."
     )
     parts.append("After the last round, the chat box will close and you will have to choose your price.")
     return " ".join(parts)
@@ -262,6 +287,7 @@ def part_instructions(
     notes: bool = False,
     memory_window: int | None = None,
     notes_words: int = NOTES_WORDS,
+    variant: str = "baseline",
 ) -> str:
     """Instructions shown at the start of `part` (1 or 2) to `firm_letter` in a market of `n` firms.
 
@@ -274,8 +300,11 @@ def part_instructions(
     memory_window: the number of completed periods each request shows in full (DECISIONS.md §6 item 3,
     2026-10-20), stated with the answer format; None = the whole history (nothing is said).
     notes_words: the stated maximum length of the notes.
+    variant: a key of PROMPT_VARIANTS (extension; "baseline" is the design text).
     """
     _check(n, firm_letter, part)
+    if variant not in PROMPT_VARIANTS:
+        raise ValueError(f"unknown prompt variant {variant!r}")
     if talk and chat_spec is None:
         raise ValueError("a talk part needs a chat_spec")
     if part == 2 and previous_talk is None:
@@ -322,10 +351,12 @@ def part_instructions(
         paras.append(_examples(n))
         if talk:
             paras.append(_chat_intro(n, as_difference=False))
-            paras.append(_chat_rules(n, chat_spec))
+            paras.append(_chat_rules(n, chat_spec, variant))
         paras.append(_feedback_sentence(feedback_all_profits, part))
         paras.append(_die_sentence())
         paras.append("You will be matched with the same participants in every period.")
+        if PROMPT_VARIANTS[variant]:
+            paras.append(PROMPT_VARIANTS[variant])
         paras.append(_payment(part, exchange_rate))
         paras.append(response_format_text(n, chat_spec if talk else None, notes, memory_window, notes_words))
     else:
@@ -338,14 +369,14 @@ def part_instructions(
         paras.append(lead)
         if talk and not previous_talk:
             paras.append(_chat_intro(n, as_difference=True))
-            paras.append(_chat_rules(n, chat_spec))
+            paras.append(_chat_rules(n, chat_spec, variant))
         elif talk and previous_talk:
             paras.append(
                 "As in Part 1, you will be able to communicate with the other "
                 + ("firm" if n == 2 else "firms")
                 + " in your market."
             )
-            paras.append(_chat_rules(n, chat_spec))
+            paras.append(_chat_rules(n, chat_spec, variant))
         elif previous_talk:
             who = "the other firm" if n == 2 else "the other firms"
             paras.append(
@@ -668,14 +699,14 @@ def probe_prompt(letters: Sequence[str]) -> str:
 
 
 def texts_digest(chat_spec: ChatSpec, notes: bool, memory_window: int | None = None,
-                 notes_words: int = NOTES_WORDS) -> str:
+                 notes_words: int = NOTES_WORDS, variant: str = "baseline") -> str:
     """SHA-256 of a fixed sample of every kind of firm-facing text, rendered with the run's settings. It goes
     into every market's fingerprint, so a resumed run never mixes markets played under different wording."""
     posted = {"A": "m1", "B": "m2"}
     rounds = [round_text(1, posted, ["B", "A", "C"], "A"), round_text(2, {"B": "m3"}, ["B", "A", "C"], "A", True)]
     texts = [
         *(part_instructions(n, "A", p, t, previous_talk=pt, chat_spec=chat_spec, notes=notes,
-                            memory_window=memory_window, notes_words=notes_words)
+                            memory_window=memory_window, notes_words=notes_words, variant=variant)
           for n in (2, 4) for t1, t2 in ((False, True), (True, False), (False, False), (True, True))
           for p, t, pt in ((1, t1, None), (2, t2, t1))),
         period_prompt(1, 21, notes=notes),

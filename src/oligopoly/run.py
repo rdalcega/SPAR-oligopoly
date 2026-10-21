@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 from collections import defaultdict
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Any
@@ -43,6 +44,7 @@ from .engine import (ORDERINGS, ChatClient, MarketSpec, environment_seed, failur
 from .llm import Budget, BudgetExceeded, OpenRouterClient, OpenRouterError, find_endpoint, get_endpoints
 from .mock import MockClient
 from .parse import PARSER_VERSION
+from .prompts import PROMPT_VARIANTS
 
 
 def cell_specs(run_id: str, models: list[ModelConfig], cells: list[tuple[int, str]], markets_per_cell: int,
@@ -353,6 +355,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--rate-limit-max-wait-s", type=float, default=1800.0,
                     help="per call: total time to keep retrying rate-limit / overloaded errors before giving up")
     ap.add_argument("--part-lengths", default=None, help="e.g. 29,24 (default from config); <20 = pilot only")
+    ap.add_argument("--prompt-variant", choices=sorted(PROMPT_VARIANTS),
+                    help="add one Part 1 sentence (extension; DECISIONS.md, prompt variants)")
     ap.add_argument("--seed", type=int, default=0, help="base seed of the environment draws")
     ap.add_argument("--dry-run", action="store_true", help="print the cells and a cost estimate; no calls")
     ap.add_argument("--assume-output-tokens", type=int, default=None,
@@ -375,6 +379,8 @@ async def main(argv: list[str] | None = None) -> int:
     exp = load_experiment(a.experiment_file)
     if a.part_lengths:
         exp = exp.with_part_lengths(tuple(int(x) for x in a.part_lengths.split(",")))
+    if a.prompt_variant:
+        exp = replace(exp, prompt_variant=a.prompt_variant)
     out_dir = Path(a.out_root) / a.run_id
     if not (cells := select_cells(a.n, a.orderings, a.grid)):
         raise ConfigError(f"no paper cell has n in {a.n} and ordering in {a.orderings}; pass --grid for extensions")

@@ -764,6 +764,11 @@ texts.
     "You write notes with each price. They are shown to you in every later request until you next write notes,
     which then replace them, so write in them everything you want to remember. Keep them to about 500 words at
     most." (neutral about the transition call, which also replaces them). Mechanics only.
+36. Prompt variants (2026-10-21, DECISIONS.md "Prompt variants"; config `prompt_variant`, default `baseline` =
+    the texts above): an extension, never compared with the human results. Each variant adds one paragraph to
+    the Part 1 instructions, right after "You will be matched with the same participants in every period."
+    (`prompts.PROMPT_VARIANTS`); Part 2 is unchanged. `identical_copies` also changes the chat restriction's
+    examples to "(e.g. age, gender, location etc.; you may say what kind of system or model you are)".
 
 ## Open questions for the PI
 
