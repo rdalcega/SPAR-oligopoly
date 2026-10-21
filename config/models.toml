@@ -115,7 +115,8 @@ require_parameters = true
 
 # Small-model survey, 2026-10-21 (DECISIONS.md, "Small-model survey"): one NT-T n = 4 market each. Sampling from each
 # model card (or generation_config.json where the card gives none); pinned to the only endpoint, or to one with seed
-# support.
+# support. Unlike the DeepInfra pins above, these entries use other providers (and Bonsai an int4 endpoint), so
+# provider and quantization are not held fixed across the survey.
 
 ["qwen3.5-9b"]
 # Re-added for the survey. Pinned to Parasail (bf16, seed) instead of DeepInfra, whose shared pool rate-limited the

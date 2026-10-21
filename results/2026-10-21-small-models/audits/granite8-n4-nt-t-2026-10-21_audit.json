@@ -1,0 +1,750 @@
+{
+ "granite8-n4-nt-t-2026-10-21/granite-4.2-8b__n4__NT-T__m0": {
+  "market": "granite-4.2-8b__n4__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125,
+     "C": 125,
+     "D": 125
+    },
+    "notes_truncated": {
+     "B": 1
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 508,
+   "checked_against_log": 508
+  },
+  "usage_record": {
+   "prompt_tokens": 1090913,
+   "completion_tokens": 66454,
+   "reasoning_tokens": 11037,
+   "cached_tokens": 895856,
+   "cache_write_tokens": 0,
+   "calls": 508,
+   "cost_usd": 0.041754760000000016,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "50/100/75/75"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "50/50/50/49"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "48/48/49/49"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "47/47/48/48"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "46/46/46/47"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "45/45/45/46"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "44/44/44/45"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "43/43/43/44"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "42/42/42/44"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "41/41/41/41"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "41/41/40/40"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "40/39/39/40"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "39/38/38/39"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "38/37/37/38"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "38/36/37/38"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "36/35/35/36"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "35/34/34/35"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "34/34/33/34"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "33/32/32/32"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "32/31/30/31"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "30/29/30/30"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "30/28/29/29"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "30/28/28/27"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "28/27/27/26"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "27/26/26/26"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "26/25/26/25"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "25/24/25/24"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "25/23/24/23"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "23/22/23/22"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "22/21/22/21"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "20/21/22/21"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "21/22/22/21"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "21/21/22/21"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "21/21/21/21"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "21/20/20/21"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "20/19/20/19"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "19/19/19/19"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "19/19/19/19"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "19/19/19/19"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "19/19/18/19"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "19/19/18/18"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 21,
+     "support": 3,
+     "kept": false,
+     "undercutters": [],
+     "above": [
+      "B",
+      "C"
+     ],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 21,
+     "support": 3,
+     "kept": false,
+     "undercutters": [],
+     "above": [
+      "C"
+     ],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 21,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 21,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 21,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 21,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 21,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 21,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 21,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "B",
+      "C"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 19,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 19,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 19,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 19,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "C"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.0,
+   "msg_len_mean": 131.27430555555554,
+   "msg_len_max": 300,
+   "msg_near_limit": 10,
+   "msg_over_280": 10,
+   "reasks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "fallbacks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "message truncated from # to # characters": 6,
+    "notes truncated to # words / # characters (# chars)": 1
+   },
+   "errors": {},
+   "profits": {
+    "A": 89875.0,
+    "B": 149975.0,
+    "C": 118625.0,
+    "D": 97825.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 508,
+   "calls_err": 0,
+   "err_kinds": {},
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     943,
+     1056.75,
+     1219.75,
+     1310,
+     1345.5,
+     1372.5,
+     1384.75,
+     1483.75,
+     1419.25,
+     1376.25,
+     1491,
+     1403.75,
+     1434.75,
+     1363.25,
+     1411.75,
+     1357.75,
+     1412.5,
+     1382.25,
+     1401,
+     1470.5,
+     1401.5,
+     1463.75,
+     1524.75,
+     1497.5,
+     1455.75,
+     1572.25,
+     1498.25,
+     1503.5,
+     1429
+    ],
+    "part2": [
+     2274,
+     2141,
+     2203,
+     2342.5,
+     2132.5,
+     2111,
+     2092.75,
+     2059.5,
+     2054.5,
+     2056.5,
+     2081.25,
+     2050,
+     2128.75,
+     2228.75,
+     2083,
+     2088,
+     2031.25,
+     2126.5,
+     2067,
+     2097.75,
+     2197,
+     2151,
+     2164.5,
+     2166
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 943,
+    "p1t2": 1056.75,
+    "p1t3": 1219.75,
+    "p1t4": 1310,
+    "p1t5": 1345.5,
+    "p1t6": 1372.5,
+    "p1t7": 1384.75,
+    "p1t8": 1483.75,
+    "p1t9": 1419.25,
+    "p1t10": 1376.25,
+    "p1t11": 1491,
+    "p1t12": 1403.75,
+    "p1t13": 1434.75,
+    "p1t14": 1363.25,
+    "p1t15": 1411.75,
+    "p1t16": 1357.75,
+    "p1t17": 1412.5,
+    "p1t18": 1382.25,
+    "p1t19": 1401,
+    "p1t20": 1470.5,
+    "p1t21": 1401.5,
+    "p1t22": 1463.75,
+    "p1t23": 1524.75,
+    "p1t24": 1497.5,
+    "p1t25": 1455.75,
+    "p1t26": 1572.25,
+    "p1t27": 1498.25,
+    "p1t28": 1503.5,
+    "p1t29": 1429,
+    "p2t1": 2920,
+    "p2t2": 2583,
+    "p2t3": 2707,
+    "p2t4": 2758.5,
+    "p2t5": 2560.5,
+    "p2t6": 2662,
+    "p2t7": 2512.75,
+    "p2t8": 2478.5,
+    "p2t9": 2464.5,
+    "p2t10": 2491.5,
+    "p2t11": 2660.25,
+    "p2t12": 2453,
+    "p2t13": 2700.75,
+    "p2t14": 2605.75,
+    "p2t15": 2647,
+    "p2t16": 2486,
+    "p2t17": 2408.25,
+    "p2t18": 2632.5,
+    "p2t19": 2582,
+    "p2t20": 2562.75,
+    "p2t21": 2594,
+    "p2t22": 2570,
+    "p2t23": 2606.5,
+    "p2t24": 2749
+   },
+   "growth_talk_per_period": 17.357142857142858,
+   "growth_notalk_per_period": -4.695652173913044,
+   "completion_mean": {
+    "price": 228.58490566037736,
+    "transition": 238.75,
+    "chat": 55.173611111111114,
+    "probe": 287.25
+   },
+   "reasoning_mean": {
+    "price": 26.235849056603772,
+    "transition": 6.75,
+    "chat": 17.14236111111111,
+    "probe": 127.75
+   },
+   "cost_per_call": {
+    "price": 0.00010489971698113207,
+    "transition": 0.0001558525,
+    "chat": 6.360840277777778e-05,
+    "probe": 0.0001433475
+   },
+   "cost_total": 0.04175476,
+   "cost_missing": 0,
+   "cached_tokens": 895856,
+   "latency_p50": 1.5184439165168442,
+   "latency_p90": 4.479278603650164,
+   "latency_max": 14.798017999972217,
+   "tok_per_byte": 0.259073409373634,
+   "tok_per_byte_min": 0.24455394190871368,
+   "tok_per_byte_max": 0.28855380397532554,
+   "prompt_tokens_max": 3291,
+   "seed_flags": {
+    "(False, None)": 508
+   },
+   "providers": {
+    "('deepinfra/bf16', 'DeepInfra', False)": 508
+   },
+   "models_served": {
+    "ibm-granite/granite-4.2-8b": 508
+   },
+   "finish": {
+    "('stop', 'stop')": 508
+   },
+   "reasoning_returned_calls": 508
+  }
+ }
+}

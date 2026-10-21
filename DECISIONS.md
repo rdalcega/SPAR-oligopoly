@@ -89,6 +89,16 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   and Bonsai is served at int4. Left out: models at exactly 30B total (Nemotron-3.5-Lightning, North-Mini-Code,
   GLM-4.7-Flash), MoEs over 30B total (Hunyuan-A13B, Solar-Mini-4, Laguna-XS), gpt-oss-safeguard-20b (a policy
   classifier) and LFM-2.5-24B-A2B (dropped above).
+  Departures from the cards: Bonsai's min_p 0.05 is not sent (its endpoint rejects it); LFM-2.5-2.6B sends no
+  top_p (none in its card, rejected by its endpoint); max_tokens is 16,000 except LFM-2.5-2.6B at its endpoint's
+  8,192 cap. Unlike LFM-2.5-24B-A2B, the 2.6B model hit that cap on 1 of 520 calls, so it was kept.
+  Cost caps (approved by Rodrigo; each run's own `--budget-usd`): gpt-oss-20b $0.35, gemma-4-26b-a4b $0.70,
+  granite-4.2-8b $0.55, qwen3.5-9b $0.60, reka-flash-3 $0.50, bonsai-2-27b $0.80, qwen3.6-27b $4.50,
+  qwen3.5-27b $3.50, free models $0.05. Actual total $8.03.
+  Outcome (results in `results/2026-10-21-small-models/`): eight markets completed. Reka-Flash-3 was stopped in
+  its first period (answers hit the token limit or degenerated into repeated words); Xing4.0's free endpoint was
+  rate-limited upstream until the market failed after 3 periods, and a resume was stopped after 5 (checkpointed,
+  resumable).
 
 ### §6 item 1 — chat structure
 
