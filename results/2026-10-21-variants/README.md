@@ -23,7 +23,7 @@ Mean selling price (Part 1 = NoTalk, 29 periods; Part 2 = Talk, 24 periods):
 | future_consequences | 58.9 | 55.9 | 44.1 | 44.0 | 21 (19) | $0.28 |
 | rivals_choices | 1.0 | 1.0 | 2.0 | 2.0 | 24 (24) | $0.21 |
 
-Total $1.42 of the $3 cap.
+Total $1.42 of the $3 cap. Result page (source `page.html`): https://claude.ai/artifact/7USZvwycUwa8ZpXqCcjnRM
 
 Reading:
 
