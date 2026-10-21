@@ -1,0 +1,2 @@
+model,n,ordering,price_decisions,price_reask_rate,price_fallback,notes_contradict,low_price_no_context,misread_notes,chat_turns,chat_reask_rate,chat_fallback,misread_chat,transition_decisions,transition_reask_rate,transition_fallback,misread_transition
+qwen3-14b,4,NT-T,212,0.0,0.0,0.014150943396226415,0.0,0.0,288,0.0,0.0,0.0,4,0.0,0.0,0.0

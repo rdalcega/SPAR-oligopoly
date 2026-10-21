@@ -1,0 +1,5 @@
+model,test,group,statistic,p,n_obs,scope,part2_higher,negative,positive,undefined
+qwen3-14b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_all,0.0,1.0,1,,1.0,,,
+qwen3-14b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_from6,0.0,1.0,1,,1.0,,,
+qwen3-14b,sign_test_time_trend,n=4 NT-T part 1 (NoTalk),,,1,,,0.0,0.0,1.0
+qwen3-14b,sign_test_time_trend,n=4 NT-T part 2 (Talk),,,1,,,0.0,0.0,1.0

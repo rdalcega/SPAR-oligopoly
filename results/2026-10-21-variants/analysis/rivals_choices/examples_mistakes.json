@@ -1,0 +1,24 @@
+{
+ "notes_contradict": [],
+ "low_price_no_context": [],
+ "price_zero": [
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-v-rivals_choices-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 1,
+   "firm": "B",
+   "price": 0,
+   "stated_price": null,
+   "prev_others_min": null,
+   "notes": "In the first period with no prior data, setting the lowest possible price (0) maximizes the chance of capturing the market if others set higher prices. If all firms set 0, we split the market, but this is better than risking others undercutting a higher price. Starting with 0 ensures no loss if others set higher, and avoids the risk of others undercutting a higher price I might set."
+  }
+ ],
+ "price_fallback": [],
+ "misread_highest_wins_notes": [],
+ "misread_highest_wins_chat": [],
+ "misread_tie_full_notes": [],
+ "misread_tie_full_chat": [],
+ "misread_horizon_notes": [],
+ "misread_horizon_chat": []
+}

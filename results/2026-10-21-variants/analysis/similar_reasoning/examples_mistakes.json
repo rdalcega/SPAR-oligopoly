@@ -1,0 +1,46 @@
+{
+ "notes_contradict": [
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 22,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "All firms have maintained the equilibrium price of 1 ECU for periods 18-21, with each earning 75 ECU per period. This Nash equilibrium remains stable as any unilateral deviation (e.g., lowering to 0 or raising to 2+) results in zero profit. The virtual dice roll (3) confirms the experiment continues, but the equilibrium strategy of pricing at 1 ECU ensures consistent profitability. No incentive exists to alter pricing behavior, as deviating would reduce individual profit. Continuing to adhere to the equilibrium price of 1 ECU is optimal."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 23,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "All firms have consistently maintained the price of 1 ECU for periods 20-22, earning 75 ECU per period. This Nash equilibrium remains stable because any unilateral deviation (e.g., lowering to 0 or raising to 2+) results in zero profit. For example, setting 0 would yield 0 ECU (all customers go to the lowest price, but 0 revenue), while setting 2 would result in no customers (as others remain at 1). The equilibrium ensures consistent profitability. No incentive exists to alter pricing behavior. Continuing to adhere to the equilibrium price of 1 ECU is optimal."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 24,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "All firms have maintained the price of 1 ECU for periods 21-23, earning 75 ECU per period. This Nash equilibrium remains stable because any unilateral deviation (e.g., lowering to 0 or raising to 2+) results in zero profit. For example, setting 0 would yield 0 ECU (all customers go to the lowest price, but 0 revenue), while setting 2 would result in no customers (as others remain at 1). The equilibrium ensures consistent profitability. Continuing to adhere to the equilibrium price of 1 ECU is optimal."
+  }
+ ],
+ "low_price_no_context": [],
+ "price_zero": [],
+ "price_fallback": [],
+ "misread_highest_wins_notes": [],
+ "misread_highest_wins_chat": [],
+ "misread_tie_full_notes": [],
+ "misread_tie_full_chat": [],
+ "misread_horizon_notes": [],
+ "misread_horizon_chat": []
+}

@@ -1,0 +1,5 @@
+model,n,ordering,run_id,market_id,firm,valid,skipped,max_consumer_price,best_common_price,last_period_prices,true_last_period_prices,max_price_correct,best_common_correct,last_period_share,last_period_all,deviations,errors
+qwen3-14b,4,NT-T,q14-v-rivals_choices-2026-10-21,q14-v-rivals_choices-2026-10-21/qwen3-14b__n4__NT-T__m0,A,True,,100,100,"{'A': 2, 'B': 2, 'C': 2, 'D': 2}","{'A': 2, 'B': 2, 'C': 2, 'D': 2}",True,True,1.0,True,no deviations,
+qwen3-14b,4,NT-T,q14-v-rivals_choices-2026-10-21,q14-v-rivals_choices-2026-10-21/qwen3-14b__n4__NT-T__m0,B,True,,100,100,"{'A': 2, 'B': 2, 'C': 2, 'D': 2}","{'A': 2, 'B': 2, 'C': 2, 'D': 2}",True,True,1.0,True,no chat,
+qwen3-14b,4,NT-T,q14-v-rivals_choices-2026-10-21,q14-v-rivals_choices-2026-10-21/qwen3-14b__n4__NT-T__m0,C,True,,100,100,"{'A': 2, 'B': 2, 'C': 2, 'D': 2}","{'A': 2, 'B': 2, 'C': 2, 'D': 2}",True,True,1.0,True,no deviations,
+qwen3-14b,4,NT-T,q14-v-rivals_choices-2026-10-21,q14-v-rivals_choices-2026-10-21/qwen3-14b__n4__NT-T__m0,D,True,,100,100,"{'A': 2, 'B': 2, 'C': 2, 'D': 2}","{'A': 2, 'B': 2, 'C': 2, 'D': 2}",True,True,1.0,True,no deviations,

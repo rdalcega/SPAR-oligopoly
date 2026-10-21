@@ -1,0 +1,16 @@
+model,n,ordering,measure,mean,sd,median,min,max,n_markets,in_paper
+qwen3-14b,4,NT-T,gain_p2_all,0.0,,0.0,0.0,0.0,1,True
+qwen3-14b,4,NT-T,gain_p2_from6,0.0,,0.0,0.0,0.0,1,True
+qwen3-14b,4,NT-T,gain_p2_last5,0.0,,0.0,0.0,0.0,1,True
+qwen3-14b,4,NT-T,posted_all,3.292452830188679,,3.292452830188679,3.292452830188679,3.292452830188679,1,True
+qwen3-14b,4,NT-T,posted_p1_all,2.6551724137931036,,2.6551724137931036,2.6551724137931036,2.6551724137931036,1,True
+qwen3-14b,4,NT-T,posted_p1_from6,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,posted_p2_all,4.0625,,4.0625,4.0625,4.0625,1,True
+qwen3-14b,4,NT-T,posted_p2_from6,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,posted_p2_last5,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,sp_all,0.9245283018867925,,0.9245283018867925,0.9245283018867925,0.9245283018867925,1,True
+qwen3-14b,4,NT-T,sp_p1_all,0.8620689655172413,,0.8620689655172413,0.8620689655172413,0.8620689655172413,1,True
+qwen3-14b,4,NT-T,sp_p1_from6,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,sp_p2_all,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,sp_p2_from6,1.0,,1.0,1.0,1.0,1,True
+qwen3-14b,4,NT-T,sp_p2_last5,1.0,,1.0,1.0,1.0,1,True
