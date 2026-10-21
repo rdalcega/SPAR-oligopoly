@@ -37,8 +37,10 @@ def comparison(cells: pd.DataFrame, t2: pd.DataFrame, markov_summ: list[dict], s
     si = strat.set_index(["model", "n", "ordering", "part"]) if len(strat) else None
 
     for model in sorted(cells["model"].unique()):
-        lengths_ok = bool(markets.loc[markets["model"] == model, "paper_lengths"].all())
         mm = markets[markets["model"] == model]
+        if "prompt_variant" in mm and (mm["prompt_variant"] != "baseline").any():
+            continue  # a prompt variant is an extension (DECISIONS.md 2026-10-21): no human comparison
+        lengths_ok = bool(mm["paper_lengths"].all())
         # the transition call between the parts departs from the paper (DECISIONS.md §6 item 3): it can affect only
         # Part 2, in the orderings whose markets had it
         with_transition = set(mm.loc[mm["transition"], "ordering"]) if "transition" in mm else set()

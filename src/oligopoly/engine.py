@@ -131,7 +131,7 @@ def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
 def texts_digest(exp: ExperimentConfig) -> str:
     """Digest of the firm-facing wording under `exp` (see `prompts.texts_digest`)."""
     return prompts.texts_digest(prompts.ChatSpec(max_rounds=exp.chat_rounds, char_limit=exp.char_limit), exp.notes,
-                                exp.memory_window, exp.notes_words)
+                                exp.memory_window, exp.notes_words, exp.prompt_variant)
 
 
 def _fingerprint_from(spec: dict[str, Any], model_identity: dict[str, Any], experiment: dict[str, Any],
@@ -638,7 +638,7 @@ class Market:
                     firm.add_instructions(prompts.part_instructions(
                         self.spec.n, L, 2, self.talk[1], previous_talk=self.talk[0], chat_spec=self.chat_spec,
                         notes=self.exp.notes, memory_window=self.exp.memory_window,
-                        notes_words=self.exp.notes_words))
+                        notes_words=self.exp.notes_words, variant=self.exp.prompt_variant))
 
     async def run(self) -> None:
         """Play the market, or its remaining periods after `restore`."""
@@ -647,7 +647,7 @@ class Market:
                 firm.start(prompts.part_instructions(self.spec.n, L, 1, self.talk[0],
                                                      chat_spec=self.chat_spec if self.talk[0] else None,
                                                      notes=self.exp.notes, memory_window=self.exp.memory_window,
-                        notes_words=self.exp.notes_words))
+                        notes_words=self.exp.notes_words, variant=self.exp.prompt_variant))
             await self.save_checkpoint()
         schedule = [(part, t) for part in (1, 2) for t in range(1, self.exp.part_lengths[part - 1] + 1)]
         if [(p["part"], p["period"]) for p in self.periods] != schedule[:len(self.periods)]:

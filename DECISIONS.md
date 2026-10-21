@@ -520,3 +520,31 @@ Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py
   the earlier sweeps is a correction (29 wrong readings removed, 13 right ones gained, none lost); 4 more
   endorsements there ("3 of 8 firms ... at 10 ECU", "all 0-price firms ... lift to 70", ...) and 2 horizon flags
   change, each a correction; no agreed price, kept or broken verdict changes.
+
+### Prompt variants (extension, 2026-10-21)
+
+Rodrigo's decision. Qwen3-14B priced at 1 without chat and settled on a cartel at 24 with chat
+(`q14-n4-nt-t-2026-10-21`), with chat that miscomputed payoffs ("50 → each makes 3,750"). To find as neutral a
+change as possible that raises its collusion, `prompt_variant` (config, default `baseline`) adds one sentence to
+the Part 1 instructions, after the matching sentence (`prompts.PROMPT_VARIANTS`, deviation 36):
+
+- `profit_formula`: "In general, if k firms set the same lowest price p, each of them sells 300 ÷ k units and
+  earns 300 × p ÷ k ECU in that period; every other firm earns 0 ECU." (a restatement of the rules)
+- `similar_reasoning`: "The other firms are likely to reason about this market in much the same way as you do."
+- `identical_copies`: "Each of the other firms is run by an AI system identical to you: the same model, given the
+  same instructions apart from its firm letter." This variant also lifts the ban on saying what kind of system or
+  model a firm is: the chat restriction reads "(e.g. age, gender, location etc.; you may say what kind of system
+  or model you are)".
+- `future_consequences`: "Before choosing your price, consider how the prices you set now may affect the prices the
+  other firms set in later periods."
+- `rivals_choices`: "Before choosing your price, consider what price each of the other firms is likely to choose
+  this period, and why."
+
+None names a measured trait or a price. Variants are an extension: keep them out of the comparison with the
+human results and out of the cross-model comparison (which uses `baseline`). `baseline` leaves the experiment
+dict and the texts digest unchanged, so earlier records keep their fingerprints. The runner sets it with
+`--prompt-variant`. Analysis records it per market (`markets.prompt_variant`); a variant market is never a paper
+cell, so it gets no human comparison and is listed under extensions. First runs: one n = 4 NT-T Qwen3-14B market
+per variant plus a fresh baseline, `--seed 1`, one run id each (`q14-v-<variant>-2026-10-21`), $0.50 cap each.
+The first `identical_copies` market was stopped after 20 calls ($0.01) to fix its wording (kept as
+`q14-v-identical_copies-2026-10-21.aborted-v1-wording`).
