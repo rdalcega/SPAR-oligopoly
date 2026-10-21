@@ -513,7 +513,10 @@ Full text in the docstrings of `src/oligopoly/analysis/chat.py` and `mistakes.py
   other statement; moves under a deviation heading ("Deviation analysis/math/check: undercut to 99 gives ...",
   "Deviation from 100: set 99 → ...") and condition → response rules ("severe (p≤50) → I go to 1") are
   hypotheticals; numbered conditionals ("(7) If ..."), "0 (or 1)" ranges and hyphenated counts ("2-firm split")
-  are not stated prices. Chat: "7 of 8 firms" is a share, "lock(ing) in 95" is a commitment. horizon skips
-  hypotheticals ("if I can confirm it's the last period"). Checked as above: every changed stated price on the
-  earlier sweeps is a correction (29 wrong readings removed, 17 right ones gained, none lost); one more
-  endorsement (gpt-oss, "3 of 8 firms ... at 10 ECU") and 2 horizon flags change, both corrections.
+  are not stated prices (only the firm's own label counts: "Firm B's decision: 90" and "P25 DECISION" at period 26
+  don't; a heading or rule covers only its own clause). Chat: "7 of 8 firms" and "all 8" are counts, "N+" is a
+  count unless "price"/"ECU" follows, "lock(ing) in 95" is a commitment. horizon skips claims under a hypothetical
+  opening their clause ("if I can confirm it's the last period"). Checked as above: every changed stated price on
+  the earlier sweeps is a correction (29 wrong readings removed, 13 right ones gained, none lost); 4 more
+  endorsements there ("3 of 8 firms ... at 10 ECU", "all 0-price firms ... lift to 70", ...) and 2 horizon flags
+  change, each a correction; no agreed price, kept or broken verdict changes.
