@@ -1,0 +1,57 @@
+model,test,group,statistic,p,n_obs,scope,part2_higher,negative,positive,undefined
+qwen3-14b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_all,0.0,1.0,1,,1.0,,,
+qwen3-14b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_from6,0.0,1.0,1,,1.0,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p1_from6,-0.7745966692414834,0.22540333075851665,4,paper_n,,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p1_from6,-0.7745966692414834,0.22540333075851665,4,all_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=2 vs n=4,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=2 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=2 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=4 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=4 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p1_from6 n=6 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p2_all,-0.7745966692414834,0.22540333075851665,4,paper_n,,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p2_all,-0.7745966692414834,0.22540333075851665,4,all_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=2 vs n=4,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=2 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=2 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=4 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=4 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_all n=6 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p2_from6,-0.7745966692414834,0.22540333075851665,4,paper_n,,,,
+qwen3.8-27b,spearman_price_vs_n,NT-T p2_from6,-0.7745966692414834,0.22540333075851665,4,all_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=2 vs n=4,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=2 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=2 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=4 vs n=6,0.5,,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=4 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,mw_pair_n,NT-T p2_from6 n=6 vs n=8,1.0,1.0,2,paper_n,,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=2 NT-T p1_from6 vs p2_all,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=2 NT-T p1_from6 vs p2_from6,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_all,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_from6,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=6 NT-T p1_from6 vs p2_all,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=6 NT-T p1_from6 vs p2_from6,,,1,,0.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=8 NT-T p1_from6 vs p2_all,0.0,1.0,1,,1.0,,,
+qwen3.8-27b,wilcoxon_part1_vs_part2,n=8 NT-T p1_from6 vs p2_from6,0.0,1.0,1,,1.0,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=2 vs n=4,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=2 vs n=6,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=2 vs n=8,0.0,1.0,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=4 vs n=6,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=4 vs n=8,0.0,1.0,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_all n=6 vs n=8,0.0,1.0,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=2 vs n=4,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=2 vs n=6,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=2 vs n=8,0.0,1.0,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=4 vs n=6,0.5,,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=4 vs n=8,0.0,1.0,2,,,,,
+qwen3.8-27b,mw_gain_pair_n,NT-T gain_p2_from6 n=6 vs n=8,0.0,1.0,2,,,,,
+qwen3-14b,sign_test_time_trend,n=4 NT-T part 1 (NoTalk),,1.0,1,,,0.0,1.0,0.0
+qwen3-14b,sign_test_time_trend,n=4 NT-T part 2 (Talk),,1.0,1,,,0.0,1.0,0.0
+qwen3.8-27b,sign_test_time_trend,n=2 NT-T part 1 (NoTalk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=2 NT-T part 2 (Talk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=4 NT-T part 1 (NoTalk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=4 NT-T part 2 (Talk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=6 NT-T part 1 (NoTalk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=6 NT-T part 2 (Talk),,,1,,,0.0,0.0,1.0
+qwen3.8-27b,sign_test_time_trend,n=8 NT-T part 1 (NoTalk),,1.0,1,,,1.0,0.0,0.0
+qwen3.8-27b,sign_test_time_trend,n=8 NT-T part 2 (Talk),,1.0,1,,,0.0,1.0,0.0

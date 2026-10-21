@@ -1,0 +1,3 @@
+model,price_decisions,price_any_invalid,price_reasks,price_fallback,price_coerced,notes_contradict,low_price_no_context,price_zero,notes_misread_highest_wins,notes_misread_tie_full,notes_misread_horizon,chat_decisions,chat_any_invalid,chat_reasks,chat_fallback,chat_truncated,chat_misread_highest_wins,chat_misread_tie_full,chat_misread_horizon,transition_decisions,transition_reask_rate,transition_fallback,misread_transition
+qwen3-14b,212,0.0,0,0.0,0.0,0.009433962264150943,0.0,0.018867924528301886,0.0,0.0,0.0,288,0.0,0,0.0,0.0,0.0,0.0,0.0,4,0.0,0.0,0.0
+qwen3.8-27b,1060,0.009433962264150943,10,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1434,0.0,0,0.0,0.000697350069735007,0.0,0.0,0.0,20,0.0,0.0,0.0
