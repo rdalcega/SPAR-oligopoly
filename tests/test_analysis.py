@@ -685,3 +685,80 @@ def test_evaluated_moves_are_not_stated_prices(text, period, price):
 ])
 def test_loss_avoidance_is_not_tie_misread(text, cats):
     assert X.misreads(text, 3) == cats
+
+
+# ------------------------------------------------------------------------------------------- decision labels and
+# hypotheticals (artifacts found reading the 2026-10-20 Qwen3.8-27B n = 2, 6, 8 markets; the keeps are from the
+# gpt-oss and Qwen3-14B sweeps, so the rules stay narrow)
+
+
+@pytest.mark.parametrize("text, period, price", [
+    # an explicit decision label beats earlier reasoning
+    ("I must hold at 100 and trust others to do same. DECISION: Set 94.", 2, 94),
+    ("G was the consistent price-cutter in Part 1. MY DECISION: Setting 94.", 1, 94),
+    ("P26 DECISION: Price 89 (undercut by 1 below expected group price of 90).", 26, 89),
+    ("(6) Watch H and G. (7) If next period the pack goes to 92, I'll match at 92. Decision: GO TO 93.", 23, 93),
+    ("Total experiment profit: 112,370.36 ECU. DECISION: 100.", 10, 100),
+    # hypotheticals under a deviation heading and condition -> response rules
+    ("Cooperation remains perfectly stable. Deviation analysis: undercut to 99 gives one-time gain of 14,700.", 15,
+     None),
+    ("Deviation from 100: set 99 → 29,700 ECU one-shot gain.", 1, None),
+    ("Cooperation is dominant. Deviation math: undercut to 99 gives 29700 this period vs 5000x6=30000.", 6, None),
+    ("Punishment protocol: mild deviation (p=99-95) → I go to 98 next period; severe (p≤50) → I go to 1.", 5, None),
+    ("(7) If next period the pack goes to 92, I'll match at 92 to maintain the pattern.", 23, None),
+    ("3) If one firm deviates → remind of the punishment, set 0 (or 1) for punishment.", 1, None),
+    ("Strategy: match G wherever G is, maintain the 2-firm split.", 29, None),
+    ("Rationale: (1) Expected group price is 90 (continuing 1-step ratchet).", 26, None),
+    # ... but not a deviation the firm is carrying out, or a decision given with its reason
+    ("I'll test a deviation: set price 1 this period.", 19, 1),
+    ("Continue the one-unit-undercutting strategy: set price to 62 to capture the full 300 units.", 9, 62),
+    ("Will set price 0 to guarantee no loss and force others to consider pricing.", 1, 0),
+    ("Continuing at 0 guarantees no loss and maintains the stable strategy.", 12, 0),
+    # review cases: only the firm's own label for this period; a heading or rule covers only its own clause
+    ("Firm B's decision: 90. I will set 99 this period.", 5, 99),
+    ("Group decision: 90 agreed in chat, but I will set 89 this period.", 5, 89),
+    ("Decision: 95. Their decision: 90.", 5, 95),
+    ("P25 DECISION: 95, all matched. I will set 100 this period.", 26, 100),
+    ("P25 MY DECISION: Set 95. I will set 100 this period.", 26, 100),
+    ("PART 2, PERIOD 1 - MY DECISION: Setting 94.", 1, 94),
+    ("Deviation analysis: undercut to 99 gives 29700, so maintain 100 this period.", 5, 100),
+    ("Deviation check: not worth it, keep 100 this period.", 5, 100),
+    ("Deviation math: gain 14,700 vs loss 30,000, so hold at 100 this period.", 5, 100),
+    ("All prices >= 95 -> cooperation intact, I will hold at 100 this period.", 5, 100),
+    ("I will undercut to 99 (-1 vs group) this period.", 5, 99),
+    ("Decision: dropping to 90", 5, 90),
+    ("PART 2, PERIOD 1 - PRICE DECISION. DECISION: Set 95.", 1, 95),
+])
+def test_decision_labels_and_hypotheticals(text, period, price):
+    assert C.stated_own_price(text, period) == price
+
+
+@pytest.mark.parametrize("msg, endorsed", [
+    ("Final round: I commit to 95. 7 of 8 firms now agree on uniform pricing.", 95),
+    ("We only have 3 of 8 firms firm for 10 ECU next period. Please say yes if you're ready to lock a coalition at "
+     "10 ECU.", 10),
+    ("Locking in at 95. F and D - 95 gets you 3,563 each, and we can try 100 next period once trust builds. "
+     "I commit to 95.", 95),
+    ("Firm J: I set 10 ECU in period 21 and commit to same for 22 and 23, locking the 375 ECU/period payoff for all.",
+     10),
+    ("Last period 7 of us held 95, one undercut to 94. This period: all 8 set 100. Who is committed?", 100),
+    ("Final lock-in. 100 for P12, no changes. 12 straight is the target. Let us keep building toward 20+.", 100),
+    ("Final lock-in. 100 for period 12. 11 clean streak, all 8 in perfect sync. Let's make it 12!", 100),
+    ("Final confirmation: 100 for period 12. 11-period streak is a testament to discipline. Let's make 12 count.", 100),
+    ("Let's make 95 the new price.", 95),
+    ("I'll keep the 1+ price for now – it's the safe play.", 1),
+    ("Let's price at 99 out of 100 possible.", 99),
+])
+def test_shares_and_lock_in(msg, endorsed):
+    assert C.endorsed_price(msg) == endorsed
+
+
+@pytest.mark.parametrize("text, cats", [
+    ("Only consider deviation if I can confirm it's the last period.", []),
+    ("Even in the shortest scenario (game ends at 20), staying cooperative yields 6 more periods.", []),
+    ("This is the final period, so I will undercut.", ["horizon"]),
+    ("This is the final period when retaliation can no longer happen, so I will undercut.", ["horizon"]),
+    ("This is the last period, so if I undercut I keep everything.", ["horizon"]),
+])
+def test_horizon_hypotheticals(text, cats):
+    assert X.misreads(text, 15) == cats

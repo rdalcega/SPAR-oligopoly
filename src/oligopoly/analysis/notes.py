@@ -23,8 +23,13 @@ only filler words are allowed ("my price at", "the price to", "by one point to")
                      price cut weighed against its cost ("undercutting to 99 gains 22,200, but triggers ...")
     profits          numbers > 100 and "N ECU each / of profit"
     negated          "I will not set 99"
-When several candidates remain, those whose clause has a this-period cue ("this period", "this round", "now",
-"today", "for period t") win, the closest to its cue first; candidates that disagree return None.
+    hypotheticals    a move under a deviation heading ("Deviation analysis: undercut to 99 gives +22,200"), a rule
+                     mapping a condition to a response ("severe (p≤50) → I go to 1"), hyphenated counts
+                     ("the 2-firm split")
+An explicit decision label ("MY DECISION: Setting 94", "Decision: GO TO 93", "P26 DECISION: Price 89") wins over
+every other statement. Otherwise, when several candidates remain, those whose clause has a this-period cue ("this
+period", "this round", "now", "today", "for period t") win, the closest to its cue first; candidates that disagree
+return None.
 
 `deviation_plan(text, period=None)` - an un-negated, non-conditional first-person plan to undercut, deviate,
 defect, cheat or grab the market this period ("I will undercut", "I will deviate now", "I'll try the
@@ -75,7 +80,28 @@ MY_PRICE = re.compile(rf"(?:\bmy (?:own )?(?:price|choice|decision|bid|final pri
                       rf"(?:period|round)| this (?:period|round)| now| today)?\s*(?:is|will be|:|=|stays at|remains at|"
                       rf"will stay at|will remain at|is set to|set to)|^\W*(?:final )?(?:price|decision|choice)\s*[:=])"
                       rf"(?P<verb>)\s*(?:at\s+)?\$?{_NUM}", I)
-PATTERNS = (FIRST_PERSON, INFINITIVE, MY_PRICE, CLAUSE_START)
+# an explicit decision label, the strongest statement: "MY DECISION: Setting 94", "P26 DECISION: Price 89",
+# "Decision: GO TO 93", "DECISION: 100"
+DECISION = re.compile(rf"\b(?:my |final |price )?decision\b(?: (?:for|in) (?:this|the current) (?:period|round))?\s*[:=]\s*"
+                      rf"(?:(?:price|set(?:ting)?|go(?:ing)? to|stay(?:ing)? at|keep(?:ing)?|hold(?:ing)?|match(?:ing)?|"
+                      rf"maintain(?:ing)?|continu(?:e|ing)(?: at)?|(?:undercut(?:ting)?|lower(?:ing)?|drop(?:ping)?|"
+                      rf"cut(?:ting)?|rais(?:e|ing)|increas(?:e|ing)|mov(?:e|ing)) to)\s+(?:(?:at|to|price)\s+)?)?"
+                      rf"(?P<verb>)\$?{_NUM}", I)
+# ... only the firm's own label, at the start of its sentence (after a period tag such as "P26" or "PERIOD 3 -") or
+# as "my decision": not "Firm B's decision: 90", "Group decision: 90"
+DECISION_LEAD = re.compile(r"^\W*(?:(?:p|period|part)\s*(?P<tag>\d+)\W*)*$", I)
+PATTERNS = (DECISION, FIRST_PERSON, INFINITIVE, MY_PRICE, CLAUSE_START)
+# a hypothetical move under a deviation heading: "Deviation analysis: undercut to 99 gives +22,200", "Deviation from
+# 100: set 99 → 29,700"
+DEVIATION_LABEL = re.compile(r"\b(?:deviation|defection|undercut(?:ting)?)\s+(?:analysis|math|check|calc\w*|scenario|payoff|"
+                             r"gain|incentive)s?\b(?:\s+\w+)?\s*[:=]|\bdeviation from \d+\s*[:=]", I)
+# where a heading's or rule's scope ends: "Deviation check: not worth it, keep 100", "..., so hold at 100"
+SCOPE_END = re.compile(r",(?!\d)|;|\b(?:so|therefore|thus|hence|instead)\b", I)  # not "14,700"
+# a rule mapping a condition to a response: "severe (p≤50) → I go to 1", "if B undercuts -> I set 0"
+RULE_ARROW = re.compile(r"(?:[<>≤≥]\s*=?\s*\d|\bif\b|deviat\w*|undercut\w*|defect\w*|\bsevere\b|\bmild\b)"
+                        r"(?:(?!→|->|=>|⇒).){0,40}(?:→|->|=>|⇒)(?P<rest>(?:(?!→|->|=>|⇒).)*)$", I)
+# a hyphenated count, not a price: "the 2-firm split", "a 1-step ratchet"
+HYPHEN_COUNT = re.compile(r"^[-‐‑–](?:step|firm|way|period|round|player|unit|notch|point|time|fold|split|day)s?\b", I)
 
 THIS_PERIOD = re.compile(r"\bthis (?:period|round|time|turn)\b|\bright now\b|\bnow\b|\btoday\b|\bcurrent (?:period|"
                          r"round)\b|\bimmediately\b|\bfor this (?:one|decision)\b", I)
@@ -85,7 +111,7 @@ PAST = re.compile(r"\b(?:last|previous(?:ly)?|prior|earlier|before|ago|yesterday
 LATER = re.compile(r"\b(?:next|future|later|after(?! (?:the )?(?:most )?(?:recent|last|previous))|afterwards|then|"
                    r"eventually|subsequent|following|from now on|thereafter|resume|once(?! again| more))\b", I)
 _IF = r"(?:if|unless|when|whenever|once(?! again| more)|in case|as long as|until|otherwise|or else|should|suppose)"
-IF_START = re.compile(rf"^\W*(?:(?:however|but|and|then|also|still|now)\W+)?{_IF}\b", I)
+IF_START = re.compile(rf"^\W*(?:\d+[.)]\s*)?(?:(?:however|but|and|then|also|still|now)\W+)?{_IF}\b", I)  # "(7) If"
 IF_MID = re.compile(rf"(?:[,;:(–—]|\band\b|\bbut\b|\bor\b)\s*{_IF}\b|\b(?:whether|otherwise|or else|alternatively)\b", I)
 IF_AFTER = re.compile(r"^[^.!?]{0,25}?(?<!test )(?<!testing )(?<!see )(?<!check )(?<!gauge )\b(?:if|unless|in case|once(?! again| more)|"
                       r"when|whenever|as long as|until|should (?:they|he|she|it|firm|anyone|any|[a-z]\b)|only if|"
@@ -109,7 +135,7 @@ PUNISH = re.compile(r"punish|retaliat|penalt|enforce|in response|tit[- ]for[- ]t
 PUNISH_AFTER = re.compile(r"^\s*(?:ecu)?\s*[-‑–]?\s*(?:price\s+)?(?:punish|retaliat|penalt|threat|response|deterr)", I)
 DIFF_AFTER = re.compile(r"^\s*(?:ecu\s+|units?\s+|points?\s+|notch(?:es)?\s+|steps?\s+)?(?:lower|higher|below|above|"
                         r"under|over|less|more|cheaper|down|up|off)\b", I)
-RANGE_AFTER = re.compile(r"^\s*(?:[-‑–]|to|or|and|/)\s*\$?\d", I)
+RANGE_AFTER = re.compile(r"^\s*(?:[-‑–]|to|or|and|/)\s*\$?\d|^\s*\(\s*(?:or|to)\s+\$?\d", I)  # "50-60", "0 (or 1)"
 RANGE_BEFORE = re.compile(r"(?:\bbetween|\bfrom|\be\.g\.,?|\bsuch as|\bfor example|\bfor instance|\bby|\bor|[-‑–]|/)\s*\$?$",
                           I)
 PROFIT_AFTER = re.compile(r"^\s*(?:ecu\s+)?(?:each|apiece|(?:of |in )?profit|per (?:period|round|unit)|in profit|total|units?|"
@@ -157,6 +183,30 @@ def _conditional(sent: str, a: int) -> bool:
     return bool(IF_START.search(prefix) or IF_MID.search(prefix))
 
 
+def _under_deviation_heading(prefix: str) -> bool:
+    """Whether a statement after `prefix` (its sentence so far) sits in the clause right after a deviation heading."""
+    label = None
+    for label in DEVIATION_LABEL.finditer(prefix):
+        pass
+    return label is not None and not SCOPE_END.search(prefix[label.end():])
+
+
+def _rule_response(prefix: str) -> bool:
+    """Whether a statement after `prefix` is the response of a condition → response rule ("severe (p≤50) → I go to
+    1"), in the arrow's own clause ("All prices >= 95 -> cooperation intact, I will hold at 100" is not)."""
+    m = RULE_ARROW.search(prefix)
+    return bool(m) and not SCOPE_END.search(m.group("rest"))
+
+
+def _own_decision(prefix: str, label: str, period: int | None) -> bool:
+    """Whether a decision label is the firm's own for this period: "my decision", or a bare label at the start of its
+    sentence after at most a period tag that names this period ("P26 DECISION: 89" at period 26, not "P25 ...")."""
+    if not label.lower().startswith("my") and not DECISION_LEAD.match(prefix):
+        return False
+    tags = [int(t) for t in re.findall(r"\b(?:p|period)\s*(\d+)", prefix, I)]  # "P25 MY DECISION" at period 26: not this one
+    return period is None or not tags or tags[-1] == period
+
+
 def _period_refs(span: str, period: int | None) -> tuple[bool, bool]:
     """(refers to this period, refers to another period) by "period K" mentions in `span`."""
     ks = [int(k) for k in PERIOD_REF.findall(span)]
@@ -180,21 +230,22 @@ def _excluded_context(sent: str, a: int, b: int, period: int | None) -> tuple[bo
                 or (PUNISH.search(after) and not cue) or (other_ref and not this_ref)
                 # "set 99 next period instead of 100 this period": a later cue right after the number wins
                 or (later_near and (not this_near or later_near.start() < this_near.start()))
+                or _rule_response(sent[:a])
                 or ((PAST.search(before) or PAST.search(near) or LATER.search(before)) and not cue))
     return bool(excluded), cue
 
 
 def _candidates(text: str, period: int | None) -> list[tuple[int, int, int, int | None, str]]:
     """(value, tier, position, distance to a this-period cue or None, the sentence and the one before it) of every
-    accepted statement; tier 0 for a first-person or "my price" statement, 1 for a clause-initial imperative or
-    gerund."""
+    accepted statement; tier -1 for a decision label ("DECISION: Set 94"), 0 for a first-person or "my price"
+    statement, 1 for a clause-initial imperative or gerund."""
     out = []
     prev = ""
     for s0, sent in _sentences(text):
         context, prev = f"{prev} {sent}", sent
         seen = set()
         for rx in PATTERNS:
-            tier = int(rx is CLAUSE_START)
+            tier = -1 if rx is DECISION else int(rx is CLAUSE_START)
             for m in rx.finditer(sent):
                 a, b = m.start(), m.end()
                 raw = m.group("num")
@@ -202,9 +253,14 @@ def _candidates(text: str, period: int | None) -> list[tuple[int, int, int, int 
                     continue
                 v = int(raw)
                 after, before = sent[b:], sent[:m.start("num")]
-                if v > 100 or DIFF_AFTER.search(after) or RANGE_AFTER.search(after) or PROFIT_AFTER.search(after):
+                if v > 100 or DIFF_AFTER.search(after) or RANGE_AFTER.search(after) or PROFIT_AFTER.search(after) \
+                        or HYPHEN_COUNT.search(after):
                     continue
                 if RANGE_BEFORE.search(before) or PUNISH_AFTER.search(after):
+                    continue
+                if rx is CLAUSE_START and _under_deviation_heading(sent[:a]):
+                    continue  # "Deviation analysis: undercut to 99 gives +22,200": a hypothetical
+                if rx is DECISION and not _own_decision(sent[:a], m.group(0), period):
                     continue
                 if rx is CLAUSE_START and BAD_OUTCOME.search(after):
                     continue  # "Setting 32 would result in a split", "Raising to 42 risks ..."
@@ -240,9 +296,10 @@ def stated_own_price_context(text: str | None, period: int | None = None) -> tup
     cands = _candidates(text or "", period)
     if not cands:
         return None, ""
+    decided = [c for c in cands if c[1] < 0]  # an explicit "DECISION: N" beats everything else
     cued = [c for c in cands if c[3] is not None]
-    pool = cued or cands
-    if cued:  # closest to its this-period cue first
+    pool = decided or cued or cands
+    if not decided and cued:  # closest to its this-period cue first
         best = min(c[3] for c in pool)
         pool = [c for c in pool if c[3] == best]
     tier = min(c[1] for c in pool)

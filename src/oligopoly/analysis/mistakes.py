@@ -22,9 +22,10 @@ inside the match; examples saved):
                          entire market", "I may match to avoid losing all customers" don't count), with no
                          split/share wording within 80 characters
     horizon              "this is the last/final period", "only 20 periods", "game ends at 20", "the game ends after
-                         this period" before period 20 (claims about periods or the game only: "last/final round"
-                         refers to the chat rounds, whose end the prompts announce, and is not flagged; nor is
-                         "the final period of the punishment")
+                         this period" before period 20, outside hypotheticals ("if I can confirm it's the last
+                         period", "in the shortest scenario (game ends at 20)") (claims about periods or the game
+                         only: "last/final round" refers to the chat rounds, whose end the prompts announce, and is
+                         not flagged; nor is "the final period of the punishment")
 """
 
 from __future__ import annotations
@@ -62,6 +63,9 @@ MISREAD = {
 SPLIT = re.compile(r"split|share|divid|half|equally", I)
 NEG = re.compile(r"\b(?:not|never|no)\b|n't", I)
 IF = re.compile(r"\b(?:if|when|unless|as long as)\b", I)
+# a hypothetical opening the clause of a horizon claim: "if I can confirm it's the last period", "in the shortest
+# scenario (game ends at 20)" ("This is the final period when retaliation ends" is still a claim)
+HYPO_BEFORE = re.compile(r"\b(?:if|unless|in case|suppose|whether|scenario)\b", I)
 FIRM_KEYS = ["market_id", "part", "period"]
 
 
@@ -78,11 +82,17 @@ def misreads(text: str, period: int) -> list[str]:
                 continue
             if k == "tie_full" and SPLIT.search(text[max(0, m.start() - 80):m.end() + 80]):
                 continue
-            if k == "horizon" and period >= 20:
+            if k == "horizon" and (period >= 20 or _hypothetical_before(text, m.start())):
                 continue
             out.append(k)
             break
     return out
+
+
+def _hypothetical_before(text: str, start: int) -> bool:
+    """Whether a hypothetical word comes before `start` in its clause (from the last sentence or clause break)."""
+    lo = max(text.rfind(c, 0, start) for c in ".!?\n,;") + 1
+    return bool(HYPO_BEFORE.search(text[lo:start]))
 
 
 def _sentence(text: str, start: int, end: int) -> str:
