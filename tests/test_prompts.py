@@ -7,7 +7,6 @@ import pytest
 
 from oligopoly.prompts import (
     PROMPT_VARIANTS,
-    ChatMessage,
     ChatSpec,
     chat_prompt,
     fallback_text,
@@ -44,7 +43,7 @@ def all_instructions():
         letters = firm_letters(n)
         for letter in (letters[0], letters[-1]):
             er = scaled_exchange_rate(n) if rate else None
-            w = 3 if letter == letters[0] else None  # the engine's rolling window, and the full-history wording
+            w = 3 if letter == letters[0] else None  # the engine's window; None only in scripts/probes/probe_models.py
             p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er, notes=rate is None,
                                    memory_window=w)
             p2 = part_instructions(n, letter, 2, t2, previous_talk=t1, chat_spec=spec, exchange_rate=er,
@@ -318,7 +317,7 @@ def test_window_and_memory_mechanics_without_behavioural_hints(n):
     assert "the results of the last period, " in window_text(1, False)
     no_notes = part_instructions(n, "A", 1, False, notes=False, memory_window=3)
     assert "last three periods" in no_notes and "notes" not in no_notes
-    assert "last three periods" not in part_instructions(n, "A", 1, False, notes=True)  # full history: unsaid
+    assert "last three periods" not in part_instructions(n, "A", 1, False, notes=True)  # no window: unsaid
     with pytest.raises(ValueError):
         window_text(0, False)
 

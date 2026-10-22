@@ -69,7 +69,7 @@ async def test_synthetic_projection_is_an_upper_envelope():
 
 
 async def test_audit_rebuilds_windowed_requests_and_checks_the_log(tmp_path):
-    """On a windowed-context run, the audit rebuilds every attempt's request from the record, matches it to the
+    """On a summaries-layout run, the audit rebuilds every attempt's request from the record, matches it to the
     record's hash and to the call log's, and runs the leak checks on it; tampering is caught."""
     import httpx
     import respx
@@ -184,7 +184,7 @@ def test_unlogged_market_handles_missing_call_ids_and_legacy_records():
     att = {"attempts": [{"call_id": None}]}
     rec = {"periods": [{"part": 1, "period": 1, "chat": [], "decisions": {"A": att}}]}
     none_logged = [{"tag": {"firm": "A", "part": 1, "period": 1, "phase": "price"}}]  # no call_id in the log
-    assert ap.unlogged_market(rec, none_logged)  # windowed record: a missing call_id is unlogged
+    assert ap.unlogged_market(rec, none_logged)  # current record (no `histories`): a missing call_id is unlogged
     legacy = {**rec, "histories": {}}
     assert ap.unlogged_market(legacy, none_logged) == []  # legacy: matched by firm and slot
     other_slot = [{"tag": {"firm": "B", "part": 1, "period": 1, "phase": "price"}}]
