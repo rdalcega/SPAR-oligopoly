@@ -2,12 +2,13 @@
 
 Per period: in Talk parts up to `chat_rounds` simultaneous chat rounds (every firm is called concurrently
 on the same state; a round's messages are revealed only after all firms have answered; the chat closes
-early when everyone passes), then all firms price concurrently, then payoffs. The results of period t
-open period t + 1's user message; the final period's results go with the end-of-part text.
+early when everyone passes), then all firms price concurrently, then payoffs. When the period ends, each firm
+gets a summary of it (`Firm.summarise`: the results, any fallback notice, then the die or end-of-part line);
+later requests show the last `memory_window` summaries (see Context below).
 
-Post-game probe (`post_game_probe`, DECISIONS.md 2026-10-20): after the final period, the final results and
-end-of-experiment text open one more user message per firm with comprehension questions (`probe_firm`), scored
-into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
+Post-game probe (`post_game_probe`, DECISIONS.md 2026-10-20): after the final period (whose summary ends with the
+end-of-experiment text), each firm gets one more request, the usual sections without chat and then the
+comprehension questions (`probe_firm`), scored into the record's `probe`. It follows all play, so no decision can depend on it; it is checkpointed like a
 period, so a market whose probe failed reruns only the probe.
 
 Transition call (`transition`, DECISIONS.md §6 item 3, 2026-10-20), only where communication changes between the
@@ -29,7 +30,7 @@ prompt-cache breakpoint goes on the system message (Part 1's instructions) only.
 Checkpoints: `run_market` writes `markets/<key>.ckpt.json` atomically when the market starts and after every
 completed period (part boundaries included): the firms' instructions, transcripts, notes and queued text, the
 period records, cumulative profits, last prices, usage so far, the market fingerprint and the wording digest
-(a resume therefore rebuilds identical windows and memory blocks). When a market
+(a resume therefore rebuilds identical requests: the same summaries, notes and chat sections). When a market
 fails, the checkpoint is rewritten with the results of the calls already made in the period in progress
 (`partial_calls`, keyed by call id and checked against the request's messages). A rerun with a matching
 checkpoint resumes after its last completed period and reuses those results instead of calling again, so
@@ -114,7 +115,8 @@ def fingerprint(obj: Any) -> str:
 
 def response_schema(kind: Kind, notes: bool) -> dict[str, Any]:
     """OpenRouter `response_format` for a structured-outputs call (`structured_outputs` in models.toml): a strict
-    JSON schema with `notes` (if the run uses notes) and `message` (string or null) or `price` (integer 0-100)."""
+    JSON schema with `price` (integer 0-100) plus `notes` if the run uses notes, `message` (string or null) for a
+    chat turn, or `notes` alone for the transition call."""
     # notes go with price answers (if the run uses notes) and make up the transition answer; chat answers have none
     props: dict[str, Any] = {"notes": {"type": "string"}} if (notes and kind == "price") or kind == "transition" \
         else {}
@@ -416,7 +418,8 @@ class Market:
             u["providers_served"].append(r.provider)
 
     async def decide(self, L: str, kind: Kind, prompt: str, part: int, period: int, phase: str) -> Decision:
-        """Ask firm L, re-asking up to max_reasks times; failed attempts stay in its history."""
+        """Ask firm L, re-asking up to max_reasks times; failed attempts stay in its transcript and are shown, with
+        their re-asks, for the rest of this decision."""
         firm, cfg, s = self.firms[L], self.spec.model, self.spec
         if kind == "price":
             fmt = prompts.price_format(self.exp.notes, self.exp.notes_words)

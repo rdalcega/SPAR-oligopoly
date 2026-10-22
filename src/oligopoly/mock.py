@@ -1,6 +1,6 @@
 """Offline stand-in for `OpenRouterClient`: same `chat` interface, deterministic from the seed.
 
-It answers price and chat prompts with a mix of valid JSON in assorted wrappings (code fences, leaked
+It answers price, chat, transition and probe prompts with a mix of valid JSON in assorted wrappings (code fences, leaked
 think blocks, prose, single quotes, numeric strings), occasional malformed or invalid output (to exercise
 re-asks and fallbacks), chat messages and passes. Notes and messages carry a `#<seed>` token so tests can
 trace where a text travelled.

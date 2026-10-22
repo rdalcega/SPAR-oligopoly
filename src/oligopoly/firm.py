@@ -20,8 +20,9 @@ message holding, in order,
 
 The firm's earlier answers are not shown again. Within a decision, each unusable answer and its re-ask follow
 as assistant and user messages. The context record (`ctx`, layout "sections") holds transcript indices and the
-cumulative-profit text, so `llm.reconstruct_request` rebuilds every request; records without a layout used
-the earlier verbatim-window layout (`context_messages`).
+cumulative-profit text, so `llm.reconstruct_request` rebuilds every request; records without a layout (legacy:
+played before the summaries layout, commit 8816c61, e.g. the 2026-10-20 sweep) used the earlier verbatim-window
+layout, rebuilt by `context_messages`.
 
 Periods are numbered globally: Part 1 period t is t, Part 2 period t is (Part 1 length) + t, and the post-game
 probe is (total periods) + 1.
@@ -41,7 +42,8 @@ LAYOUT = "sections"
 
 
 def merge_roles(messages: Sequence[Message]) -> list[Message]:
-    """Merge each run of consecutive same-role messages into one, joining their contents with a blank line."""
+    """Merge each run of consecutive same-role messages into one, joining their contents with a blank line.
+    Legacy: used only by `context_messages`."""
     out: list[Message] = []
     for m in messages:
         if out and out[-1]["role"] == m["role"]:
@@ -53,8 +55,9 @@ def merge_roles(messages: Sequence[Message]) -> list[Message]:
 
 def context_messages(instructions: Sequence[str], memory: str, turns: Sequence[Message],
                      merge: bool = True) -> list[Message]:
-    """Earlier layout (records without `layout`): instructions, memory block, then the windowed turns, with
-    consecutive same-role messages merged (`merge`; False rebuilds requests made before the merge)."""
+    """Legacy layout, kept to rebuild requests in records from before the summaries layout (commit 8816c61;
+    contexts without `layout`): instructions, memory block, then the windowed turns, with consecutive same-role
+    messages merged (`merge`; False rebuilds requests made before the merge)."""
     if not instructions:
         raise ValueError("a request needs the Part 1 instructions")
     out: list[Message] = [{"role": "system", "content": instructions[0]}]
