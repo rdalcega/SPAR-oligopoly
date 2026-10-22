@@ -45,16 +45,7 @@ Models use model-card sampling (temperature 0.1--1.0) and reasoning effort ``med
 The outcome is the selling price (lowest posted price) averaged over periods 6+ of each part, as in the human data. A rule-based chat coder finds agreed prices (backed by a majority of firms; ``kept'' if all firms then post exactly that price), and a post-game probe tests whether firms understood the payoffs. Every cell is one market unless stated, so there are no significance tests; differences between single markets are descriptions.
 
 \section{Results}
-\emph{Human comparison (paper's $n=4$ cell; Table~\ref{tab:main}, Figures~\ref{fig:paths}--\ref{fig:dumbbell}).}
-Humans price near cost without talk (6.0) and collude with it (81.3, SD 30.1, 6 markets). Qwen3.6-27B comes closest to that pattern: its selling price was 0--1 in Part~1 (individual firms posted 100 in early periods), and its firms agreed on 100 in the first Talk period with a grim trigger (``If anyone undercuts, I revert to P=1 immediately and stay there'').
-Qwen3.5-27B and Qwen3.8-27B priced at 100 in all 53 periods. Gemma-4's and Bonsai-2's NoTalk selling prices fell about one point a period (90$\to$61, 70$\to$39; all four firms tied in only 20 and 12 of 29 periods: possibly slow undercutting, not tacit cooperation); with chat both agreed on 80 at once and reached 100 in agreed steps within five Talk periods.
-Qwen3.5-9B's survey market slid tacitly from 80 to 68, then agreed on 85 to ``maximize profit safely. It beats 68 without the high risk of 100.''
-gpt-oss-20b sat at 0 in Part~1, agreed on 20 and then undercut its own agreements (9 of 18 kept) down to 6; Qwen3-14B went from 1 to a kept cartel at 24--25; Granite-4.2-8B's price fell from 50 to 22 without chat, then stayed between 18 and 21 with it; LFM-2.5-2.6B converged to 1 and agreed to stay there.
-
-\emph{Replication} (Figure~\ref{fig:repl}). Over seven $n=4$ Qwen3.5-9B markets, Talk averaged 68.3 (SD 20.9) and NoTalk 59.0, a Talk-minus-NoTalk difference of 9.3 (humans 75.3), which mixes the effect of chat with later play and the transition call. Talk exceeded NoTalk in 3 of 7 markets (humans at $n=4$: 6 of 6). At $n=2$ six markets had a similar mean Talk price to humans (94.8 vs.\ 93.5) but also colluded tacitly (90.4 vs.\ 50.4). Across the 12 replication markets and the survey market, agreements were kept in 301 of 303 periods with one (162 of 164 at $n=4$); both breaches read as a coordination failure and a memory slip, not as undercutting.
-
-\emph{Choices vs.\ mistakes.} All 40 probed firms (the ten markets of Table~\ref{tab:main}) named 100 as the highest consumer price and all but one (a Granite firm) as the best common price. This argues against a misreading of demand, not for correct reasoning during play. Invalid answers were rare (at most 2.8\% of price decisions and 3.8\% of chat turns, LFM) and always recovered on a re-ask.
-\begin{table}[t]
+\begin{table}[tbp]
 \centering\footnotesize
 \caption{Selling price (periods 6+), $n=4$, NT-T. Kept: Talk periods where all firms posted the coder-detected agreed price / periods with one.}
 \label{tab:main}
@@ -80,6 +71,37 @@ LFM-2.5-2.6B              & 2.6B dense       &   5.3 &   1.0 & 24 / 24  & 1 \\
 \end{tabular}
 \end{table}
 
+\emph{Human comparison (paper's $n=4$ cell; Table~\ref{tab:main}, Figures~\ref{fig:paths}--\ref{fig:dumbbell}).}
+Humans price near cost without talk (6.0) and collude with it (81.3, SD 30.1, 6 markets). Qwen3.6-27B comes closest to that pattern: its selling price was 0--1 in Part~1 (individual firms posted 100 in early periods), and its firms agreed on 100 in the first Talk period with a grim trigger (``If anyone undercuts, I revert to P=1 immediately and stay there'').
+Qwen3.5-27B and Qwen3.8-27B priced at 100 in all 53 periods. Gemma-4's and Bonsai-2's NoTalk selling prices fell about one point a period (90$\to$61, 70$\to$39; all four firms tied in only 20 and 12 of 29 periods: possibly slow undercutting, not tacit cooperation); with chat both agreed on 80 at once and reached 100 in agreed steps within five Talk periods.
+Qwen3.5-9B's survey market slid tacitly from 80 to 68, then agreed on 85 to ``maximize profit safely. It beats 68 without the high risk of 100.''
+gpt-oss-20b sat at 0 in Part~1, agreed on 20 and then undercut its own agreements (9 of 18 kept) down to 6; Qwen3-14B went from 1 to a kept cartel at 24--25; Granite-4.2-8B's price fell from 50 to 22 without chat, then stayed between 18 and 21 with it; LFM-2.5-2.6B converged to 1 and agreed to stay there.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/price-paths.pdf}
+\caption{Selling price by period in each model's $n=4$ market (Part 1 NoTalk, periods 1--29; Part 2 Talk, 30--53). Dashed lines: human means (6.0 and 81.3). Panels ordered by Talk price.}
+\label{fig:paths}
+\end{figure}
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/talk-vs-notalk.pdf}
+\caption{NoTalk and Talk selling price (periods 6+) at $n=4$. Qwen3.5-9B shows the mean of 7 markets (faint dots: single markets); all other models have one market.}
+\label{fig:dumbbell}
+\end{figure}
+
+\emph{Replication} (Figure~\ref{fig:repl}). Over seven $n=4$ Qwen3.5-9B markets, Talk averaged 68.3 (SD 20.9) and NoTalk 59.0, a Talk-minus-NoTalk difference of 9.3 (humans 75.3), which mixes the effect of chat with later play and the transition call. Talk exceeded NoTalk in 3 of 7 markets (humans at $n=4$: 6 of 6). At $n=2$ six markets had a similar mean Talk price to humans (94.8 vs.\ 93.5) but also colluded tacitly (90.4 vs.\ 50.4). Across the 12 replication markets and the survey market, agreements were kept in 301 of 303 periods with one (162 of 164 at $n=4$); both breaches read as a coordination failure and a memory slip, not as undercutting.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/q35-replication.pdf}
+\caption{Qwen3.5-9B replication: NoTalk to Talk selling price per market (grey; the survey market labelled), mean (violet) and human mean (dashed), at $n=2$ (6 markets) and $n=4$ (7 markets).}
+\label{fig:repl}
+\end{figure}
+
+\emph{Choices vs.\ mistakes.} All 40 probed firms (the ten markets of Table~\ref{tab:main}) named 100 as the highest consumer price and all but one (a Granite firm) as the best common price. This argues against a misreading of demand, not for correct reasoning during play. Invalid answers were rare (at most 2.8\% of price decisions and 3.8\% of chat turns, LFM) and always recovered on a re-ask.
+
 \section{Why do models differ? (interpretation, not findings)}
 \emph{Size and family.} Every 26--27B model reached 100 with talk; below that only Qwen3.5-9B came near (68.3 over seven markets), and the rest stayed at or below 24. But size is confounded with family (four of the five are Qwen-based), provider, quantisation and temperature, and Gemma-4 has 4B active parameters: not a clean size threshold.
 
@@ -94,29 +116,6 @@ A sweep under an older layout (verbatim three-period window, no transition call,
 
 \section{Caveats and next steps}
 Most cells hold one market (humans: six), and the replication shows how far one can mislead. Providers, quantisation and sampling differ across models; the transition call and the ambiguous Part~2 window qualify every human comparison (all Talk periods instead of 6+: Qwen3.5-9B 66.7, not 68.3); our ``kept'' is not the paper's. Single-seed cells also hide the within-model spread that the replication exposed for Qwen3.5-9B. Next: replicate the 100-reaching models on one provider with several markets each, and test the framing and anchoring hypotheses directly rather than from transcripts.
-
-\clearpage
-\section*{Supplementary figures}
-\begin{figure}[h]
-\centering
-\includegraphics[width=\textwidth]{figures/price-paths.pdf}
-\caption{Selling price by period in each model's $n=4$ market (Part 1 NoTalk, periods 1--29; Part 2 Talk, 30--53). Dashed lines: human means (6.0 and 81.3). Panels ordered by Talk price.}
-\label{fig:paths}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/talk-vs-notalk.pdf}
-\caption{NoTalk and Talk selling price (periods 6+) at $n=4$. Qwen3.5-9B shows the mean of 7 markets (faint dots: single markets); all other models have one market.}
-\label{fig:dumbbell}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/q35-replication.pdf}
-\caption{Qwen3.5-9B replication: NoTalk to Talk selling price per market (grey; the survey market labelled), mean (violet) and human mean (dashed), at $n=2$ (6 markets) and $n=4$ (7 markets).}
-\label{fig:repl}
-\end{figure}
 
 \section*{Acknowledgments}
 This work is part of the SPAR project \emph{Learning dynamics in competitive multiagent environments}. Rodrigo Delgado, Connacher Murphy and Marin Hristov contributed to the project; this note was written by Claude from the project's results and research notes.
