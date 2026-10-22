@@ -1,0 +1,20 @@
+model,test,group,statistic,p,n_obs,scope,part2_higher,negative,positive,undefined
+qwen3.5-9b,spearman_price_vs_n,NT-T p1_from6,-0.7433292478573602,0.0035910439983889435,13,paper_n,,,,
+qwen3.5-9b,spearman_price_vs_n,NT-T p1_from6,-0.7433292478573602,0.0035910439983889435,13,all_n,,,,
+qwen3.5-9b,mw_pair_n,NT-T p1_from6 n=2 vs n=4,39.0,0.0122992130117101,13,paper_n,,,,
+qwen3.5-9b,spearman_price_vs_n,NT-T p2_all,-0.7537844624181926,0.0029204323146748566,13,paper_n,,,,
+qwen3.5-9b,spearman_price_vs_n,NT-T p2_all,-0.7537844624181926,0.0029204323146748566,13,all_n,,,,
+qwen3.5-9b,mw_pair_n,NT-T p2_all n=2 vs n=4,39.0,0.011128012415059967,13,paper_n,,,,
+qwen3.5-9b,spearman_price_vs_n,NT-T p2_from6,-0.6372446937141223,0.01914735394887098,13,paper_n,,,,
+qwen3.5-9b,spearman_price_vs_n,NT-T p2_from6,-0.6372446937141223,0.01914735394887098,13,all_n,,,,
+qwen3.5-9b,mw_pair_n,NT-T p2_from6 n=2 vs n=4,36.0,0.0328511563255265,13,paper_n,,,,
+qwen3.5-9b,wilcoxon_part1_vs_part2,n=2 NT-T p1_from6 vs p2_all,2.0,0.1875,6,,4.0,,,
+qwen3.5-9b,wilcoxon_part1_vs_part2,n=2 NT-T p1_from6 vs p2_from6,2.0,0.1875,6,,4.0,,,
+qwen3.5-9b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_all,10.0,0.578125,7,,3.0,,,
+qwen3.5-9b,wilcoxon_part1_vs_part2,n=4 NT-T p1_from6 vs p2_from6,10.0,0.578125,7,,3.0,,,
+qwen3.5-9b,mw_gain_pair_n,NT-T gain_p2_all n=2 vs n=4,24.0,0.7307692307692307,13,,,,,
+qwen3.5-9b,mw_gain_pair_n,NT-T gain_p2_from6 n=2 vs n=4,24.0,0.7307692307692307,13,,,,,
+qwen3.5-9b,sign_test_time_trend,n=2 NT-T part 1 (NoTalk),,0.625,6,,,3.0,1.0,2.0
+qwen3.5-9b,sign_test_time_trend,n=2 NT-T part 2 (Talk),,1.0,6,,,0.0,1.0,5.0
+qwen3.5-9b,sign_test_time_trend,n=4 NT-T part 1 (NoTalk),,0.015625,7,,,7.0,0.0,0.0
+qwen3.5-9b,sign_test_time_trend,n=4 NT-T part 2 (Talk),,0.5,7,,,0.0,2.0,5.0

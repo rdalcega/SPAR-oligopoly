@@ -1,0 +1,5 @@
+model,n,ordering,part,phase,n_markets,share_first_all100,markets_first_all100,mean_all100_spell,markets_with_all100_spell,markets_turn_taking,turn_taking_periods,defections,defections_kept,defections_punished
+qwen3.5-9b,2,NT-T,1,NoTalk,6,0.5,3,22.333333333333332,3,1,2,2,2,0
+qwen3.5-9b,2,NT-T,2,Talk,6,0.6666666666666666,4,24.0,4,0,0,0,0,0
+qwen3.5-9b,4,NT-T,1,NoTalk,7,0.0,0,,0,0,0,0,0,0
+qwen3.5-9b,4,NT-T,2,Talk,7,0.0,0,19.0,1,0,0,0,0,0

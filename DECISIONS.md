@@ -99,6 +99,14 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   its first period (answers hit the token limit or degenerated into repeated words); Xing4.0's free endpoint was
   rate-limited upstream until the market failed after 3 periods, and a resume was stopped after 5 (checkpointed,
   resumable).
+- **2026-10-22: Qwen3.5-9B replication** (asked by Rodrigo). This checks whether the survey market's collusion
+  (`q35-9b-n4-nt-t-2026-10-21`: NoTalk 71.5, Talk 85.0) was a fluke. It plays six NT-T markets at n = 4 and six at
+  n = 2, both paper cells, with the survey's settings (`config/experiment.toml` and `config/models.toml` unchanged,
+  Parasail bf16). The base seed is 1, so no market reuses the survey market's seeds, which were base seed 0,
+  market 0. There is one run id, `q35-9b-n24-nt-t-2026-10-22`. The survey market cost $0.53 at n = 4, about
+  $0.13 per firm, which projects to about $4.80 for the twelve markets.
+  Cap $6.50, approved by Rodrigo with the key's limit raised to $82. Outcome
+  (`results/2026-10-22-q35-9b-replication/`): all twelve markets completed for $4.68.
 
 ### §6 item 1 — chat structure
 
