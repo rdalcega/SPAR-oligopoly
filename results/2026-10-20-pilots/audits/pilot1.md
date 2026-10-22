@@ -3,7 +3,7 @@
 Scope: 7 completed live markets, n = 4, ordering T-NT, Part 1 = 6 Talk periods, Part 2 = 4 NoTalk periods
 (`data/runs/pilot1/markets/*.json`, `data/runs/pilot1-q14/markets/qwen3-14b__n4__T-NT__m0.json`), the failed
 `qwen3.5-9b` market, and both `calls.jsonl` logs. The checks are in `scripts/audit_pilot.py`; its machine-readable
-output is in `data/audits/pilot1_audit.json`. No file in `src/`, `tests/` or `config/` was changed.
+output is in `pilot1_audit.json` next to this file (written to `data/audits/`, since moved here). No file in `src/`, `tests/` or `config/` was changed.
 
 ## A. Engine and prompt bug hunt
 

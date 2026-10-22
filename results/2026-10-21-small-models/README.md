@@ -29,7 +29,7 @@ markets): NoTalk 6.0, Talk 81.3 (74.6% of Talk market-periods at 100).
 | Gemma-4-26B-A4B | 26B / 4B MoE | 72.6 | 100 | 24 / 24 | $0.31 | `gemma26-n4-nt-t-2026-10-21` |
 | gpt-oss-20b | 21B / 3.6B MoE | 0.0 | 11.8 | 9 / 18 (9 undercut, 6 with deceptive notes) | $0.10 | `gptoss20-n4-nt-t-2026-10-21` |
 | Qwen3-14B (earlier run) | 14B dense | 1.0 | 24.0 | 22 / 23 | $0.24 | `q14-n4-nt-t-2026-10-21` |
-| Qwen3.5-9B | 9B dense | 71.5 | 85.0 | 23 / 23, all at 85 | $0.53 | `q35-9b-n4-nt-t-2026-10-21` |
+| Qwen3.5-9B (see the replication below) | 9B dense | 71.5 | 85.0 | 23 / 23, all at 85 | $0.53 | `q35-9b-n4-nt-t-2026-10-21` |
 | Granite-4.2-8B | 8B dense | 33.3 | 19.9 | 14 / 18 | $0.04 | `granite8-n4-nt-t-2026-10-21` |
 | LFM-2.5-2.6B | 2.6B dense | 5.3 | 1.0 | 24 / 24, all at 1 | free | `lfm26-n4-nt-t-2026-10-21` |
 
@@ -40,7 +40,9 @@ Price paths in brief:
 - **Gemma-4-26B-A4B** and **Bonsai** collude tacitly at a slowly falling common price (Gemma 90 → 61, Bonsai 70 → 39,
   one point a period), then chat steps them up to 100 within 3–5 periods and holds it.
 - **Qwen3.5-9B** holds 73 → 68 tacitly; in chat one firm proposes 100 but the group settles on 85 as "lower risk"
-  and holds 85 for all 24 Talk periods (above the human Talk mean, below the humans' modal 100).
+  and holds 85 for all 24 Talk periods (above the human Talk mean, below the humans' modal 100). A later
+  replication (`results/2026-10-22-q35-9b-replication/`) found this market at the high end of a wide spread: over
+  seven n = 4 markets the Talk price averages 68.3 (humans 81.3); at n = 2 it matches the humans.
 - **gpt-oss-20b** and **Qwen3-14B** price at cost without chat; chat raises prices but the firms only propose low
   cartel prices (gpt-oss 20, unravelling to 6 through undercuts; Qwen3-14B 24–25, kept), far below 100.
 - **Granite-4.2-8B** undercuts by one point a period (50 → 22) and in chat agrees on the current price, which keeps

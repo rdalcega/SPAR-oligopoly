@@ -4,9 +4,10 @@ Smoke test of the refactored environment and a first look at two Qwen models, on
 `DECISIONS.md`). Single markets, not cell means: read them as cases.
 
 - `analysis/`: `scripts/analyze.py` over the three runs below (analysis coders as of branch
-  `worktree-fix-analysis-coders`). Regenerate with
-  `uv run python scripts/analyze.py --run-id smoke-q38-nt-t-2026-10-20 --run-id q38-n268-nt-t-2026-10-20
-  --run-id q14-n4-nt-t-2026-10-21 --out results/2026-10-21/analysis`.
+  `worktree-fix-analysis-coders`, since merged in 07eb925). Regenerate with
+  `uv run python scripts/analyze.py --runs-root ~/Documents/code/SPAR-oligopoly/data/runs
+  --run-id smoke-q38-nt-t-2026-10-20 --run-id q38-n268-nt-t-2026-10-20 --run-id q14-n4-nt-t-2026-10-21
+  --out results/2026-10-21-qwen-single-markets/analysis`.
 - `audits/`: `scripts/audit_pilot.py` per run; no engine or call issues in any of them.
 - `pages/`: sources of the two result pages (links below).
 
@@ -19,8 +20,9 @@ Smoke test of the refactored environment and a first look at two Qwen models, on
 The q38-n268 run was interrupted by the Mac sleeping (~35 min) and resumed from checkpoints; 11 in-flight calls
 were charged their reservation ($0.35, in `budget.json`).
 
-Raw market records and call logs are in `data/runs/<run>/` (untracked; copied on 2026-10-21 from the
-`experiments` worktree, which still holds the originals).
+Raw market records and call logs are in the main checkout's `data/runs/<run>/` (untracked; copied there on
+2026-10-21 from the `experiments` worktree, which has since been removed). The page snapshots in `pages/` still
+cite the old worktree paths.
 
 Pages:
 - Qwen3.8-27B report: https://claude.ai/artifact/ET2twcbviJwmuTUbMNg6Df

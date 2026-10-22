@@ -64,8 +64,10 @@ prior Talk). It is a single duopoly run with differentiated goods, though.
   `fonseca-normann-summary.md` §6.10 plans.
 - **Prompt sensitivity:** Fish et al. show that small wording changes shift collusion. This supports using F&N's
   verbatim instructions and recording every prompt.
-- **Contamination:** no paper probes whether models know F&N's results. Our planned probe (§6.7 of the design
-  summary) would be new.
+- **Contamination:** no paper probes whether models know F&N's results. Our contamination probe (§6.7 of the design
+  summary; `DECISIONS.md` §6 item 7) is, as far as we found, new. It ran on 2026-10-20 for the 7 lineup models
+  (`results/2026-10-20-probes/contamination/`): none recognised the instructions or recalled the design or
+  results.
 
 ## Sources
 

@@ -64,8 +64,9 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   peak bound + max_tokens is at most 23.3k tokens for gpt-oss-20b (limit 104.9k) and 20.6k for qwen3-14b
   (limit 32.8k), both at n = 10 Talk. No cell is excluded for either model; qwen3-14b's earlier exclusions
   (all Talk cells) were removed.
-- **Providers and sampling** (from the probe in `data/probes/`): all 7 pinned to DeepInfra (bf16 or fp8, seed
-  supported), so provider isn't confounded with model. Sampling per model card, in `config/models.toml`.
+- **Providers and sampling** (from the probe in `data/probes/`, moved to `results/2026-10-20-probes/provider/`):
+  all 7 pinned to DeepInfra (bf16 or fp8, seed supported), so provider isn't confounded with model. Sampling per
+  model card, in `config/models.toml`.
 - **2026-10-20: Qwen3.5-9B dropped.** DeepInfra's shared pool rate-limited it (HTTP 429) so badly that its
   pilot market failed before period 1, and calls took ~220 s when they worked.
 - **2026-10-20: one model only — `openai/gpt-oss-20b`** (decided by Rodrigo; this supersedes the lineup above
@@ -119,7 +120,8 @@ truncated and the truncation is logged).
 JSON sent to a chat prompt, mostly in round 3. The chat line now names the round ("chat round 2 of at most 3")
 and, on the last possible round, adds "(last round; prices are set after it)"; the price prompt after a chat
 says "The chat box has closed for this period: no more messages can be posted." Both restate timing already
-in the instructions; nothing about how to behave. Listed as edit 28 in `docs/prompts-draft.md`.
+in the instructions; nothing about how to behave. Listed as edit 28 in `docs/prompts-draft.md` (moved to
+`docs/prompts.md`).
 
 **2026-10-20, after the n = 10 pilot (wording):** ~19% of chat turns ended as forced passes because gpt-oss
 answered chat turns with a price JSON, and the generic re-ask often failed again. Every chat prompt now states
@@ -127,7 +129,7 @@ answered chat turns with a price JSON, and the generic re-ask often failed again
 answer holding a price object (and no message object) is re-asked with "You answered with a price, but this is
 a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing." plus the format,
 and recorded with its own error string. Other invalid answers keep the generic re-ask. Edit 30 in
-`docs/prompts-draft.md`.
+`docs/prompts-draft.md` (moved to `docs/prompts.md`).
 
 ### §6 item 2 — simultaneous pricing
 
@@ -214,8 +216,10 @@ reasoning are private.
   effect: such `mw_orderings` rows carry a caveat, as do the hysteresis rows of a model whose markets had the call.
   Human-comparison rows carry the transition caveat only for Part 2 windows of orderings whose markets had it.
 - **2026-10-20: projections from the pilot records** (`data/runs/` of the `experiments` worktree;
-  `--pilots .claude/worktrees/experiments/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10 x four
-  orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
+  `--pilots .claude/worktrees/experiments/data/runs`; that worktree was later removed, and the pilot records are now
+  in the main checkout's `data/runs/`, the scripts' default
+  from the main checkout; from another worktree pass `--pilots ~/Documents/code/SPAR-oligopoly/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10
+  x four orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
   `project_cost.py` (6 markets per paper cell, 36 markets): gpt-oss-20b ~$4.97 ($6.29 with the guard's token
   bound), qwen3-14b ~$11.70 ($15.42); price and transition calls carry the stated 500-word notes (+~760 output
   tokens each), chat calls none.
@@ -276,10 +280,10 @@ Firms are told to maximise their firm's total profit in ECU. No £ conversion is
 
 ### §6 item 7 — fidelity and contamination
 
-Appendix A text with minimal edits, every edit listed in `docs/prompts-draft.md`. In Talk parts the chat rules
-also forbid revealing what kind of system or model a firm is (the analogue of the paper's no-self-identification
-rule). A separate contamination probe per model asks it to recall Fonseca & Normann's findings; it is never part
-of a game.
+Appendix A text with minimal edits, every edit listed in `docs/prompts-draft.md` (moved to `docs/prompts.md`). In
+Talk parts the chat rules also forbid revealing what kind of system or model a firm is (the analogue of the paper's
+no-self-identification rule). A separate contamination probe per model asks it to recall Fonseca & Normann's
+findings; it is never part of a game.
 
 ### §6 item 8 — invalid output
 
@@ -293,9 +297,15 @@ re-ask and fallback is logged as its own outcome and reported separately from de
 (`notes` string, `message` string or null) and price calls the `price_decision` schema (`notes` string, `price`
 integer 0–100), with `require_parameters` true so the pinned provider must honour it. The probe call sends no
 schema. Parsing and re-asks are unchanged (an answer is still validated as before). Live check
-(`scripts/probe_structured.py`, 2 calls per model on a realistic Part 2 chat-turn request, $0.003): DeepInfra
-accepted the schema for both gpt-oss-20b and qwen3-14b and all 4 answers were valid JSON matching it. Whether to
-turn it on for the sweep is a separate decision; it changes the decoding, so hold it fixed across a run.
+(`scripts/probe_structured.py`, moved to `scripts/probes/`, output in `results/2026-10-20-probes/structured-outputs/`;
+2 calls per model on a realistic Part 2 chat-turn request, $0.003): DeepInfra accepted the schema for both
+gpt-oss-20b and qwen3-14b and all 4 answers were valid JSON matching it. Whether to turn it on for the sweep is a
+separate decision; it changes the decoding, so hold it fixed across a run.
+
+**2026-10-22 (correction to the schemas above):** since chat turns carry no notes (§6 item 3, 2026-10-20),
+`chat_turn` has only `message` (string or null); `price_decision` keeps `notes` (when the run uses notes) and
+`price`, and the transition call sends `transition_notes` (notes only). The live check above ran on the earlier
+notes-plus-message `chat_turn`.
 
 **2026-10-20 (Claude Code, overnight, under the PI's instruction to rule out design faults): structured outputs
 stay off for the sweep.** With the new chat-turn wording and re-ask, the short n = 10 pilot had 0 forced passes
@@ -307,10 +317,11 @@ mistakes.
 **2026-10-20: memory-window A/B check (pilot only, not part of the sweep).** To rule out the 3-period window as
 a design fault after a full-length gpt-oss duopoly sat at price 1 throughout, 4 n = 2 NT-T markets per model
 were run with `memory_window = 3` (run `ab-w3`) and with 60 (effectively full history; run `ab-w60`,
-`config/experiment_ab_fullmem.toml`, pilot only). Mean Talk-part selling price: gpt-oss 52/1/2/1 (window 3) vs
-72/1/1/100 (window 60); qwen3-14b 1/85/63/75 (window 3), while its window-60 markets all hit the context guard.
-Both models do collude in pairs under the design, so the sweep keeps the PI's 3-period window; the possible
-memory effect for gpt-oss (4 vs 4 markets, not significant) is reported as a finding and a follow-up option.
+`config/experiment_ab_fullmem.toml`, pilot only; removed in the 2026-10-22 cleanup, see git history). Mean
+Talk-part selling price: gpt-oss 52/1/2/1 (window 3) vs 72/1/1/100 (window 60); qwen3-14b 1/85/63/75 (window 3),
+while its window-60 markets all hit the context guard. Both models do collude in pairs under the design, so the
+sweep keeps the PI's 3-period window; the possible memory effect for gpt-oss (4 vs 4 markets, not significant) is
+reported as a finding and a follow-up option.
 
 **2026-10-20: sweep budget.** Measured projections from the new-design pilots: gpt-oss $13.31 and qwen3-14b
 $44.45 for 90 markets each (conservative bounds $19.26 and $63.65). Key balance $60.03 at launch; the sweep cap is
@@ -321,7 +332,8 @@ resume from checkpoints under the patient-retry fix (e3e24a1). gpt-oss ran above
 per market), so its resume pass gets a $25 cap instead of $18, keeping gpt-oss (priority 1) complete. Qwen3-14B
 keeps its $39 cap and runs its priority cells first; the key's own limit is the hard backstop, so any shortfall
 falls on Qwen3-14B extension cells, as the priority order intends. The Qwen3-14B run was restarted with 32
-concurrent markets (from 16) to finish overnight (`scripts/sweep_2026-10-20_qwen_resume.sh`).
+concurrent markets (from 16) to finish overnight (`scripts/sweep_2026-10-20_qwen_resume.sh`, removed in the
+2026-10-22 cleanup; see git history).
 
 ### §6 item 9 — sampling
 
@@ -467,7 +479,7 @@ neutral questions answered in JSON: the highest price consumers would pay (`max_
 the common price that gives each firm the highest per-period profit (`best_common_price`, truth 100), every
 firm's price in the very last period (`last_period_prices`, truth: the posted prices), and whether any firm
 priced differently from what it had said or agreed in the chat in the last part (`deviations`, free text; "no
-chat" if there was none). Exact wording in `docs/prompts-draft.md`.
+chat" if there was none). Exact wording in `docs/prompts-draft.md` (moved to `docs/prompts.md`).
 
 - Purpose: separate deliberate choices from misread rules or lost track of play (a firm that cannot name 100
   as the best common price, or misremembers the last prices, is evidence of a mistake rather than a strategy),
