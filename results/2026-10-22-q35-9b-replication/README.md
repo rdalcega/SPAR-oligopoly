@@ -13,7 +13,7 @@ completed, $4.68 (cap $6.50).
   --run-id q35-9b-n24-nt-t-2026-10-22 --out results/2026-10-22-q35-9b-replication/analysis`.
 - `audits/`: `scripts/audit_pilot.py` on the run. There were no engine or call issues. Every call was served by
   the pinned provider (Parasail) and none was flagged for an ignored seed.
-- `pages/`: source of the result page.
+- `pages/`: source of the result page, https://claude.ai/artifact/M2duHbVLbZAbawxJgw6iiw.
 
 ## Outcome
 
