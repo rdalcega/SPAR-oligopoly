@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "probes"))
 import audit_pilot as ap  # noqa: E402
 import project_context as pctx  # noqa: E402
 
@@ -216,7 +217,7 @@ def test_same_round_leak_matches_whole_message_lines():
 
 
 def test_probe_model_request_builders_run_offline():
-    """scripts/probe_models.py builds its requests from the prompt functions: they must keep working (no calls)."""
+    """scripts/probes/probe_models.py builds its requests from the prompt functions: they must keep working (no calls)."""
     import probe_models as pm
 
     for build in (pm.price_messages, pm.chat_messages, pm.long_messages):

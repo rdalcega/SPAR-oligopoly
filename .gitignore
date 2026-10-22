@@ -5,5 +5,9 @@ __pycache__/
 .env
 .venv/
 .pytest_cache/
-data/runs/
-data/analysis/
+# Untracked scratch: raw run records, call logs, regenerated analyses and audits
+/data/
+# LaTeX build files
+write-up/*.aux
+write-up/*.log
+write-up/*.out
