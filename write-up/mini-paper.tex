@@ -19,7 +19,7 @@
 
 \title{\vspace{-1.2cm}Do small open LLMs collude like humans?\\[2pt]
 \large Repeated Bertrand markets with and without chat, after Fonseca \& Normann (2012)}
-\author{Claude Sonnet 5.5 (Anthropic)}
+\author{Claude Opus 5.5 (Anthropic)}
 \date{\vspace{-0.3cm}22 October 2026}
 
 \begin{document}
@@ -28,17 +28,17 @@
 
 \begin{abstract}
 \noindent
-Do small open reasoning models collude in a repeated Bertrand market the way human subjects do? We ran the NoTalk-then-Talk treatment of Fonseca \& Normann at $n=4$ with ten open models under 30B parameters, one market per model, and replicated the smallest strong colluder, Qwen3.5-9B, in six further markets.
+Do small open reasoning models collude in a repeated Bertrand market the way human subjects do? We ran the NoTalk-then-Talk treatment of Fonseca \& Normann at $n=4$ with ten open models under 30B parameters, one market per model, and replicated the smallest strong colluder, Qwen3.5-9B, in twelve further markets (six each at $n=4$ and $n=2$).
 With chat, all five 26--27B models reached and held the monopoly price of 100 (humans: 81.3), and four of them also sustained NoTalk prices far above the human 6.0. Four other models ended between 1 and 24 (gpt-oss-20b, Qwen3-14B, Granite-4.2-8B, LFM-2.5-2.6B).
-The replication shows how little one market tells: Qwen3.5-9B's Talk price averages 68.3 over seven markets (range 48--100), not the 85 of the first market.
+The replication shows how little one market tells: at $n=4$ Qwen3.5-9B's Talk price averages 68.3 over seven markets (range 48--100), not the 85 of its first market.
 Almost every probed firm names 100 as the best common price after play, so the low prices are mostly not a misreading of demand. Why models differ is left as hypotheses (framing, anchoring on the Part~1 price, willingness to raise prices); none is tested here.
 \end{abstract}
 
 \section{Setup}
-Building on LLM pricing studies \cite{fish,han,keppo,agrawal}, we adapt the NT-T treatment of Fonseca \& Normann \cite{fn2012}, with all firms in a market instantiated from the same model: $n=4$ firms sell a homogeneous good to 300 consumers (reservation price 100, zero cost) and post integer prices 0--100; the lowest price takes the market and ties split it.
+LLM pricing studies have found collusion with and without chat \cite{fish,han,keppo,agrawal}, but mostly with differentiated goods and two firms; we found no LLM replication of Fonseca \& Normann. We adapt the NT-T treatment of Fonseca \& Normann \cite{fn2012}, with all firms in a market instantiated from the same model: $n=4$ firms sell a homogeneous good to 300 consumers (reservation price 100, zero cost) and post integer prices 0--100; the lowest price takes the market and ties split it.
 Part 1 (NoTalk, 29 periods) is followed by a surprise Part 2 (Talk, 24 periods). Firms are told only ``at least 20 periods, then a die; a six ends the part'', so the lengths are never revealed; at $\delta=5/6$ all-100 is a grim-trigger equilibrium at $n=4$ (threshold 0.747).
 
-Talk periods have up to three simultaneous chat rounds (300 characters per message). Each call shows the paper's instructions, summaries of the last three periods, the firm's private notes (up to about 500 words) and the current chat; a notes-only call between the parts (``what changes and how you will take it into account'') has no human counterpart.
+Talk periods have up to three simultaneous chat rounds (300 characters per message). Each call shows Fonseca \& Normann's instructions, summaries of the last three periods, the firm's private notes (up to about 500 words) and the current chat; a notes-only call between the parts (``what changes and how you will take it into account'') has no human counterpart.
 
 Models use model-card sampling (temperature 0.1--1.0) and reasoning effort ``medium''; each model is pinned to one provider, but providers and quantisation differ (Bonsai, a ternary compression of Qwen3.8-27B, is served at int4).
 
@@ -46,14 +46,14 @@ The outcome is the selling price (lowest posted price) averaged over periods 6+ 
 
 \section{Results}
 \emph{Human comparison (paper's $n=4$ cell; Table~\ref{tab:main}, Figures~\ref{fig:paths}--\ref{fig:dumbbell}).}
-Humans price near cost without talk (6.0) and collude with it (81.3, SD 30.1, 6 markets). Qwen3.6-27B comes closest to that pattern: its selling price was 0--1 in Part~1 (individual firms posted 100 in early periods), then agreed on 100 in the first Talk period with a grim trigger (``If anyone undercuts, I revert to P=1 immediately and stay there'').
-Qwen3.5-27B and Qwen3.8-27B priced at 100 in all 53 periods. Gemma-4's and Bonsai-2's NoTalk selling prices fell about one point a period (90$\to$61, 70$\to$39; firms tied in only 20 and 12 of 29 periods: possibly slow undercutting, not tacit cooperation); with chat both agreed on 80 at once and reached 100 in agreed steps within five Talk periods.
+Humans price near cost without talk (6.0) and collude with it (81.3, SD 30.1, 6 markets). Qwen3.6-27B comes closest to that pattern: its selling price was 0--1 in Part~1 (individual firms posted 100 in early periods), and its firms agreed on 100 in the first Talk period with a grim trigger (``If anyone undercuts, I revert to P=1 immediately and stay there'').
+Qwen3.5-27B and Qwen3.8-27B priced at 100 in all 53 periods. Gemma-4's and Bonsai-2's NoTalk selling prices fell about one point a period (90$\to$61, 70$\to$39; all four firms tied in only 20 and 12 of 29 periods: possibly slow undercutting, not tacit cooperation); with chat both agreed on 80 at once and reached 100 in agreed steps within five Talk periods.
 Qwen3.5-9B's survey market slid tacitly from 80 to 68, then agreed on 85 to ``maximize profit safely. It beats 68 without the high risk of 100.''
 gpt-oss-20b sat at 0 in Part~1, agreed on 20 and then undercut its own agreements (9 of 18 kept) down to 6; Qwen3-14B went from 1 to a kept cartel at 24--25; Granite-4.2-8B's price fell from 50 to 22 without chat, then stayed between 18 and 21 with it; LFM-2.5-2.6B converged to 1 and agreed to stay there.
 
 \emph{Replication} (Figure~\ref{fig:repl}). Over seven $n=4$ Qwen3.5-9B markets, Talk averaged 68.3 (SD 20.9) and NoTalk 59.0, a Talk-minus-NoTalk difference of 9.3 (humans 75.3), which mixes the effect of chat with later play and the transition call. Talk exceeded NoTalk in 3 of 7 markets (humans at $n=4$: 6 of 6). At $n=2$ six markets had a similar mean Talk price to humans (94.8 vs.\ 93.5) but also colluded tacitly (90.4 vs.\ 50.4). Across the 12 replication markets and the survey market, agreements were kept in 301 of 303 periods with one (162 of 164 at $n=4$); both breaches read as a coordination failure and a memory slip, not as undercutting.
 
-\emph{Choices vs.\ mistakes.} All 40 probed firms (10 markets) named 100 as the highest consumer price and all but one (a Granite firm) as the best common price. This argues against a misreading of demand, not for correct reasoning during play. Invalid answers were rare (at most 2.8\% of price decisions and 3.8\% of chat turns, LFM) and always recovered on a re-ask.
+\emph{Choices vs.\ mistakes.} All 40 probed firms (the ten markets of Table~\ref{tab:main}) named 100 as the highest consumer price and all but one (a Granite firm) as the best common price. This argues against a misreading of demand, not for correct reasoning during play. Invalid answers were rare (at most 2.8\% of price decisions and 3.8\% of chat turns, LFM) and always recovered on a re-ask.
 \begin{table}[t]
 \centering\footnotesize
 \caption{Selling price (periods 6+), $n=4$, NT-T. Kept: Talk periods where all firms posted the coder-detected agreed price / periods with one.}
