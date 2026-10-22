@@ -1,15 +1,17 @@
 """Live check of OpenRouter structured outputs (`structured_outputs = true` in models.toml) on the pinned endpoints.
 
-    uv run python scripts/probe_structured.py                       # gpt-oss-20b and qwen3-14b, 2 calls each
-    uv run python scripts/probe_structured.py --models qwen3-14b --calls 1
+    uv run python scripts/probes/probe_structured.py                # gpt-oss-20b and qwen3-14b, 2 calls each
+    uv run python scripts/probes/probe_structured.py --models qwen3-14b --calls 1
 
 The prompt is a realistic chat-turn request: the engine plays a full-length NoTalk -> Talk market of n = 4 offline
-(mock answers) and takes firm A's request for chat round 2 of Part 2 period 5, with the rolling window and memory
-block exactly as a real run builds it. Each call sends the model's own settings from models.toml plus the strict
-`chat_turn` json_schema (`engine.response_schema`) and require_parameters, so a provider that cannot honour the
-schema must refuse the call. Reports per call whether the provider accepted it and whether the content is valid
-JSON matching the schema (exactly `notes` string and `message` string-or-null). Budget cap $0.05 (--budget-usd);
-calls are logged to data/probes/structured/calls.jsonl and the summary to data/probes/structured/results.json.
+(mock answers) and takes firm A's request for chat round 2 of Part 2 period 5, with the instructions and the
+summaries-layout sections (period summaries, totals, notes, chat so far) exactly as a real run builds them. Each
+call sends the model's own settings from models.toml plus the strict `chat_turn` json_schema
+(`engine.response_schema`) and require_parameters, so a provider that cannot honour the schema must refuse the
+call. Reports per call whether the provider accepted it and whether the content is valid
+JSON matching the schema (exactly a `message` string-or-null; chat turns carry no notes). Budget cap $0.05
+(--budget-usd); calls are logged to results/2026-10-20-probes/structured-outputs/calls.jsonl and the summary to
+results.json in the same folder (a rerun appends to the log and overwrites the summary).
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from oligopoly.llm import Budget, OpenRouterClient, OpenRouterError
 from oligopoly.mock import MockClient
 from oligopoly.parse import parse_message
 
-OUT = ROOT / "data" / "probes" / "structured"
+OUT = ROOT / "results" / "2026-10-20-probes" / "structured-outputs"
 
 
 async def chat_turn_request() -> list[dict[str, Any]]:
@@ -48,15 +50,15 @@ async def chat_turn_request() -> list[dict[str, Any]]:
 
 
 def schema_valid(content: str | None) -> tuple[bool, str]:
-    """Whether `content` is, as it stands, a JSON object with exactly a string `notes` and a string-or-null
-    `message`."""
+    """Whether `content` is, as it stands, a JSON object with exactly a string-or-null `message` (the `chat_turn`
+    schema of `engine.response_schema`)."""
     try:
         obj = json.loads(content or "")
     except json.JSONDecodeError as e:
         return False, f"not JSON: {e}"
-    if not isinstance(obj, dict) or set(obj) != {"notes", "message"}:
+    if not isinstance(obj, dict) or set(obj) != {"message"}:
         return False, f"keys {sorted(obj) if isinstance(obj, dict) else type(obj).__name__}"
-    if not isinstance(obj["notes"], str) or not (obj["message"] is None or isinstance(obj["message"], str)):
+    if not (obj["message"] is None or isinstance(obj["message"], str)):
         return False, "wrong types"
     return True, "ok"
 

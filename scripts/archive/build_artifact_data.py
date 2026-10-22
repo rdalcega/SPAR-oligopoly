@@ -1,12 +1,16 @@
-"""Build the compact datasets behind the results dashboard (data/artifact/).
+"""Build the compact datasets behind the 2026-10-20 sweep dashboard (results/2026-10-20-sweep/dashboard/).
+
+Archived and frozen: the dashboard is a record of the 2026-10-20 sweep (gpt-oss-20b and the incomplete Qwen3-14B
+sweep, n up to 10, and the ab-w3/ab-w60 memory A/B), kept for provenance. Experiments are paused, so it is not
+meant to be re-run; a rerun would also fold every later run's budget into the "pilots and probes" cost row.
 
 Reads only: data/analysis/<sweep>/ outputs, data/runs/*/budget.json, the A/B pilot market JSONs in
-data/runs/ab-w3 and data/runs/ab-w60, and the hand-maintained inputs in data/artifact/manual/
-(findings_edits.json, screen_checks.json). Never writes outside data/artifact/.
+data/runs/ab-w3 and data/runs/ab-w60 (all untracked, present only in the main checkout's data/; tracked copies of
+the analysis are in results/2026-10-20-sweep/), the probe budgets in results/2026-10-20-probes/, and the
+hand-maintained inputs in results/2026-10-20-sweep/dashboard/manual/ (findings_edits.json, screen_checks.json).
+Never writes outside results/2026-10-20-sweep/dashboard/.
 
-Re-run after the analysis is regenerated (e.g. when Qwen3-14B's remaining cells finish):
-
-    uv run python scripts/build_artifact_data.py
+    uv run python scripts/archive/build_artifact_data.py      # from the main checkout
 
 Per-cell datasets keep only cells with all six markets complete; run_status lists the partial cells (not imputed).
 
@@ -23,10 +27,13 @@ import math
 import os
 from collections import defaultdict
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, "data")
-OUT = os.path.join(DATA, "artifact")
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA = os.path.join(ROOT, "data")  # untracked: data/analysis and data/runs exist only in the main checkout
+OUT = os.path.join(ROOT, "results", "2026-10-20-sweep", "dashboard")
 MANUAL = os.path.join(OUT, "manual")
+# The probe budgets that were in data/probes/ when the dashboard was built (structured/ was a subfolder, not counted)
+PROBE_BUDGETS = [os.path.join(ROOT, "results", "2026-10-20-probes", d, "*budget*.json")
+                 for d in ("provider", "contamination")]
 
 SWEEPS = {"gpt-oss-20b": "sweep-gptoss", "qwen3-14b": "sweep-qwen14b"}
 N_VALUES = [2, 4, 6, 8, 10]
@@ -357,7 +364,7 @@ def build_run_status():
                          cells_incomplete=partial or "none"))
     pilot = sum(spent(p) for p in glob.glob(os.path.join(DATA, "runs", "*", "budget.json"))
                 if not os.path.basename(os.path.dirname(p)).startswith("sweep-"))
-    pilot += sum(spent(p) for p in glob.glob(os.path.join(DATA, "probes", "*budget*.json")))
+    pilot += sum(spent(p) for pattern in PROBE_BUDGETS for p in glob.glob(pattern))
     rows.append(dict(model="pilots and probes", cost_usd=round(pilot, 2)))
     write_csv("run_status.csv", rows, ["model", "cells_planned", "cells_complete", "human_cells_planned",
                                        "human_cells_complete", "markets_planned", "markets_complete", "cost_usd",

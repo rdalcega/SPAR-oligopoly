@@ -1,12 +1,15 @@
 """Read-only audit of a run's markets and call logs.
 
-    uv run python scripts/audit_pilot.py                      # pilot1 and pilot1-q14 (the default)
     uv run python scripts/audit_pilot.py pilot3-n2 pilot3-n10 # any run ids under data/runs/
     uv run python scripts/audit_pilot.py --runs-dir DIR --out FILE RUN_ID ...
 
-Writes data/audits/<run ids>_audit.json (or --out) and prints a summary. Checks engine/prompt invariants against
-the recorded markets and call logs (A), extracts per-market behaviour (B), and token/cost statistics (C). Never
-modifies run data.
+With no run ids it audits pilot1 and pilot1-q14, the first append-only pilots (a leftover default). data/runs/
+is untracked and exists only in the main checkout; from a worktree pass --runs-dir. A run id with no directory
+there is skipped silently, so check the report is not empty.
+
+Writes data/audits/<run ids>_audit.json (untracked scratch; or --out, e.g. a results/<folder>/audits/ file) and
+prints a summary. Checks engine/prompt invariants against the recorded markets and call logs (A), extracts
+per-market behaviour (B), and token/cost statistics (C). Never modifies run data.
 
 Records with windowed or summaries-layout context (`instructions` and `transcripts`, DECISIONS.md §6 item 3;
 the summaries layout's transcript entries carry a `kind`): every
@@ -36,9 +39,9 @@ from oligopoly.llm import messages_sha256, reconstruct_from_log, reconstruct_req
 from oligopoly.analysis.chat import code_message, code_period  # noqa: E402
 from oligopoly.prompts import OWN_MESSAGE, format_ecu, round_text, shown_message, totals_text  # noqa: E402
 
-DEFAULT_RUNS = ["pilot1", "pilot1-q14"]
+DEFAULT_RUNS = ["pilot1", "pilot1-q14"]  # the first append-only pilots; pass run ids for anything else
 RUNS_DIR = ROOT / "data/runs"
-AUDITS_DIR = ROOT / "data/audits"
+AUDITS_DIR = ROOT / "data/audits"  # untracked scratch; tracked audits are copied into results/<folder>/audits/
 
 
 def content_text(m: dict) -> str:

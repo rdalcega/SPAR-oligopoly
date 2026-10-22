@@ -1,9 +1,16 @@
 """Characterise candidate OpenRouter models for provider pinning and sampling settings.
 
-Every attempt is logged by the client to data/probes/probe_calls.jsonl; a compact per-call table goes to
-data/probes/probe_results_<which>.json. Budget cap $3 shared across runs (data/probes/budget.json).
+Archived: this is the 2026-10-19/20 provider probe behind the pins and sampling in config/models.toml
+(DECISIONS.md "Providers and sampling" and §6 item 9), for the lineup of that date (it still lists the dropped
+LFM-2.5-24B and the old DeepInfra pin for qwen3.5-9b). Its requests use the old append-only multi-turn layout
+(period_prompt / results_text chains), not the summaries layout real runs now send, so a rerun no longer reflects
+real requests.
 
-    uv run python scripts/probe_models.py [primary|alt|long|all] [model-substring]
+Every attempt is logged by the client to results/2026-10-20-probes/provider/probe_calls.jsonl; a compact per-call
+table goes to probe_results_<which>.json in the same folder, and scripts/probes/probe_summarise.py turns those into
+summary_table.md there. Budget cap $3 shared across runs (budget.json there).
+
+    uv run python scripts/probes/probe_models.py [primary|alt|long|all] [model-substring]
 """
 
 from __future__ import annotations
@@ -19,8 +26,8 @@ from oligopoly.market import payoffs
 from oligopoly.prompts import (ChatSpec, chat_prompt, die_line, firm_letters, part_instructions, period_prompt,
                                results_text, round_text)
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "data" / "probes"
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "results" / "2026-10-20-probes" / "provider"
 
 PRIMARY = {
     "qwen/qwen3.8-27b": "deepinfra/bf16",
@@ -41,7 +48,7 @@ ALTERNATES = {
     "openai/gpt-oss-20b": "groq",
     "ibm-granite/granite-4.2-8b": "coreweave/bf16",
 }
-# Model-card sampling for thinking mode (see summary.md); params an endpoint lacks are dropped.
+# Model-card sampling for thinking mode (see summary_table.md and DECISIONS.md §6 item 9); params an endpoint lacks are dropped.
 SAMPLING = {
     "qwen/qwen3.8-27b": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "presence_penalty": 0.0},
     "qwen/qwen3.6-27b": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "presence_penalty": 0.0},

@@ -1,13 +1,14 @@
-"""Summarise data/probes/probe_results_*.json and probe_calls.jsonl into a per-model table (stdout, markdown).
+"""Summarise the provider probe's probe_results_*.json and probe_calls.jsonl (results/2026-10-20-probes/provider/)
+into a per-model table (stdout, markdown; saved there as summary_table.md).
 
-    uv run python scripts/probe_summarise.py
+    uv run python scripts/probes/probe_summarise.py
 """
 import json
 import statistics as st
 from collections import defaultdict
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[1] / "data" / "probes"
+OUT = Path(__file__).resolve().parents[2] / "results" / "2026-10-20-probes" / "provider"
 rows = []
 for f in ("probe_results_primary.json", "probe_results_alt.json", "probe_results_long.json"):
     if (OUT / f).exists():

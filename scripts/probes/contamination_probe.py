@@ -3,12 +3,13 @@
 Three fresh single-turn questions per model, 2 samples each, with the model's own settings from
 config/models.toml. This is a separate probe, never part of a game, so it may name the paper.
 
-    uv run python scripts/contamination_probe.py            # all live models
-    uv run python scripts/contamination_probe.py gemma      # models whose name contains a substring
-    uv run python scripts/contamination_probe.py --sequential   # one call at a time (rerun retries failures)
+    uv run python scripts/probes/contamination_probe.py            # all live models
+    uv run python scripts/probes/contamination_probe.py gemma      # models whose name contains a substring
+    uv run python scripts/probes/contamination_probe.py --sequential   # one call at a time (rerun retries failures)
 
-Calls are logged to data/probes/contamination_calls.jsonl; answers go to data/probes/contamination.json
-(recall scores are added there by hand after reading the answers, under "scores"). Budget cap $0.30.
+Calls are logged to results/2026-10-20-probes/contamination/contamination_calls.jsonl; answers go to
+contamination.json in the same folder (recall scores are added there by hand after reading the answers, under
+"scores"). Budget cap $0.30.
 """
 
 from __future__ import annotations
@@ -21,8 +22,8 @@ from pathlib import Path
 from oligopoly.config import load_models
 from oligopoly.llm import Budget, OpenRouterClient, OpenRouterError
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "data" / "probes"
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "results" / "2026-10-20-probes" / "contamination"
 CAP_USD = 0.30
 SAMPLES = 2
 SEED_BASE = 7000

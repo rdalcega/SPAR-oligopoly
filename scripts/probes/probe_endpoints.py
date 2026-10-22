@@ -1,6 +1,7 @@
-"""Snapshot OpenRouter endpoints of the probed models to data/probes/endpoints.json (no cost).
+"""Snapshot OpenRouter endpoints of the 2026-10-19 probed models to results/2026-10-20-probes/provider/endpoints.json
+(no cost). Archived with the provider probe; a rerun overwrites the snapshot.
 
-    uv run python scripts/probe_endpoints.py
+    uv run python scripts/probes/probe_endpoints.py
 """
 import asyncio
 import json
@@ -12,7 +13,7 @@ import httpx
 MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "qwen/qwen3.5-27b", "qwen/qwen3.5-9b",
           "google/gemma-4-26b-a4b-it", "openai/gpt-oss-20b", "ibm-granite/granite-4.2-8b",
           "liquid/lfm-2.5-24b-a2b"]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 KEYS = ["seed", "reasoning", "include_reasoning", "response_format", "structured_outputs", "top_k", "min_p",
         "temperature", "top_p"]
 
@@ -36,9 +37,10 @@ async def main():
                       f"maxc={e.get('max_completion_tokens')} st={e.get('status')} "
                       + " ".join(k for k in KEYS if k in sp)
                       + f" | up30m={e.get('uptime_last_30m')}")
-    path = ROOT / "data/probes/endpoints.json"
+    path = ROOT / "results/2026-10-20-probes/provider/endpoints.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=2))
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
