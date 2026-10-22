@@ -19,7 +19,8 @@ from .. import benchmarks as b
 from .load import num
 from .measures import CELL
 
-# (label, ordering, window) of the NoTalk and Talk observations in each ordering (T-T: an extension, Talk in both)
+# per ordering, the windows of its NoTalk and Talk observations (T-T: an extension, Talk in both parts);
+# run_tests uses the union of the two per ordering
 TALK_WINDOWS = {"NT-T": ("p2_all", "p2_from6"), "T-NT": ("p1_from6",), "T-T": ("p1_from6", "p2_all", "p2_from6")}
 NOTALK_WINDOWS = {"NT-T": ("p1_from6",), "T-NT": ("p2_all", "p2_from6"), "NT-NT": ("p1_from6", "p2_all", "p2_from6")}
 
@@ -152,7 +153,9 @@ def trend_tests(mp: pd.DataFrame) -> list[dict]:
 
 
 def hysteresis(mt: pd.DataFrame) -> pd.DataFrame:
-    """Per model and n: T-NT Part 2 (NoTalk after Talk) vs NT-NT Part 2 and NT-T Part 1 (NoTalk, no prior Talk)."""
+    """Per model and n: mean (SD, number of markets) of T-NT Part 2 (NoTalk after Talk) vs NT-NT Part 2 and NT-T
+    Part 1 (NoTalk, no prior Talk), plus the Talk windows T-NT Part 1, NT-T Part 2 and T-T Parts 1 and 2 (extension);
+    human values at n = 4, and a caveat when some markets had the transition call."""
     rows = []
     for (model, n), sub in mt.groupby(["model", "n"]):
         def mean(o, w):

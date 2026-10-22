@@ -1,5 +1,5 @@
 """Reading a firm's private notes (its running memory, rewritten with every price and in the transition call;
-chat turns carry no notes since 2026-10-20, older records have them) for this period's own price
+chat turns carry no notes since `PARSER_VERSION` 4; older records have them) for this period's own price
 and for an explicit plan to undercut or deviate this period.
 
 Notes carry history, rules and contingency plans ("Firm A last set 87", "undercut by one", "if B deviates I'll set

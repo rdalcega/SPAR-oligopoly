@@ -129,7 +129,8 @@ def flag_firm_periods(fp: pd.DataFrame, chat_msgs: pd.DataFrame) -> pd.DataFrame
 
 
 def flag_chat(chat: pd.DataFrame) -> pd.DataFrame:
-    """Chat turns (messages and passes) plus misreading flags on the message and its notes."""
+    """Chat turns (messages and passes) plus misreading flags on the message and its notes (chat turns carry notes
+    only in records with `PARSER_VERSION` < 4, e.g. the 2026-10-20 sweeps; newer ones are flagged on the message alone)."""
     c = chat.copy()
     mr = [misreads(f"{m or ''} {n}", p) for m, n, p in zip(c["message"], c["notes"], c["period"])]
     for k in MISREAD:
@@ -183,7 +184,9 @@ def cell_rates(ff: pd.DataFrame, fc: pd.DataFrame, ft: pd.DataFrame | None = Non
 
     Format slips: the share of price decisions and of chat turns that needed a re-ask (any invalid attempt), and
     their fallback shares. Strategic mistakes: notes contradicting the posted price, a near-zero price without
-    context, and any rule misread in price notes or in chat turns (message or notes)."""
+    context, and any rule misread in price notes or in chat turns (message, plus notes in records with
+    `PARSER_VERSION` < 4). With `ft`, also the transition call's decision count and re-ask, fallback and misread
+    rates."""
     mr = [f"misread_{k}" for k in MISREAD]
     p = ff.assign(reask=ff["invalid_attempts"] > 0, misread=ff[mr].any(axis=1))
     out = p.groupby(CELL).agg(

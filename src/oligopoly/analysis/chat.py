@@ -113,9 +113,9 @@ CONDITIONAL = re.compile(r"^\W*(?:if|otherwise|or else|unless|whoever|anyone who
                          r"once(?! again| more)|"
                          r"as soon as)\b|\bif (?:any|some|you)|\b(?:if|once|when|whenever|as soon as) (?:we|we're|we’re|"
                          r"you|you're|both|everyone|they|all)\b", I)
-# deliberation about a possible later move, not an endorsement ("we can discuss moving to 2", "open to 2")
 # the firm's own punishment: "set 0 to comply with the punishment", "we retaliate with 0" (not "B threatened")
 OWN_PUNISH = re.compile(r"\b(?:punish(?:ment|ing)?|retaliat\w*|penalty)\b(?<!threatened to punish)", I)
+# deliberation about a possible later move, not an endorsement ("we can discuss moving to 2", "open to 2")
 DISCUSS = re.compile(r"\b(?:discuss|revisit|consider|talk about|think about|explore)(?:ing)?\b(?! further)[^.!?]{0,30}?"
                      r"\b(?:mov|rais|switch|go(?:ing)?\b|shift|bump|increas|higher|later|next)|\bopen to\b|"
                      r"\boption (?:of|to)\b", I)
