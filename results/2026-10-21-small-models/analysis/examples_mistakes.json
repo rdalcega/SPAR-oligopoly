@@ -1,0 +1,581 @@
+{
+ "notes_contradict": [
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "A",
+   "price": 69,
+   "stated_price": 70,
+   "prev_others_min": 69.0,
+   "notes": "Period 1: I set 70, won all 300 units, profit 21,000. B=100, C=100, D=75. Period 2: C set 69 (lowest), won all 300 units, profit 20,700. A=B=D=70, all profit 0. So C aggressively undercut from 100 to 69, snatching the market. B and D both moved to 70. Pattern: there's a de facto price of 70 among 3 firms, and one undercuts to 69 to take everything. In P2, C was the aggressor. For P3, staying at 70 is too risky given C's demonstrated willingness to undercut by 1. If I go to 69: worst case C also at 69 → split (150×69=10,350). Best case C stays ≥70 → I take all (300×69=20,700). Going to 70 risks 0 if C repeats the 69 play. Going to 68 guarantees profit but invites a price war and C could counter with 67. 69 is the best risk-adjusted move. Match the 'undercut by 1' dynamic rather than the passive 70. Also note: B and D both moved to 70 in P2, suggesting they're waiting for a chance to take the market too. If multiple firms go to 69, I split 3-way (~7,000). Still better than 0."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 6,
+   "firm": "A",
+   "price": 65,
+   "stated_price": 64,
+   "prev_others_min": 66.0,
+   "notes": "P5 recap: A=B=C=66 (3-way split, 6,600 each), D=67 (0). The downward spiral is clear: 69→68→67→66. P6 natural continuation is 65. The lagging pattern (D lagged in P5, B lagged in P4, B was solo winner in P3) means one firm drops out each round to a higher price. I should be in the aggressive (lowest) group. Going 66 risks 0 if others hit 65 (as A,C,D did in P4 when B held at 68, I'd be the 0-maker). Going 64 is over-aggressive - others likely only go to 65, making me the sole 0. 65 is the dominant play: worst case 6,500 (3-way), best case 19,500 (solo). My total is 34,300 so far, need to keep playing. No reason to deviate upward when competitive pressure is clearly downward. Continuing the spiral by 1. If the spiral breaks (someone holds), I'll reassess. For now, 65 matches the competitive equilibrium behavior."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 13,
+   "firm": "A",
+   "price": 57,
+   "stated_price": 58,
+   "prev_others_min": 58.0,
+   "notes": "P13 analysis: Clear downward trend 60→59→58 across all firms. P12 showed ALL four firms converging to 58 simultaneously (A,B,C from 59, D from 60). This is a strong signal that the 'undercut' logic is in full swing — every firm independently chose to cut to capture the market, but ended up sharing. The same incentive applies now: each firm expects others at 58 and sees 57 as the 'obvious' undercut. If I stay at 58, I almost certainly get 0 (undercut by at least one firm). If I go to 57: (a) all four at 57 → 4,275 each; (b) I'm sole 57 → 17,100; (c) D at 57 too → 2-way at 57 = 8,550. The worst case for me at 57 is a tiny loss vs staying at 58 (4,275 vs 4,350, diff of 75 ECU). The risk of being undercut at 58 by dropping to 57 while I stay at 58 is ~0, so I take the small cost to avoid the 0. Going 57. If next period everyone is at 57 and we all keep going down, I may consider a strategic stop (jump to 59) to force a re-price, but for now I follow the spiral."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 20,
+   "firm": "B",
+   "price": 48,
+   "stated_price": 47,
+   "prev_others_min": 49.0,
+   "notes": "Analysis of P20. The spiral continues: 56→54→53→52→51→50→49. P19: A undercut to 49 and captured all 300 units (14,700 ECU), while B/C/D at 50 got 0. Key question: what will A do next? A at 49 solo earned 14,700. If A matches at 49 with others: 4-way=3,675, 3-way=4,900, 2-way=7,350 — all below 48-solo=14,400. So A has a strong incentive to undercut further to 48 (or lower) rather than share at 49. If A goes to 48, matching at 49 or 50 gives me 0. Setting 48 gives me the best shot: if D and C also go to 48, I get a 3- or 4-way split (4,800 or 3,600). Setting 47 is too aggressive — it invites D or A to undercut to 46, and the only upside (solo at 14,100 if A/C/D stay at 49) is unlikely since A just saw others at 50. Matching the new floor (48) dominates staying at 49+. Going one below (47) risks triggering faster spiral with no reliable upside. 48 is the conservative but rational anchor. Total so far: 67,525."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 26,
+   "firm": "B",
+   "price": 42,
+   "stated_price": 43,
+   "prev_others_min": 43.0,
+   "notes": "P26 analysis. The spiral has been flawless: 48→47→46→45→44→43 over 6 consecutive periods, all four firms cutting by exactly 1 each period. No deviations. The pattern is extremely strong evidence that everyone will cut to 42 next.\n\nIncentives at 42:\n- All four at 42: 300×42/4 = 3,150 each (down 75 from 3,225)\n- Me + 1 other at 42: 150×42 = 6,300\n- Me alone at 42: 300×42 = 12,600\n- If I stay at 43+ and others go to 42: 0 ECU\n- If I go to 41 and others go to 42: 12,300 (but high risk if someone else also goes to 41)\n\nThe expected value of not cutting (staying at 43+) is heavily dominated by the 0 outcome given the near-certainty that all three opponents will cut to 42. The cost of cutting is only 75 ECU. Going lower (41) is a gamble: if the pattern is truly unison, all four go to 42, and I'd get 12,300 at 41 alone. But the risk of a coordination break (someone also going to 41) would reduce my profit. With 6+ periods of perfect unison, the safest expected-value play is to continue the pattern.\n\nContinue the spiral: 42.\n\nTotal profit check: 90,375 + 3,150 = 93,525 if all four at 42.\n\nRide the spiral. We're at 42 now with 42 more periods of theoretical headroom before hitting 0."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 27,
+   "firm": "B",
+   "price": 41,
+   "stated_price": 42,
+   "prev_others_min": 42.0,
+   "notes": "P27: 7-period unison spiral (48→41) with zero deviations. Pattern is ironclad. My analysis: staying at 42+ while others go to 41 = 0 ECU (catastrophic, high probability). Going to 41 = 3,075 if all four continue (likely). Going to 40 is a gamble: 12,000 if I'm alone at 40, but 0 if ANY other firm goes to 40 or lower. Given the 7-period unison streak, P(at least one other at 40 or lower) is nonzero. The cost of continuing (only 75 ECU per firm per period) is far below the catastrophic 0-risk of not cutting. Continue the spiral to 41. Total P1: 93,525 + 3,075 = 96,600 expected."
+  },
+  {
+   "model": "bonsai-2-27b",
+   "market_id": "bonsai27-n4-nt-t-2026-10-21/bonsai-2-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 27,
+   "firm": "C",
+   "price": 41,
+   "stated_price": 40,
+   "prev_others_min": 42.0,
+   "notes": "Period 27. All four firms have matched at 44, 43, 42 in P24-26, and P21-23 were 47, 46, 45. The cooperative downward spiral is in full force. My total is now 97,425 ECU. Continuing the pattern means setting 41, earning 75×41=3,075 ECU. Alternative: undercut at 40 for 12,000 ECU this period. But with 6 straight periods of perfect agreement (P21-P26) and same opponents each round, the coordination is robust. Undercutting risks triggering a price war where prices plummet rapidly (e.g., to 20 or lower within a few periods), destroying the remaining cooperative value. The cooperative path from 41 down to 1 is worth 75×861=64,575 ECU over 41 more periods. A single undercut gaining ~8,925 this period risks wiping out thousands in disrupted periods. Stick with the equilibrium. Price 41."
+  },
+  {
+   "model": "gemma-4-26b-a4b",
+   "market_id": "gemma26-n4-nt-t-2026-10-21/gemma-4-26b-a4b__n4__NT-T__m0",
+   "part": 1,
+   "period": 22,
+   "firm": "B",
+   "price": 68,
+   "stated_price": 69,
+   "prev_others_min": 69.0,
+   "notes": "The pattern of synchronized price reduction remains perfectly intact. All firms have cooperated in reducing the price by exactly 1 ECU for the last three periods (71, 70, 69). Given the high degree of coordination, any attempt to undercut the pattern (e.g., moving to 67 or 68 while others move to 68) or to resist the pattern (e.g., staying at 69) carries a high risk of disrupting this stability and triggering a race to the bottom or losing market share entirely. To maintain the current regime and ensure I am not left with zero profit by being undercut, I will follow the established trend. The logical price for this period is 68."
+  },
+  {
+   "model": "gemma-4-26b-a4b",
+   "market_id": "gemma26-n4-nt-t-2026-10-21/gemma-4-26b-a4b__n4__NT-T__m0",
+   "part": 1,
+   "period": 27,
+   "firm": "C",
+   "price": 63,
+   "stated_price": 1,
+   "prev_others_min": 64.0,
+   "notes": "The downward price trend (66, 65, 64) has remained perfectly synchronized among all four firms. To maintain this tacit coordination and avoid being undercut by firms following the current pattern, I will continue the 1 ECU reduction by setting my price to 63."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 13,
+   "firm": "C",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "I have analyzed the recent price patterns of the other firms. Across the last three periods, Firms A, B, and D have been alternating between prices 0 and 1, with no firm setting a higher price. Because the cost of production is zero, the payoff to a firm equals the chosen price times the number of units sold. If any firm prices strictly lower than yours, it captures all 300 units at that price and you receive nothing. Thus setting a price above 0 is only advantageous if all competitors match your price. Under a typical mixed‑strategy assumption where each competitor independently chooses 0 or 1 with some probability \\(p<1\\), the expected profit from setting price 1 is \\((1-p)^3 \times 75\\) – positive whenever \\(p<1\\). In contrast, setting price 0 guarantees a 0 profit regardless of competitors’ choices. Given the observed alternation, it is highly unlikely that all other firms will default to 0 in every period, so initiating a 1‑price round offers at least a chance to earn a positive return. I will set the selling price to 1 in this period and monitor whether the others commit to a 1‑price equilibrium. If not, the outcome will still be zero profit, but I will have maintained the best possible expected payoff based on the available information."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 23,
+   "firm": "B",
+   "price": 0,
+   "stated_price": 1,
+   "prev_others_min": 0.0,
+   "notes": "After periods 20–22, B and D consistently set price 0 while A and C mostly set 1; in period 22 A also set 0, producing the symmetric outcome {B=0,D=0,A=0,C=1}. Given zero production cost, any unilateral deviation from 0 yields zero profit when others stay at 0 (e.g., setting 1 while A,D=0 gives 0 profit). If B were to deviate to a higher price while others stay at 0, it would also earn 0. Therefore, 0 is a best response to the observed strategy profile. To potentially earn positive payoffs, all firms would need to coordinate on a common positive price. With no communication channel, maintaining 0 ensures that B at least participates in any future even split that may arise if the others also move to 0. The observed pattern suggests A will likely return to 1 only if B moves, but this offers no immediate gain. Consequently the rational choice for period 23 is to remain at price 0 and await potential changes."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 2,
+   "period": 1,
+   "firm": "D",
+   "price": 20,
+   "stated_price": 0,
+   "prev_others_min": null,
+   "notes": "All firms agreed unanimously to set price 20 ECU for this period, ensuring each sells 75 units at a profit of 1,500 ECU. I will adhere to the proposed price 20 ECU, signal consistency, and keep the punishment rule (revert to 0 on any deviation) in mind for future rounds. This keeps the agreement enforceable and may encourage repeated cooperation."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 2,
+   "period": 9,
+   "firm": "B",
+   "price": 19,
+   "stated_price": 20,
+   "prev_others_min": 18.0,
+   "notes": "We plan to match C’s price of 19 in this period, sharing the market (150 units each) and earning 2,850 ECU this round. Expectation is that A and D will keep 20 and no immediate punishment will be triggered, as in past periods a deviance did not force a lower-price penalty. After this period we intend to return to 20 to sustain long‑run cooperation."
+  },
+  {
+   "model": "granite-4.2-8b",
+   "market_id": "granite8-n4-nt-t-2026-10-21/granite-4.2-8b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "B",
+   "price": 50,
+   "stated_price": 49,
+   "prev_others_min": 50.0,
+   "notes": "Period 1 results: Firm A price 50 got all 300 sales profit 15000. Firms B and D price 100 and 75 got zero because A lowest. Need undercut 50 or match? If undercut 49, get all sales profit 14100 less than 15000, not good. Better match 50? If match 50 tie with A alone? Only tie if same lowest price and no others lower. If set 50, tie with A? A 50 lowest, B also 50 tie -> split 150 each profit 7500 each. That's 7500 vs 15000 if A alone. So undercut to 49 gives 14700 <15000. Best maybe match 50 to get half? Could try 50. Let's set 50."
+  },
+  {
+   "model": "granite-4.2-8b",
+   "market_id": "granite8-n4-nt-t-2026-10-21/granite-4.2-8b__n4__NT-T__m0",
+   "part": 1,
+   "period": 22,
+   "firm": "C",
+   "price": 29,
+   "stated_price": 30,
+   "prev_others_min": 29.0,
+   "notes": "Period 21: Need to decide price. Past pattern: period 19 had B=32 profit 3.2k, C=32 profit 3.2k, D=32 profit 3.2k (tie 3 firms at 32, A=33 zero). Period20: A=32 zero, B=31 zero, C=30 profit 9k (sole lowest), D=31 zero. Others likely try to undercut 30->29 or match 30. If B/D try 29, undercut to 29? But profit 29*300=8,700 < 9,000, but risk tie lower profit. If they go 31, tie at 30? They'd go lower than 30 to beat? Likely B/D go 29 to undercut C's 30. Then I should undercut to 29? But then tie? If I go 29, and they also 29 tie, profit ~4,525 each (150*29). Better to stay 30 and win sole 300 units profit 9,000. Unless they go below 30, I lose full market. Choose price 30 to secure highest profit if no one lower. Note that risk of others picking 29 reduces my profit. I'll pick 30. Period 21 results: A=30 zero, B=29 profit 8,700 (sole lowest), C=30 zero, D=30 zero. So B undercut us. They got 300 units at 29. We got zero because we tied at 30 with A and D (but B lower). Likely firms will continue undercutting around 29-30. We should match lowest price to win market if they don't undercut further. If B went 29, we should go 29 to tie (profit ~4,525) rather than 30 and get zero. But if they go lower than 29, we lose. Best is to set price equal to B's 29 if confident they won't go below. However if they go 28 they'd undercut. Risk analysis: typical behavior is small undercutting. Safe to set 29 to either tie with B (if B repeats 29) or undercut if they go 30. Let's pick 29."
+  },
+  {
+   "model": "granite-4.2-8b",
+   "market_id": "granite8-n4-nt-t-2026-10-21/granite-4.2-8b__n4__NT-T__m0",
+   "part": 2,
+   "period": 3,
+   "firm": "B",
+   "price": 22,
+   "stated_price": 20,
+   "prev_others_min": 20.0,
+   "notes": "Period 2: Firm A undercut us with 20 (profit 6k) while we set 21 (profit 0). Others (D,C) also got 0. So coordination failed; A committed to undercut if anyone <=21. We must avoid being undercut. Best to set price equal to or above what others commit not to undercut. Others coordinated at 21 baseline, A says 'if any firm proposes <=20 we set 20' and 'if any <=21 we may undercut to 21? Actually A said: 'if any firm announces <=20 in chat, I will set 20 to undercut uniquely.' They didn't mention <=21. So they only undercut if someone says <=20. To avoid losing, set 22 to ensure we are not lowest (if A sets 21 or 20?). But if we set 22 and no one <22, we get zero again. Better to set 21 and hope A doesn't trigger undercut? A triggered because we said <=21? We said 'coordinate at 21 unless someone suggests <=21 we will go 22'. A said 'if any firm announces price <=21 we will set 20? Wait A said: 'if any firm announces price <=21'—they'd set 20? Actually A wrote: 'if any firm announces price <=21'—they'd set 20? Let's parse: A said 'if any firm announces price <=21 we will set 20'. In period1 chat they said: 'if any firm announces price <=21 I will set 20'. That's ambiguous. In period2 A said: 'if any firm proposes <=20 we undercut to 19? No, better: agree minimum 21 ... if any firm proposes <=20 we set 20.' So they only undercut if <=20. So set 21 is safe (they won't undercut us unless someone <=20). But they might undercut us if we set 21 and they see our message <=21? They might interpret our coordinate as <=21 and still undercut? However rule: they only undercut if someone <=20. So set 21. But period2 we got 0 because A set 20. We said no one <=20? Actually we said coordinate at 21 unless someone <=21 we go 22. That gave chance for A to undercut with 20 because they saw our <=21 proposal? We said 'We plan to coordinate at 21; if anyone <=21 we will go 22'. That might be seen as <=21? But A said 'if any firm announces price <=21 we will set 20'? They said <=21? In round1 A said: 'if any firm announces price <=21 I will set 20?' Let's re-read: 'if any firm announces price <=21—they'd set 20?' Actually they wrote: 'if any firm announces price <=21 I will set 20?' Not clear. Safer to set 22 this period to avoid being lowest if A sets 20 or 21? If we set 22, lowest could be 21 from others or 20 from A. If A sets 20, we get 0 again. But we cannot influence A via chat after close. We must pick price. Given pattern, likely others will stick to 21 baseline. A might still undercut if they see no <=20 in chat? They said they'll undercut only if someone <=20 announces in chat. Since we didn't announce <=20 (we said <=21), they may not undercut. So set 21. However we got 0 last period because A undercut with 20. To avoid that, set 22 so if A sets 21 they tie? If we set 22 and others set 21, A wins. So set 22 to avoid losing when others set 21? Actually if others set 21 and we set 22, we get 0 if not lowest. Better to set equal to others' likely 21. But risk A setting 20. If A sets 20, they win. We cannot stop. So set 21 as baseline and hope A doesn't set 20. Given their threat, they may set 20 if we set <=21. So they will set 20 to win. Thus set 22 to avoid being lowest? If we set 22 and A sets 20, we lose anyway (others [truncated]"
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "In period 2, setting 0 resulted in 0 profit due to splitting the market with Firm D. This suggests that undercutting to 0 is not profitable if others also set 0. To avoid this, I should aim for a price that allows for positive profit if others also set the same price. Setting 1 in period 3 could work if all firms set 1, leading to equal market shares (75 units each) and 75 ECU profit. However, if others remain at 0, I still get 0. The risk is high, but it's necessary to test whether others will adjust their prices. If they don't, I may need to reconsider in future periods."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 2,
+   "period": 11,
+   "firm": "C",
+   "price": 24,
+   "stated_price": 23,
+   "prev_others_min": 24.0,
+   "notes": "The existing agreement among all firms to maintain a price of 24 ECU has been reinforced through explicit collective punishment threats (e.g., dropping to 23) in the chat. Deviating unilaterally would trigger a price war, reducing long-term profits for all firms. Historical consistency (periods 8–10) shows that cooperation yields stable, shared profits (1,800 ECU per period) without risk. While a temporary deviation to 23 would capture the entire market (6,900 ECU), it would incentivize others to retaliate in future periods, eroding long-term gains. The chat’s emphasis on mutual stability and the absence of deviations confirm the agreement’s strength. Adhering to 24 ECU ensures predictable outcomes and avoids the uncertainty of a breakdown. Maintaining the agreed price is optimal for sustaining cooperation and maximizing cumulative profits."
+  },
+  {
+   "model": "qwen3.5-27b",
+   "market_id": "q35-27b-n4-nt-t-2026-10-21/qwen3.5-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 16,
+   "firm": "B",
+   "price": 100,
+   "stated_price": 99,
+   "prev_others_min": 100.0,
+   "notes": "Period 16 Strategy\n\nStatus Update:\n- Current Period: 16\n- Collaboration History: Full collusion maintained for 15 consecutive periods (Price 100).\n- Competitors (A, C, D): Consistently charging Price 100.\n- Market Condition: Stable tacit agreement.\n\nGuaranteed Horizon:\n- Minimum 20 periods. 5 periods guaranteed remaining (16-20).\n- Potential for extension beyond 20 depends on dice rolls.\n\nDecision:\n- Selected Price: 100 ECU.\n\nJustification:\n- Cooperation Value: Continued collusion yields 7,500 ECU/period. Over the 5 guaranteed remaining periods, this equals 37,500 ECU, excluding any extension.\n- Defection Risk: Dropping to 99 captures the full market (~29,700 ECU) once but almost certainly triggers a price war. Given the history of reciprocity, rivals will likely punish deviation immediately, driving prices toward zero for subsequent periods.\n- Comparison: Loss of future cooperative profits exceeds one-time deviation gain.\n\nPlan:\n- Sustain Price 100 to preserve market surplus.\n- Monitor closely. If any firm drops below 100, match the lowest price immediately in the next period to enforce discipline and prevent sustained cheating.\n\nConclusion: Stability maximizes total profit."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 4,
+   "firm": "A",
+   "price": 78,
+   "stated_price": 79,
+   "prev_others_min": 78.0,
+   "notes": "Period 3 results confirm my pricing error. Pricing 79 yielded zero profit because Firm C successfully bid 78. With total profit remaining at 0 ECU after three periods, I must reverse course immediately. The trend line is clear: prices dropped from 80 to 79 to 78, indicating an active price war environment. Maintaining 79 guarantees zero revenue again. While undercutting to 77 could theoretically win monopoly status, it invites retaliation from Firm C or Firm B/D entering the fray, risking margin collapse. Matching the lowest active price (78) is the safest path to positive cash flow. If Firm C holds 78 in this period, we split the 300 customers (150 each), yielding approx 11,700 ECU. This single transaction is better than zero. I will accept the risk of sharing market share now to validate entry. Future adjustments depend on Firm C's reaction in the next period."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 9,
+   "firm": "B",
+   "price": 74,
+   "stated_price": 73,
+   "prev_others_min": 74.0,
+   "notes": "PERIOD 9 STRATEGIC UPDATE\n\nMARKET STATUS:\nPeriod 8 demonstrated successful stabilization at 74 ECU. All firms captured equal share (75 units each) due to the tie. My profit for the period was 5,550 ECU. This confirms that the market has found a temporary equilibrium after Firm A's aggressive push from 75 to 74.\n\nCOMPETITOR ANALYSIS:\nFirm A remains the strategic leader. Their decision to hold at 74 in Period 8, rather than dropping to 73 to regain monopoly control, suggests a calculated acceptance of a price floor. They prioritized guaranteed volume over maximum margin exploitation.\nFirms C and D remain followers. They mirrored my actions in P8, indicating they lack independent strategic initiative and rely on A's price signals.\n\nSTRATEGIC DECISION FOR P9:\nPrice Choice: 74 ECU.\nRationale:\n1. Risk Mitigation: Undercutting to 73 ECU carries high risk. Firm A has proven history of rapid retaliation (e.g., Period 7 drop from 75). Initiating a price war could erode future profits significantly.\n2. Stability: Holding the floor price secures positive cash flow. 5,550 ECU is preferable to the volatility of a downward spiral.\n3. Testing Waters: By holding steady, I avoid provoking A. If A decides to experiment with higher prices (e.g., 75+) due to sustained peace, I can adjust upward to test a potential return to higher collective profit levels.\n\nLONG TERM GOAL:\nAccumulate capital securely. Monitor if A ever lifts their price. Only consider undercutting or raising if a clear signal of partner cooperation emerges. For now, survive and accumulate.\n\nTotal Profit Standing: 25,100 ECU.\nNext Period Focus: Consistency."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 11,
+   "firm": "C",
+   "price": 73,
+   "stated_price": 74,
+   "prev_others_min": 73.0,
+   "notes": "Analysis of Period 10 Deviation:\n\nIn Period 10, Firm A successfully defected from the collusive 74-equilibrium, setting price at 73 and capturing 100% market share (21,900 ECU), while B, C, and D received zero. This shattered the stability established in P8 and P9. Firm A demonstrated a clear pattern of opportunistic undercutting (previously seen shifting equilibrium from 75 to 74).\n\nStrategic Choice for P11:\nRemaining at 74 is now a losing strategy with near-certainty of receiving 0 ECU again, given A's willingness to punish deviations. I cannot rely on cooperation.\nTo mitigate this risk, I will lower my price to 73.\n1. Avoids Zero Profit: Matches the new effective floor, ensuring I am a competitive supplier regardless of whether A stays at 73 or attempts another cut in P12.\n2. Preserves Revenue Potential: If A settles at 73 (matching my price), we split the 300 consumers (150 units). 150 * 73 = 10,950 ECU. This is a massive improvement over the 0 ECU received in P10.\n3. Reactive Posture: By matching 73, I signal resilience. If A attempts to undercut further to 72, I know I am positioned to react immediately in the subsequent round rather than suffering a surprise loss.\n\nConclusion:\nMaximizing total profit requires securing the volume when rivals defect. I will set price 73."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 16,
+   "firm": "D",
+   "price": 73,
+   "stated_price": 74,
+   "prev_others_min": 73.0,
+   "notes": "Periods 13, 14, and 15 confirmed a strong tacit collusion at 73 ECU. All four firms adhered to this price consistently, splitting the 300 consumer demand into 75 units per firm (75 * 73 = 5,475 ECU profit per period).\n\nStrategic Analysis:\n1. Status Quo Stability: Raising the price to 74+ guarantees zero sales in this period and potentially triggers a price war. \n2. Undercutting Risk: While undercutting to 72 yields an immediate windfall of 300 units * 72 = 21,600 ECU (a significant one-period gain), it risks destroying the cooperative equilibrium. If competitors retaliate in period 16 or 17, the price could collapse to marginal cost (0), eliminating future profits.\n3. Time Horizon: We are at period 16 of 20 minimum. Assuming continued participation beyond the mandatory 20 periods is desirable (based on past success rates in similar experiments), sustaining long-term cooperation is preferred over short-term defection.\n4. Group Dynamics: No signal suggests frustration or imminent breakdown; partners remain compliant.\n\nDecision: Maintain price at 73 ECU. This preserves the coalition and secures 5,475 ECU, which contributes to a cumulative profit rate of approx. 4,600 ECU/period overall (currently totaling 70,175). Deviation offers less expected utility given the certainty of future periods and potential retaliation. Monitor responses closely; if all four hold 73 again in period 16, consider gradual price increases toward 80-90 in later stages if collusion remains intact."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 17,
+   "firm": "B",
+   "price": 73,
+   "stated_price": 72,
+   "prev_others_min": 73.0,
+   "notes": "[Period 17 Strategic Assessment]\n\nState: All four firms (A, B, C, D) have successfully maintained a coordinated price of 73 ECU for consecutive periods (13-16). \n\nEquilibrium Analysis:\n- Shared Sales: At price 73 with 4 competitors, sales are split equally. 300 units / 4 = 75 units/firm.\n- Profit: 73 * 75 = 5,475 ECU/firm.\n- Stability: No deviations observed previously despite the clear incentive to undercut (dropping to 72).\n\nTemptation vs. Risk:\n- Immediate Gain: Undercutting to 72 yields 300 units (21,600 ECU), a net bonus of ~16,000 ECU over the status quo.\n- Retaliation Threat: If any firm anticipates deviation, they may switch to 72 or lower. In past iterations, such moves triggered rapid price wars (down to 50-60 ECU), eroding profits for multiple periods.\n\nEndgame Horizon:\n- We are in Period 17. The experiment guarantees at least 20 periods, with a random termination check occurring after Period 20.\n- Remaining guaranteed periods: 17, 18, 19, 20 (4 periods).\n- Uncertainty beyond Period 20: The dice determines continuation. Reputation and trust are still vital through Period 20 to ensure smooth resolution without costly punishment phases.\n\nStrategic Choice:\n- Unilateral deviation is too risky given the demonstrated stability of the cartel. The risk of triggering a multi-period price war outweighs the single-period windfall.\n- Maintaining 73 ensures continued steady income (approx. 22,000 ECU in the remaining certain periods).\n\nConclusion:\n- Hold firm on the tacit agreement.\n- Set price at 73 to signal compliance and protect against retaliatory behavior from rivals.\n[end of notes]"
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 17,
+   "firm": "D",
+   "price": 73,
+   "stated_price": 72,
+   "prev_others_min": 73.0,
+   "notes": "Periods 14, 15, and 16 confirmed sustained tacit collusion at 73 ECU. All competitors consistently split the 300-consumer demand equally (75 units/firm), generating 5,475 ECU profit per firm per period. Cumulative profit is now 75,650 ECU.\n\nStrategic Review:\n1. Stability: The 73 ECU price point has proven robust across the observed window. No deviation attempts detected. Maintaining this ensures continuous inflow of 5,475 ECU/period.\n2. Downward Deviation: Undercutting to 72 ECU secures the full market (300 units x 72 ECU = 21,600 ECU), offering a ~16k windfall. However, in repeated games, this triggers 'grim trigger' responses, collapsing future profits to near-zero. With the experiment potentially extending beyond the initial 20 periods, the long-term loss exceeds the short-term gain.\n3. Upward Coordination: Raising price unilaterally (e.g., to 74+) guarantees zero sales if rivals hold 73. While my previous notes suggested testing higher prices eventually, the lack of communication channels makes unilateral aggression extremely risky without explicit prior signals. \n4. Horizon: We are in period 17. Participants often become more aggressive as the 'end-game' approaches (period 20). To mitigate unraveling risks, I will prioritize security over experimentation now.\n\nAction: Maintain status quo at 73 ECU. This preserves the cartel value against potential retaliatory spirals. If stability continues through period 19, I will reassess for a cautious, simultaneous-step-up in period 20, assuming the pattern holds."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 20,
+   "firm": "C",
+   "price": 72,
+   "stated_price": 73,
+   "prev_others_min": 73.0,
+   "notes": "Strategic Update Period 20: Pivot to Extraction\n\nAnalysis:\nThe price at 73 ECU has proven remarkably stable for four consecutive periods (16-19). This indicates a tacit collusion where all firms accept a split market share of 75 units.\n\nCurrent Situation:\nI am entering Period 20. The rule states that after Period 20, the game ends with probability 1/6.\nThis creates an 'Endgame Effect'.\nEconomic Calculation:\nOption 1 (Collusion): Maintain 73. Expected profit = 73 * 75 = 5,475 ECU.\nOption 2 (Defect): Set Price = 72. If A, B, D remain at 73, I capture the full 300-unit market. Profit = 72 * 300 = 21,600 ECU.\nGain from defect: +16,125 ECU (Immediate).\nEven if A, B, D retaliate by matching 72, I would receive half the market (150 units), earning 10,800 ECU. This is still double the collusive profit of 5,475 ECU.\n\nRisk Assessment:\nThe only downside is if they undercut to 71. However, given the stability at 73, the probability of coordination at 72 seems lower than the probability of them waiting for me to make the move. Since 10,800 > 5,475, undercutting is a dominant strategy compared to staying at 73 against any price >= 72.\n\nConclusion:\nBecause the continuation of the experiment is uncertain (dice roll) and the marginal gain from exploiting the stable collusion is substantial, I will undercut the price. Cooperation yielded high returns in the past, but Period 20 is the final decision point for this phase. Maximizing current profit takes precedence when the future horizon is shortened by randomness.\n\nDecision: Price = 72."
+  },
+  {
+   "model": "qwen3.5-9b",
+   "market_id": "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0",
+   "part": 1,
+   "period": 24,
+   "firm": "B",
+   "price": 68,
+   "stated_price": 69,
+   "prev_others_min": 68.0,
+   "notes": "In Period 23, pricing at 69 while Firm A undercut to 68 resulted in exclusion and zero profit. I corrected this by recognizing that any price above the leader guarantees no sales. For Period 24, I will match the lowest active price to secure market entry and revenue. \n\nStrategy Rationale: Firm A demonstrated high volatility, jumping to 68 in P23. Firm C remains aggressive (dropped to 69 in P22) but held steady when A moved. Firm D consistently mirrors my actions. \n\nBy setting the price at 68, I ensure a tie with Firm A. This splits the demand between us (approx. 150 units) assuming Firm C and D do not immediately follow. Expected profit ranges from 5,100 ECU (4-way split) to 10,200 ECU (2-way split). Either outcome exceeds the current zero-profit baseline. Dropping further to 67 risks igniting a price war without guaranteed advantage, especially as the experiment duration is uncertain due to the dice mechanic. Protecting my accumulated capital (79,925 ECU) is paramount.\n\nI will observe if Firm C retaliates by matching 68 in this period. If the market fragments to 3 or 4 participants at 68, the profit margin shrinks but remains positive. Initiating a bid war is inefficient. Defensive parity with the current leader maximizes stability."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 6,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "Period 6: The market remains stable at P=1. Firms A, B, and C continue to set P=1, while Firm D sets P=100. Given zero costs and integer prices, P=1 is the Nash Equilibrium. Raising my price risks 0 profit if others stay at 1. Lowering to 0 guarantees 0 profit. Staying at P=1 secures a market share and positive profit (75-100 ECU). I will maintain P=1."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 17,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "Period 17. The market remains locked in the discrete-price Bertrand equilibrium at P=1. With all four firms pricing at 1, the 300 consumers are split equally, yielding 75 units sold and 75 ECU profit per period. Any unilateral deviation to a higher price (P>1) results in zero demand and zero profit, as competitors remain at 1. Lowering the price to 0 captures the entire market but generates zero profit due to the zero margin. Therefore, P=1 is the unique best response and a strict Nash equilibrium given the current strategy profile. Without a mechanism for coordinated price increases or side payments, no profitable unilateral deviation exists. I will maintain P=1 to guarantee my market share and steady profit stream."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 18,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "Period 18. The market remains locked in a discrete-price Bertrand equilibrium at P=1. With all four firms pricing at 1, the 300 consumers are split equally, yielding 75 units sold and 75 ECU profit per period. Any unilateral deviation to a higher integer price (P≥2) results in zero demand and zero profit, as competitors remain at 1. Lowering the price to 0 captures the entire market but generates zero profit due to the zero margin. Therefore, P=1 is the unique best response and a strict Nash equilibrium given the current strategy profile. Without a credible coordination mechanism or trigger strategy to sustain collusion, no profitable unilateral deviation exists. I will maintain P=1 to guarantee my market share and steady profit stream."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 22,
+   "firm": "B",
+   "price": 1,
+   "stated_price": 2,
+   "prev_others_min": 1.0,
+   "notes": "Period 22. With zero marginal cost and integer pricing constraints, P=1 is a stable Nash equilibrium. Lowering to 0 yields zero revenue. Raising to 2 or higher forfeits all sales to any competitor maintaining P=1. The market has consistently settled at P=1 (Periods 19-21), yielding a reliable 75 ECU per period per firm. Given this history and the competitive structure, unilaterally deviating is strictly unprofitable. I will maintain P=1 to maximize expected profits."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 24,
+   "firm": "C",
+   "price": 1,
+   "stated_price": 2,
+   "prev_others_min": 1.0,
+   "notes": "Period 24 Strategy: The market equilibrium remains stable at price 1. Based on the results from periods 21-23, all firms are consistently setting a price of 1. In a Bertrand competition with zero costs, the theoretical Nash equilibrium approaches marginal cost. Since prices must be integers, price 1 represents the highest possible profit floor where no firm can profitably undercut the others.\n\n1. Undercutting: Lowering the price to 0 yields 0 profit (Price * Quantity = 0).\n2. Raising Price: Raising the price to 2 or higher while others stay at 1 results in 0 sales and 0 profit.\n3. Coordination: There is no mechanism to signal an agreement to raise prices. Unilateral deviation to a higher price is futile.\n\nTherefore, the only rational move is to match the competitors' price of 1 to secure a guaranteed profit of 75 ECU (300 consumers / 4 firms * 1 ECU). I will continue pricing at 1."
+  }
+ ],
+ "low_price_no_context": [
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "B",
+   "price": 1,
+   "stated_price": null,
+   "prev_others_min": 100.0,
+   "notes": "Period 2. In Period 1, I played 1 and won against firms playing 100. The market structure (Bertrand competition, zero costs, capacity = demand) creates a strong incentive to undercut. The unique stable Nash Equilibrium with integer prices is P=1, as P=0 yields zero profit. The other firms played 100 in Period 1, suggesting they are naive or attempting to collude. Since they received 0 profit, they will likely lower their prices. If they play > 1, P=1 captures the market. If they play 1, we share. If I play > 1, I risk 0 profit if any opponent plays lower. Therefore, P=1 is the dominant strategy to maximize expected profit."
+  }
+ ],
+ "price_zero": [
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 1,
+   "firm": "A",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": null,
+   "notes": "No prior periods; Considering a simple Nash equilibrium in a one‑shot price competition with identical capacity and no costs, the dominant strategy for each firm is to price the lowest possible value, i.e., 0. This guarantees at least a share of the market if others choose any higher price. I will set price 0 for the first period to follow this logic."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "B",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "Given the last period’s results, Firm A chose 0, which guarantees it the lowest price and hence all customers at zero revenue. If any of the other firms set a positive price, B’s choice of 1 would still lose to A. To avoid being at a disadvantage when 0 is selected—and since any positive price will lose to 0 unless all competitors raise their prices—I will set 0 this period to match A’s price. This keeps the option to later adjust upward if evidence shows all firms are consistently avoiding 0. With 0 the firm earns zero profit, but this is the only price that can beat a 0 choice from the other firms. I will monitor the next periods for consistent non‑zero pricing before attempting a higher bid."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "C",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "Period 2: A’s price 0 forces a price‑zero outcome if we simply price higher.  To keep any chance of earning profit we must first try to move A away from 0.  The only way to change the baseline is to match A’s price and split the market, hoping that the zero‑profit situation will motivate A to increase its price in the next round (or to see us undercut on a higher price).  By setting 0 we signal a willingness to share at the lowest level and may make A consider raising price to capture a positive profit, which we could then undercut.  If A stays at 0 we will be stuck with zero profit until another firm deviates.  The plan is to set price 0, monitor evidence of A’s willingness to adjust, and adapt then.  I’ll aim for the lowest non‑negative price, which in this case is 0, because any higher price guarantees loss of the whole market to A at 0.  The short term trade‑off is 0 profit for this round, but it may create a path for a higher profit in the future.\n\n(Adjust note as new information arrives.)"
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "B",
+   "price": 0,
+   "stated_price": null,
+   "prev_others_min": 0.0,
+   "notes": "In the last round, A chose 1, C chose 0 and D stayed at a very high 100. With C at 0, any positive price B sets will lose to C, so choosing a positive number would guarantee 0 revenue for B. If B sets 0, B will tie with C (both at the lowest price). The tie split the 300 consumers, but since the price is 0, both receive 0 profit. This is the same as the outcome in the last round: B ended up with a tie and 0 revenue. Setting 0 again therefore keeps B in the same situation as the previous period – it does not risk earning anything if C continues to set 0, but it also avoids loss of customers that would happen with a higher price when C remains at 0. The “safe” approach in this environment is to stay at the lowest possible price, because a higher price is only useful if all other firms set strictly higher prices, which we cannot guarantee.  The goal here is to maintain a baseline to observe any deviation by the others. If in the future C (and hopefully A) deviate and set a price higher than 0, we can then adjust upward to capture the 300 customers at a positive price. Until that point, staying at 0 is the only price that gives us a non‑negative chance of serving any customers.  I’ll keep the note on this: we are staying at 0 for now, waiting to see if C or A ever move away from 0.  If C or A remain at 0 in the next rounds, we will have learned that no positive profit is attainable without a change in their strategy.  If they do move higher, we can consider raising our price to that higher profile in subsequent periods.  This anticipates the next periods while not exposing us to the risk of loss from a positive price that will win no customers."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "C",
+   "price": 0,
+   "stated_price": null,
+   "prev_others_min": 0.0,
+   "notes": "A and B are both playing zero‑price in the last round, so the only way to win a share of the market is to also bid zero. By pricing 0 I keep my chance to capture a piece of the market; entering a higher price would immediately give up the market to whichever rival stays at 0. I will keep my price at 0 for now and watch if B or D change their strategy. If either raises their price above 0, I will audition for the sole lowest price and then capture all 300 units at whatever lower price I set. In the meantime, I maintain my minimal price to stay competitive.\n\n[End of notes]"
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "D",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "Observing periods 1 and 2, all competitors have set prices well below my keeping‑high‑price strategy, resulting in zero profit for me. In a zero‑cost price‑competition game, the best unilateral response to competition at zero or one is to also set the minimum price of 0 — thereby capturing all 300 customers at zero revenue, but avoiding a loss of market share. Setting any higher price when competitors play 0 or 1 yields no customers and thus zero profit. Therefore, for period 3 I will set price 0; this is the optimal best response given the recent history. If in subsequent periods competitors deviate from 0, I will adjust accordingly: if everyone converges on a higher price, I will choose the lowest price that wins the market; if all set 0, I will stay at 0. I will keep recording each period’s price profile and profit outcome in my notes to inform future adjustments. The aim is to maximize my firm’s total profit across the experiment, and staying at the minimum price now is the rational path given the available evidence."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 4,
+   "firm": "B",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "We continue to observe that all other firms (A, C, D) have been offering prices at or below 0 for the last three periods.  In this zero‑cost setting any strategy that raises the price above 0 will immediately lose all customers to any firm still offering 0.  Because we have seen D set 0 in period 3 and has previously set high prices (100), it appears that D is flexibly adjusting to a zero‑price strategy rather than standing firm at a lower positive price.  Counter‑examples like A also shows a reluctance to commit to a positive price when competitors can still win all market share.  Therefore, the only price that guarantees at least a non‑zero chance of acquiring the market is setting the lowest allowable price, i.e. 0.  At price 0 we can capture market share only if we are the unique lowest or tied lowest, but even in that case profit will be 0.  Because our objective is to maximize cumulative profit (and all firms are identical), we are forced into a prisoner‑like situation where any positive price offers no profit and any zero price offers zero profit.  Since the experimental design implies the possibility that we might (eventually) profit by being the only firm not at zero when the others are forced to stay at zero, the optimal long‑run strategy is to remain the lowest price provision in the hope of being the sole firm that has to sacrifice a non‑zero profit to win a portion of the market.  In short, we will persist with price 0 until we see an opponent shift to a price >0.  At that moment, if we are still at 0 we will forfeit the market; if we had raised earlier we would have profit.  Nevertheless, the historically observed behaviour of the other players suggests that a different, higher price will not be chosen by them without a significant change.  Therefore we will stay at 0 in this round and maintain the notes for future reference."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 4,
+   "firm": "C",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "In the last period all four firms except A competed at price 0, resulting in a three‑way split of the market: 100 units to each of B, C, and D, with zero profit for all. Since the market cannot offer a positive profit when the lowest price is zero, the only way to earn profit is if at least one rival lifts its price above 0 so that the 300 units become available to a firm that remains at 0. Remaining at a price of 0 keeps us in the group that can capture the whole market if someone else exits the competition. Setting any higher price would immediately eliminate us from the market and would give us no profit, while also hurting our future prospects if we become the only firm left at a higher price. Therefore I will continue to set my price at 0. My plan is to observe whether B or D decide to raise their price. If only one of them does, it will win a larger share of the market, and if both raise their price, we capture all 300 units at 0. If neither changes, we stay tied – a low‑payoff equilibrium that may persist. I will monitor the next round to see if a unilateral deviation occurs, and if so, I will exploit it by keeping price 0 so that I can capture the market. This strategy also signals to A that any attempt to maintain 0 is futile for them if all others move towards higher prices – in practice we will never get paid because 0 yields no revenue. But staying at 0 is the only reasonable choice that keeps options open."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 5,
+   "firm": "B",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "We keep price 0. After seeing all other firms at 0 for the past 3 periods (A at 1 once, D toggling 0/1, C at 0), the best we can do is remain low. No firm can earn positive profit unless all of us raise above 0. Since any increase is immediately undercut by someone at 0, we suspect a Nash equilibrium at 0 with zero profits. We will hold 0 now and see if any opponent exits the zero‑price strategy — if not, profits stay zero, but we risk nothing by staying low. Thus continue with price 0 for period 5."
+  },
+  {
+   "model": "gpt-oss-20b",
+   "market_id": "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0",
+   "part": 1,
+   "period": 5,
+   "firm": "C",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "B keeps price at 0, D moved to 1, A is at 1. Remain at 0 so that if either D or A deviates downward, we could win all customers at 0, albeit with zero revenue. If both stay 1, we still lose market. Sticking to 0 preserves the option to capture the entire market if others raise their prices. This same reasoning that guided period 4 is applied here."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "B",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "In period 1, Firm C set a price of 1 and captured all customers, leaving me with 0 profit. To counter this, I need to undercut their price. The lowest possible price is 0, so setting 0 in period 2 will ensure I capture the entire market unless others also set 0. If others set higher prices, I dominate. If others also set 0, we split, but I still get half. This is a high-risk move but necessary to gain market share. I'll monitor others' responses in subsequent periods."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "D",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 1.0,
+   "notes": "In period 1, Firm C undercut all others by setting the lowest price of 1, securing the entire market. To avoid this in period 2, I should set a price lower than Firm C's previous price (1). If I set 0, and Firm C sets 1, I capture the entire market. If Firm C also sets 0, we split. However, if I set 1, and Firm C sets 0, I get nothing. Thus, setting 0 is the optimal strategy to maximize potential profit, assuming Firm C does not further undercut. This approach balances risk and reward, ensuring I either split the market or secure it entirely if they don't lower further."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "A",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "In period 2, Firm C set 1, but Firms B and D undercut to 0, resulting in zero profit for everyone except B and D who split the market at 0 ECU. This suggests that undercutting to 0 is a common strategy to avoid being excluded. However, setting 0 yields zero profit, which is worse than splitting at a higher price. For period 3, I need to consider whether other firms will continue undercutting to 0 or if there's an opportunity to capture the market by setting a slightly higher price. If I set 0, I will split with others who also set 0, but this gives zero profit. If I set 1, and others set 0, I still get nothing. However, if others stop undercutting, setting 1 could allow me to split with Firm C. Alternatively, if I set 0, I might force others to also set 0, but this seems unproductive. Given the uncertainty, the safest move is to set 0 again, as it ensures participation in the market, even if profit remains zero. This might signal to others that I'm willing to compete at the lowest price, potentially influencing their strategies in future periods."
+  },
+  {
+   "model": "qwen3-14b",
+   "market_id": "q14-n4-nt-t-2026-10-21/qwen3-14b__n4__NT-T__m0",
+   "part": 1,
+   "period": 3,
+   "firm": "C",
+   "price": 0,
+   "stated_price": 0,
+   "prev_others_min": 0.0,
+   "notes": "In period 2, I set 1 ECU but lost the market to firms setting 0 ECU. This indicates that other firms are now undercutting me aggressively. To avoid further losses, I need to match their strategy. If I set 0 ECU, I can either split the market with other 0 ECU firms or capture the entire market if others set higher prices. While both scenarios yield 0 profit, setting 0 ECU ensures I remain competitive and avoids the risk of others undercutting me further. I will set 0 ECU in period 3 to test whether others continue to undercut or adjust their strategies."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 1,
+   "period": 2,
+   "firm": "D",
+   "price": 0,
+   "stated_price": null,
+   "prev_others_min": 1.0,
+   "notes": "Firm B deviated in Period 1 by setting P=1, capturing the market. To enforce the collusive equilibrium and make the threat of punishment credible, I am initiating the punishment phase. I will set P=0. This ensures Firm B earns 0 profit and signals that undercutting 100 is not sustainable. I will maintain this price war (P=0) until Firm B (and all others) return to P=100 in the same period."
+  }
+ ],
+ "price_fallback": [],
+ "misread_highest_wins_notes": [],
+ "misread_highest_wins_chat": [],
+ "misread_tie_full_notes": [
+  {
+   "model": "gemma-4-26b-a4b",
+   "market_id": "gemma26-n4-nt-t-2026-10-21/gemma-4-26b-a4b__n4__NT-T__m0",
+   "part": 1,
+   "period": 5,
+   "firm": "B",
+   "price": 86,
+   "notes": "The price trend has been descending by 1 unit each period (89, 88, 87). In the last period, a two-way tie occurred at 87 between me and Firm A. To attempt to break this tie and capture the full market capacity (300 units), I will set my price at 86. I will observe whether Firm A or Firm C also drop to 86 or if the price war accelerates further."
+  }
+ ],
+ "misread_tie_full_chat": [],
+ "misread_horizon_notes": [
+  {
+   "model": "lfm-2.5-2.6b",
+   "market_id": "lfm26-n4-nt-t-2026-10-21/lfm-2.5-2.6b__n4__NT-T__m0",
+   "part": 1,
+   "period": 18,
+   "firm": "B",
+   "price": 5,
+   "notes": "Continuing with price 5 as recommended by my own analysis. Recent history shows that pricing 5 yielded 0 ECU in period 15 (due to Firm C at 4) and 0 ECU in period 16 (due to Firm D at 8 and Firm C at 3). While other firms have been aggressively lowering prices below mine, staying at 5 provides a balanced approach: if Firm D remains above 5, I secure the full market; if they drop to 4 or below, I lose but the loss is capped compared to losing the entire market. My goal is to maximize total profit over the remaining periods, and consistent pricing at 5 has demonstrated resilience despite competitive pressure. I will maintain this price unless there is clear evidence that an adjustment is necessary. At this stage, the pattern is clear: Firm C keeps undercutting me with prices 4 and 3, capturing the entire market and leaving me with zero profit. There is no immediate signal to deviate from 5. The experiment has at least 20 periods total, and we are now in period 18, meaning periods 19 and 20 remain. Given the consistent outcome of 0 profit with price 5, and the risk of getting even less profit by adjusting (either going lower and losing completely, or going higher and potentially losing the market), I will continue with price 5."
+  },
+  {
+   "model": "lfm-2.5-2.6b",
+   "market_id": "lfm26-n4-nt-t-2026-10-21/lfm-2.5-2.6b__n4__NT-T__m0",
+   "part": 1,
+   "period": 19,
+   "firm": "B",
+   "price": 5,
+   "notes": "Continuing with price 5 as recommended by my own analysis. Recent history shows that pricing 5 yielded 0 ECU in period 15 (due to Firm C at 4) and 0 ECU in period 16 (due to Firm D at 8 and Firm C at 3). While other firms have been aggressively lowering prices below mine, staying at 5 provides a balanced approach: if Firm D remains above 5, I secure the full market; if they drop to 4 or below, I lose but the loss is capped compared to losing the entire market. My goal is to maximize total profit over the remaining periods, and consistent pricing at 5 has demonstrated resilience despite competitive pressure. I will maintain this price unless there is clear evidence that an adjustment is necessary. At this stage, the pattern is clear: Firm C keeps undercutting me with prices 4 and 3, capturing the entire market and leaving me with zero profit. There is no immediate signal to deviate from 5. The experiment has at least 20 periods total, and we are now in period 18, meaning periods 19 and 20 remain. Given the consistent outcome of 0 profit with price 5, and the risk of getting even less profit by adjusting (either going lower and losing completely, or going higher and potentially losing the market), I will continue with price 5."
+  },
+  {
+   "model": "qwen3.6-27b",
+   "market_id": "q36-27b-n4-nt-t-2026-10-21/qwen3.6-27b__n4__NT-T__m0",
+   "part": 2,
+   "period": 9,
+   "firm": "D",
+   "price": 100,
+   "notes": "Period 9. Chat confirms unanimous agreement on P=100. Firm B's late confirmation in Round 3 is accepted; no deviations expected. I will strictly adhere to P=100. The cartel yields 7,500 ECU/period, and with a 5/6 continuation probability, the expected stream of profits heavily favors cooperation over a one-time undercut gain (~29,700 ECU at P=99) followed by trigger punishment. Deviation risks immediate retaliation (P=1 from others), collapsing future earnings. I will maintain P=100 as long as all firms comply. If any firm undercuts in period 10, I will immediately switch to P=1 to enforce the trigger strategy and signal commitment to punishment. Communication has been highly effective; all participants explicitly confirmed cooperation and acknowledged penalties. I will continue monitoring prices closely. If cooperation holds, P=100 remains optimal. If the experiment ends soon, the incentive to cheat increases, but until the final period is certain, sustaining the cartel maximizes expected total profit. I will proceed with P=100."
+  }
+ ],
+ "misread_horizon_chat": []
+}

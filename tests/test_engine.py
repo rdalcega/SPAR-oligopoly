@@ -356,10 +356,12 @@ max_tokens = 100
 
 def test_models_config(tmp_path):
     models = load_models()
-    assert "mock" in models and len(models) == 8
+    assert "mock" in models and len(models) == 13
     live = [m for m in models.values() if not m.is_mock]
     assert all(not m.provider_pending and m.max_tokens for m in live)
     assert models["qwen3.5-27b"].chat_kwargs()["extra_body"] == {"top_k": 20, "presence_penalty": 1.5}
+    lfm = models["lfm-2.5-2.6b"].chat_kwargs()  # its endpoint rejects top_p under require_parameters
+    assert lfm["top_p"] is None and lfm["extra_body"] == {"top_k": 50, "repetition_penalty": 1.1}
     (tmp_path / "m.toml").write_text(PENDING_TOML)
     with pytest.raises(ConfigError):
         load_models(tmp_path / "m.toml")["pending"].check_live()

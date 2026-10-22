@@ -113,3 +113,71 @@ max_tokens = 8192
 reasoning = { effort = "medium" }
 require_parameters = true
 
+# Small-model survey, 2026-10-21 (DECISIONS.md, "Small-model survey"): one NT-T n = 4 market each. Sampling from each
+# model card (or generation_config.json where the card gives none); pinned to the only endpoint, or to one with seed
+# support. Unlike the DeepInfra pins above, these entries use other providers (and Bonsai an int4 endpoint), so
+# provider and quantization are not held fixed across the survey.
+
+["qwen3.5-9b"]
+# Re-added for the survey. Pinned to Parasail (bf16, seed) instead of DeepInfra, whose shared pool rate-limited the
+# 2026-10-20 pilot (HTTP 429). Card's thinking-mode settings for general tasks.
+model = "qwen/qwen3.5-9b"
+provider = "parasail/bf16"
+temperature = 1.0
+top_p = 0.95
+top_k = 20
+extra = { presence_penalty = 1.5 }
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["reka-flash-3"]
+# 21B dense, always reasons (<reasoning> tags). The card gives no sampling; these are its generation_config.json.
+# Only endpoint: Reka (seed supported), context 65,536.
+model = "rekaai/reka-flash-3"
+provider = "reka"
+temperature = 0.6
+top_p = 0.95
+top_k = 1024
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["xing4.0-29b-a4b"]
+# 29B MoE (4B active), TeleAI. Free variant; only endpoint Phala (seed supported). Card: T 1.0, top_p 0.95,
+# repetition_penalty 1.05 for reasoning / general tasks.
+model = "xingchen-agi/xing4.0-29b-a4b:free"
+provider = "phala"
+temperature = 1.0
+top_p = 0.95
+extra = { repetition_penalty = 1.05 }
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+
+["bonsai-2-27b"]
+# PrismML ternary compression of Qwen3.8-27B; only endpoint darkbloom/int4 (seed supported). Card's thinking mode
+# (T 1.0, top_p 0.95, top_k 20) without its min_p 0.05, which the endpoint doesn't accept.
+model = "prism-ml/ternary-bonsai-2-27b"
+provider = "darkbloom/int4"
+temperature = 1.0
+top_p = 0.95
+top_k = 20
+max_tokens = 16000
+reasoning = { effort = "medium" }
+require_parameters = true
+bytes_per_token_min = 2.4  # Qwen3.8 tokenizer
+
+["lfm-2.5-2.6b"]
+# 2.6B dense, always thinks. Free variant; only endpoint Liquid (fp8, seed), output capped at 8,192 tokens (the cap
+# that truncated LFM-2.5-24B-A2B's pilot calls). Card: T 0.1, top_k 50, repetition_penalty 1.1; no top_p given, and
+# the endpoint doesn't accept one.
+model = "liquid/lfm-2.5-2.6b:free"
+provider = "liquid/fp8"
+temperature = 0.1
+top_k = 50
+extra = { repetition_penalty = 1.1 }
+max_tokens = 8192
+reasoning = { effort = "medium" }
+require_parameters = true
+

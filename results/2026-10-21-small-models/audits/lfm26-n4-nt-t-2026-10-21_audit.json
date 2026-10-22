@@ -1,0 +1,744 @@
+{
+ "lfm26-n4-nt-t-2026-10-21/lfm-2.5-2.6b__n4__NT-T__m0": {
+  "market": "lfm-2.5-2.6b__n4__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125,
+     "C": 125,
+     "D": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 520,
+   "checked_against_log": 520
+  },
+  "usage_record": {
+   "prompt_tokens": 1122207,
+   "completion_tokens": 624203,
+   "reasoning_tokens": 548166,
+   "cached_tokens": 196105,
+   "cache_write_tokens": 0,
+   "calls": 520,
+   "cost_usd": 0.0,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "Liquid"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "50/60/65/70"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "55/55/52/65"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "45/53/53/48"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "51/47/47/38"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "49/47/32/25"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "50/22/20/28"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "48/20/15/18"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "44/14/12/12"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "44/10/10/23"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "45/11/9/26"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "45/14/20/15"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "45/6/25/16"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "45/10/10/8"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "45/5/5/7"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "45/5/4/9"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "45/5/3/8"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "45/5/3/8"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "45/5/3/6"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "45/5/3/6"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "3/5/3/2"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "3/1/3/2"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "3/2/3/2"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "3/1/3/2"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "3/1/2/2"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "2/1/1/2"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "2/1/1/2"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "1/1/1/1"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": 1,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.0,
+   "msg_len_mean": 208.29861111111111,
+   "msg_len_max": 300,
+   "msg_near_limit": 23,
+   "msg_over_280": 23,
+   "reasks": {
+    "price": 1,
+    "transition": 0,
+    "chat": 11
+   },
+   "fallbacks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "fields other than notes ignored: price": 1,
+    "message truncated from # to # characters": 12,
+    "notes on a chat turn ignored": 36
+   },
+   "errors": {
+    "the response was empty": 1,
+    "a price was given on a chat turn (no \"message\" field)": 11
+   },
+   "profits": {
+    "A": 30525.0,
+    "B": 11775.0,
+    "C": 39975.0,
+    "D": 26025.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 520,
+   "calls_err": 16,
+   "err_kinds": {
+    "HTTP #: {\"message\": \"Provider returned error\", \"code\": #, \"metadata\": {\"raw\": \"l": 16
+   },
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     904,
+     1122,
+     1210.75,
+     1365.75,
+     1349.75,
+     1337.5,
+     1323.5,
+     1410.25,
+     1333.25,
+     1380.75,
+     1344.5,
+     1383.5,
+     1375.25,
+     1387,
+     1295.25,
+     1359.25,
+     1302.5,
+     1296,
+     1326.5,
+     1338.75,
+     1435.75,
+     1383,
+     1400.25,
+     1377.5,
+     1436.5,
+     1400.25,
+     1370.75,
+     1411,
+     1414
+    ],
+    "part2": [
+     2340,
+     2159,
+     2077.75,
+     2046,
+     2047.5,
+     2062.25,
+     2074.25,
+     2097.5,
+     2097.5,
+     2086,
+     2092,
+     2087.5,
+     2089.75,
+     2089.5,
+     2121.75,
+     2097.5,
+     2078.5,
+     2095.5,
+     2081.75,
+     2054.5,
+     2080.5,
+     2102.25,
+     2128.75,
+     2149.5
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 904,
+    "p1t2": 1122,
+    "p1t3": 1210.75,
+    "p1t4": 1365.75,
+    "p1t5": 1349.75,
+    "p1t6": 1337.5,
+    "p1t7": 1323.5,
+    "p1t8": 1410.25,
+    "p1t9": 1333.25,
+    "p1t10": 1380.75,
+    "p1t11": 1344.5,
+    "p1t12": 1383.5,
+    "p1t13": 1375.25,
+    "p1t14": 1387,
+    "p1t15": 1295.25,
+    "p1t16": 1359.25,
+    "p1t17": 1302.5,
+    "p1t18": 1296,
+    "p1t19": 1326.5,
+    "p1t20": 1338.75,
+    "p1t21": 1435.75,
+    "p1t22": 1383,
+    "p1t23": 1400.25,
+    "p1t24": 1377.5,
+    "p1t25": 1436.5,
+    "p1t26": 1400.25,
+    "p1t27": 1370.75,
+    "p1t28": 1411,
+    "p1t29": 1414,
+    "p2t1": 3046.5,
+    "p2t2": 2744,
+    "p2t3": 2741.75,
+    "p2t4": 2666.75,
+    "p2t5": 2618.25,
+    "p2t6": 2645.75,
+    "p2t7": 2682.75,
+    "p2t8": 2682.5,
+    "p2t9": 2614.5,
+    "p2t10": 2628.25,
+    "p2t11": 2603.25,
+    "p2t12": 2647.25,
+    "p2t13": 2639.5,
+    "p2t14": 2637.25,
+    "p2t15": 2783.75,
+    "p2t16": 2730.75,
+    "p2t17": 2636,
+    "p2t18": 2656.25,
+    "p2t19": 2607.25,
+    "p2t20": 2557,
+    "p2t21": 2587.5,
+    "p2t22": 2693,
+    "p2t23": 2682.25,
+    "p2t24": 2758.25
+   },
+   "growth_talk_per_period": 18.214285714285715,
+   "growth_notalk_per_period": -8.282608695652174,
+   "completion_mean": {
+    "price": 1908.3333333333333,
+    "transition": 1345,
+    "chat": 692.1973244147157,
+    "probe": 1345.25
+   },
+   "reasoning_mean": {
+    "price": 1622.5586854460093,
+    "transition": 967.25,
+    "chat": 648.3411371237459,
+    "probe": 1209.5
+   },
+   "cost_per_call": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0,
+    "probe": 0
+   },
+   "cost_total": 0,
+   "cost_missing": 0,
+   "cached_tokens": 196105,
+   "latency_p50": 13.075077083020005,
+   "latency_p90": 56.50103447086876,
+   "latency_max": 187.88638683303725,
+   "tok_per_byte": 0.23951408617683417,
+   "tok_per_byte_min": 0.22758499207327815,
+   "tok_per_byte_max": 0.2634980988593156,
+   "prompt_tokens_max": 3163,
+   "seed_flags": {
+    "(False, None)": 520
+   },
+   "providers": {
+    "('liquid/fp8', 'Liquid', False)": 520
+   },
+   "models_served": {
+    "liquid/lfm-2.5-2.6b:free": 520
+   },
+   "finish": {
+    "('stop', 'stop')": 519,
+    "('length', 'length')": 1
+   },
+   "reasoning_returned_calls": 520
+  }
+ }
+}

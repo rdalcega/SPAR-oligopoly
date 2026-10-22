@@ -76,6 +76,29 @@ Decided 2026-10-19 by Rodrigo Delgado in an interview with Claude Code. Items no
   `deepinfra/bf16`, T 1.0, top_p 1.0, reasoning effort medium. `max_tokens` lowered from 8,000 to 6,000 (largest
   pilot output 4,200 tokens) so that every cell, including T-NT n = 10, passes the context rule; no cells are
   excluded. With one model, the "LLMs vs LLMs" goal is deferred.
+- **2026-10-21: small-model survey** (asked by Rodrigo). One NT-T market at n = 4 per open-weight reasoning model
+  under 30B total parameters on OpenRouter, with the configuration of the Qwen3.8-27B and Qwen3-14B single markets
+  (`config/experiment.toml` unchanged, base seed 0). It is a reference for how the environment behaves across
+  families and sizes, aimed at finding the smallest LoRA-able model that colludes comparably to humans with chat.
+  Single markets are cases, not cell means. Models: gpt-oss-20b, gemma-4-26b-a4b, granite-4.2-8b (settings as
+  above); re-added qwen3.5-9b (pinned to Parasail bf16, see `config/models.toml`); new reka-flash-3 (21B),
+  xing4.0-29b-a4b (free variant), bonsai-2-27b (ternary Qwen3.8-27B, int4 endpoint), lfm-2.5-2.6b (free variant);
+  qwen3.6-27b and qwen3.5-27b as budget allows. Sampling is each model card's thinking-mode recommendation (or
+  generation_config.json), so temperatures differ across models (0.1 for Liquid, 0.6 Reka, 1.0 the rest). Pins
+  follow availability: providers now differ across models (DeepInfra, Parasail, Reka, Phala, Darkbloom, Liquid),
+  and Bonsai is served at int4. Left out: models at exactly 30B total (Nemotron-3.5-Lightning, North-Mini-Code,
+  GLM-4.7-Flash), MoEs over 30B total (Hunyuan-A13B, Solar-Mini-4, Laguna-XS), gpt-oss-safeguard-20b (a policy
+  classifier) and LFM-2.5-24B-A2B (dropped above).
+  Departures from the cards: Bonsai's min_p 0.05 is not sent (its endpoint rejects it); LFM-2.5-2.6B sends no
+  top_p (none in its card, rejected by its endpoint); max_tokens is 16,000 except LFM-2.5-2.6B at its endpoint's
+  8,192 cap. Unlike LFM-2.5-24B-A2B, the 2.6B model hit that cap on 1 of 520 calls, so it was kept.
+  Cost caps (approved by Rodrigo; each run's own `--budget-usd`): gpt-oss-20b $0.35, gemma-4-26b-a4b $0.70,
+  granite-4.2-8b $0.55, qwen3.5-9b $0.60, reka-flash-3 $0.50, bonsai-2-27b $0.80, qwen3.6-27b $4.50,
+  qwen3.5-27b $3.50, free models $0.05. Actual total $8.03.
+  Outcome (results in `results/2026-10-21-small-models/`): eight markets completed. Reka-Flash-3 was stopped in
+  its first period (answers hit the token limit or degenerated into repeated words); Xing4.0's free endpoint was
+  rate-limited upstream until the market failed after 3 periods, and a resume was stopped after 5 (checkpointed,
+  resumable).
 
 ### §6 item 1 — chat structure
 

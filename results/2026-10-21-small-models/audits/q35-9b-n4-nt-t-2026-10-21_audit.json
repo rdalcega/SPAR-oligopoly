@@ -1,0 +1,744 @@
+{
+ "q35-9b-n4-nt-t-2026-10-21/qwen3.5-9b__n4__NT-T__m0": {
+  "market": "qwen3.5-9b__n4__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125,
+     "C": 125,
+     "D": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 513,
+   "checked_against_log": 513
+  },
+  "usage_record": {
+   "prompt_tokens": 1235906,
+   "completion_tokens": 1641618,
+   "reasoning_tokens": 1554020,
+   "cached_tokens": 553344,
+   "cache_write_tokens": 0,
+   "calls": 513,
+   "cost_usd": 0.5339951,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "Parasail"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "90/100/85/80"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "80/79/79/80"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "79/79/78/79"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "78/77/77/77"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "76/77/76/77"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "75/76/75/76"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "74/75/75/75"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "74/74/74/74"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "74/74/74/74"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "73/74/74/74"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "73/73/73/73"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "72/73/72/73"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "71/72/72/72"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "71/71/69/71"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "68/69/69/69"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "68/68/68/68"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "85/85/85/85"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "85/85/85/85"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 85,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": 85,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.0,
+   "msg_len_mean": 252.29861111111111,
+   "msg_len_max": 300,
+   "msg_near_limit": 110,
+   "msg_over_280": 110,
+   "reasks": {
+    "price": 2,
+    "transition": 0,
+    "chat": 3
+   },
+   "fallbacks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "message truncated from # to # characters": 70
+   },
+   "errors": {
+    "no JSON object with a \"price\" field was found": 1,
+    "could not parse a JSON object (it is malformed or incomplete)": 1,
+    "the response was empty": 3
+   },
+   "profits": {
+    "A": 363225.0,
+    "B": 263525.0,
+    "C": 341075.0,
+    "D": 275675.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 513,
+   "calls_err": 71,
+   "err_kinds": {
+    "HTTP #: {\"message\": \"Provider returned error\", \"code\": #, \"metadata\": {\"raw\": \"q": 70,
+    "empty or errored choice: {'code': #, 'message': 'Network connection lost.', 'met": 1
+   },
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     954,
+     1249.25,
+     1367.5,
+     1583.75,
+     1552,
+     1587.25,
+     1672.25,
+     1628.75,
+     1658.5,
+     1643,
+     1621,
+     1561.75,
+     1597,
+     1594,
+     1520.5,
+     1504.75,
+     1569.5,
+     1576.25,
+     1600.25,
+     1532.25,
+     1615,
+     1624.25,
+     1561,
+     1620.25,
+     1646.5,
+     1574.75,
+     1620.75,
+     1574.5,
+     1553
+    ],
+    "part2": [
+     2413.75,
+     2409.25,
+     2363.75,
+     2282.75,
+     2271.5,
+     2342.25,
+     2293.25,
+     2247.5,
+     2282,
+     2303.5,
+     2319,
+     2281.25,
+     2243.75,
+     2261.5,
+     2273.5,
+     2223,
+     2254.75,
+     2271.5,
+     2294.75,
+     2260,
+     2200,
+     2301.25,
+     2292.5,
+     2283.75
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 954,
+    "p1t2": 1249.25,
+    "p1t3": 1367.5,
+    "p1t4": 1583.75,
+    "p1t5": 1552,
+    "p1t6": 1587.25,
+    "p1t7": 1672.25,
+    "p1t8": 1628.75,
+    "p1t9": 1658.5,
+    "p1t10": 1643,
+    "p1t11": 1621,
+    "p1t12": 1561.75,
+    "p1t13": 1597,
+    "p1t14": 1594,
+    "p1t15": 1520.5,
+    "p1t16": 1504.75,
+    "p1t17": 1569.5,
+    "p1t18": 1576.25,
+    "p1t19": 1600.25,
+    "p1t20": 1532.25,
+    "p1t21": 1615,
+    "p1t22": 1624.25,
+    "p1t23": 1561,
+    "p1t24": 1620.25,
+    "p1t25": 1646.5,
+    "p1t26": 1574.75,
+    "p1t27": 1620.75,
+    "p1t28": 1574.5,
+    "p1t29": 1553,
+    "p2t1": 3306.75,
+    "p2t2": 3275.25,
+    "p2t3": 3225.75,
+    "p2t4": 2976.75,
+    "p2t5": 3034.5,
+    "p2t6": 3065.25,
+    "p2t7": 3055.25,
+    "p2t8": 2977.5,
+    "p2t9": 3009,
+    "p2t10": 3072.5,
+    "p2t11": 3033,
+    "p2t12": 3040.25,
+    "p2t13": 2966.75,
+    "p2t14": 2980.5,
+    "p2t15": 3089.5,
+    "p2t16": 2993,
+    "p2t17": 2920.75,
+    "p2t18": 2997.5,
+    "p2t19": 2977.75,
+    "p2t20": 3012,
+    "p2t21": 2906,
+    "p2t22": 3042.25,
+    "p2t23": 3041.5,
+    "p2t24": 2967.75
+   },
+   "growth_talk_per_period": 21.392857142857142,
+   "growth_notalk_per_period": -5.6521739130434785,
+   "completion_mean": {
+    "price": 3448.9392523364486,
+    "transition": 3396.5,
+    "chat": 2987.577319587629,
+    "probe": 5143.5
+   },
+   "reasoning_mean": {
+    "price": 3137.3598130841124,
+    "transition": 3083.25,
+    "chat": 2921.556701030928,
+    "probe": 5029.75
+   },
+   "cost_per_call": {
+    "price": 0.0010847492990654205,
+    "transition": 0.001080575,
+    "chat": 0.00100141529209622,
+    "probe": 0.00153115
+   },
+   "cost_total": 0.5339951000000001,
+   "cost_missing": 0,
+   "cached_tokens": 553344,
+   "latency_p50": 42.97219916700851,
+   "latency_p90": 76.31903342567385,
+   "latency_max": 277.58067308401223,
+   "tok_per_byte": 0.2558886783907092,
+   "tok_per_byte_min": 0.24212163378898258,
+   "tok_per_byte_max": 0.2819980849026492,
+   "prompt_tokens_max": 3378,
+   "seed_flags": {
+    "(False, None)": 513
+   },
+   "providers": {
+    "('parasail/bf16', 'Parasail', False)": 513
+   },
+   "models_served": {
+    "qwen/qwen3.5-9b": 513
+   },
+   "finish": {
+    "('stop', 'stop')": 510,
+    "('length', 'length')": 3
+   },
+   "reasoning_returned_calls": 513
+  }
+ }
+}

@@ -1,0 +1,768 @@
+{
+ "gptoss20-n4-nt-t-2026-10-21/gpt-oss-20b__n4__NT-T__m0": {
+  "market": "gpt-oss-20b__n4__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125,
+     "C": 125,
+     "D": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 514,
+   "checked_against_log": 514
+  },
+  "usage_record": {
+   "prompt_tokens": 1081594,
+   "completion_tokens": 516788,
+   "reasoning_tokens": 438856,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 514,
+   "cost_usd": 0.10479814000000007,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "0/1/50/100"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "1/0/0/100"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "1/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "1/0/0/1"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "1/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "1/1/0/0"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "1/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "0/1/0/0"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "0/1/0/0"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "0/1/0/1"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "1/0/0/1"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "1/0/0/1"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "1/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "1/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "1/1/0/0"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "0/1/0/1"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "0/1/0/1"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "1/1/0/0"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "1/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "1/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "1/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "0/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "0/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "0/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "0/0/1/0"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "0/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "0/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "0/0/0/0"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "0/0/0/0"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "20/20/20/20"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "20/19/20/20"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "20/20/18/20"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "20/19/19/18"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "20/18/17/18"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "20/18/17/17"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "17/17/16/16"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "15/15/14/12"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "12/12/11/12"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "10/11/11/12"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "10/9/10/9"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "9/8/9/9"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "9/8/9/9"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "8/8/7/8"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "7/7/7/7"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "7/7/7/7"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "7/7/7/7"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "7/7/7/7"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "6/7/7/7"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": 20,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 20,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 20,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 20,
+     "support": 4,
+     "kept": false,
+     "undercutters": [
+      "B"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 20,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "C"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 20,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "B",
+      "C",
+      "D"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 20,
+     "support": 4,
+     "kept": false,
+     "undercutters": [
+      "B",
+      "C",
+      "D"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 17,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "C",
+      "D"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 12,
+     "support": 3,
+     "kept": false,
+     "undercutters": [
+      "A",
+      "B",
+      "C"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": null,
+     "support": 1,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 9,
+     "support": 4,
+     "kept": false,
+     "undercutters": [
+      "B"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 9,
+     "support": 4,
+     "kept": false,
+     "undercutters": [
+      "B"
+     ],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": null,
+     "support": 2,
+     "kept": null,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 7,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 7,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 7,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": 7,
+     "support": 4,
+     "kept": false,
+     "undercutters": [
+      "A"
+     ],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.00347222222222221,
+   "msg_len_mean": 151.72473867595818,
+   "msg_len_max": 282,
+   "msg_near_limit": 1,
+   "msg_over_280": 1,
+   "reasks": {
+    "price": 6,
+    "transition": 0,
+    "chat": 0
+   },
+   "fallbacks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "warnings": {
+    "JSON coerced: typographic quote(s) in a structural position read as \"": 1
+   },
+   "errors": {
+    "could not parse a JSON object (it is malformed or incomplete)": 4,
+    "no JSON object with a \"price\" field was found": 1,
+    "the response was empty": 1
+   },
+   "profits": {
+    "A": 15900.0,
+    "B": 22950.0,
+    "C": 31950.0,
+    "D": 26400.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 514,
+   "calls_err": 29,
+   "err_kinds": {
+    "HTTP #: {\"message\": \"Provider returned error\", \"code\": #, \"metadata\": {\"raw\": \"o": 29
+   },
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     935,
+     1113,
+     1246.5,
+     1380,
+     1395.5,
+     1297.75,
+     1325.75,
+     1302.25,
+     1280.5,
+     1275,
+     1294.75,
+     1328,
+     1292.25,
+     1345.75,
+     1350,
+     1362.25,
+     1320.75,
+     1323,
+     1320.25,
+     1290.5,
+     1358.5,
+     1408,
+     1363.5,
+     1410,
+     1370.75,
+     1305.5,
+     1371.75,
+     1418.75,
+     1347.75
+    ],
+    "part2": [
+     2446.25,
+     2045,
+     2011,
+     2039,
+     2050.25,
+     2030.25,
+     1998.25,
+     1998,
+     2112,
+     2031.25,
+     2097,
+     2063.75,
+     2072,
+     2103.75,
+     2108.5,
+     2107,
+     2147.5,
+     2094,
+     2080,
+     2130,
+     2144.75,
+     2104.25,
+     2082.5,
+     2070.75
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 935,
+    "p1t2": 1113,
+    "p1t3": 1246.5,
+    "p1t4": 1380,
+    "p1t5": 1395.5,
+    "p1t6": 1297.75,
+    "p1t7": 1325.75,
+    "p1t8": 1302.25,
+    "p1t9": 1280.5,
+    "p1t10": 1275,
+    "p1t11": 1294.75,
+    "p1t12": 1328,
+    "p1t13": 1292.25,
+    "p1t14": 1345.75,
+    "p1t15": 1350,
+    "p1t16": 1362.25,
+    "p1t17": 1320.75,
+    "p1t18": 1323,
+    "p1t19": 1320.25,
+    "p1t20": 1290.5,
+    "p1t21": 1358.5,
+    "p1t22": 1408,
+    "p1t23": 1363.5,
+    "p1t24": 1410,
+    "p1t25": 1370.75,
+    "p1t26": 1305.5,
+    "p1t27": 1371.75,
+    "p1t28": 1418.75,
+    "p1t29": 1347.75,
+    "p2t1": 2968.25,
+    "p2t2": 2487,
+    "p2t3": 2376,
+    "p2t4": 2456,
+    "p2t5": 2541.25,
+    "p2t6": 2480.25,
+    "p2t7": 2414.25,
+    "p2t8": 2552,
+    "p2t9": 2662,
+    "p2t10": 2479.25,
+    "p2t11": 2668,
+    "p2t12": 2599.75,
+    "p2t13": 2650,
+    "p2t14": 2620.75,
+    "p2t15": 2638.5,
+    "p2t16": 2665,
+    "p2t17": 2639.5,
+    "p2t18": 2549,
+    "p2t19": 2620,
+    "p2t20": 2713,
+    "p2t21": 2731.75,
+    "p2t22": 2474.25,
+    "p2t23": 2491.5,
+    "p2t24": 2590.75
+   },
+   "growth_talk_per_period": 14.741071428571429,
+   "growth_notalk_per_period": -16.32608695652174,
+   "completion_mean": {
+    "price": 1338.954128440367,
+    "transition": 1017.5,
+    "chat": 756.3645833333334,
+    "probe": 748.25
+   },
+   "reasoning_mean": {
+    "price": 1092.1009174311926,
+    "transition": 559.25,
+    "chat": 680.8020833333334,
+    "probe": 617.5
+   },
+   "cost_per_call": {
+    "price": 0.00024434100917431194,
+    "transition": 0.00020551,
+    "chat": 0.00017369520833333333,
+    "probe": 0.000171385
+   },
+   "cost_total": 0.10479814,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 6.228999103943352,
+   "latency_p90": 17.243846595601646,
+   "latency_max": 54.96330125001259,
+   "tok_per_byte": 0.24514664186214571,
+   "tok_per_byte_min": 0.23459908000360782,
+   "tok_per_byte_max": 0.26059712495392556,
+   "prompt_tokens_max": 3123,
+   "seed_flags": {
+    "(False, None)": 514
+   },
+   "providers": {
+    "('deepinfra/bf16', 'DeepInfra', False)": 514
+   },
+   "models_served": {
+    "openai/gpt-oss-20b": 514
+   },
+   "finish": {
+    "('stop', 'stop')": 513,
+    "('length', 'length')": 1
+   },
+   "reasoning_returned_calls": 514
+  }
+ }
+}
