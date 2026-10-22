@@ -8,9 +8,10 @@ Single markets, so read them as cases, not cell means.
   different prompt wordings). Regenerate with
   `uv run python scripts/analyze.py --runs-root ~/Documents/code/SPAR-oligopoly/data/runs
   --run-id q14-v-<variant>-2026-10-21 --out results/2026-10-21-variants/analysis/<variant>`.
-- `audits/<variant>.txt`: `scripts/audit_pilot.py`. No engine or call issues; every call was served by the pinned
-  `deepinfra/fp8` endpoint, finish reason `stop`, no seed flags. Only these text summaries were kept; the JSON
-  reports they name were not copied.
+- `audits/<variant>.txt` and `audits/q14-v-<variant>-2026-10-21_audit.json`: `scripts/audit_pilot.py` (printed summary
+  and full report; the JSON reports were copied from the `q14-prompt-variants` worktree before it was removed). No
+  engine or call issues; every call was served by the pinned `deepinfra/fp8` endpoint, finish reason `stop`, no seed
+  flags.
 - `pages/q14-prompt-variants.html`: source of the result page (link below).
 - Raw records: `data/runs/q14-v-<variant>-2026-10-21/` in the main checkout (untracked). The first
   `identical_copies` start was stopped after 20 calls to fix its wording
