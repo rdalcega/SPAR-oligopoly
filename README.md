@@ -48,6 +48,7 @@ takes a market file path).
 `data/runs` as of 2026-10-22), `SHA256SUMS` and a `README.txt`. Copies:
 
 - external drive "Sept 2024 Data B", at the top level (verified 2026-10-22)
+- external drive "Sept 2024 Data A", at the top level (verified 2026-10-22)
 
 Check a copy with `cd runs && shasum -a 256 -c ../SHA256SUMS`, and restore it with `ditto runs data/runs`. On disk
 the files use macOS transparent compression (~0.5 GB, ~2.3 GB uncompressed); `ditto` keeps it.
