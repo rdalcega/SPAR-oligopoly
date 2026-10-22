@@ -1,0 +1,734 @@
+{
+ "q14-v-similar_reasoning-2026-10-21/qwen3-14b__n4__NT-T__m0": {
+  "market": "qwen3-14b__n4__NT-T__m0",
+  "engine": {
+   "issues": [],
+   "info": {
+    "headers": {
+     "A": 125,
+     "B": 125,
+     "C": 125,
+     "D": 125
+    }
+   }
+  },
+  "calls": {
+   "issues": [],
+   "ok_calls": 508,
+   "checked_against_log": 508
+  },
+  "usage_record": {
+   "prompt_tokens": 1052289,
+   "completion_tokens": 354615,
+   "reasoning_tokens": 326208,
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "calls": 508,
+   "cost_usd": 0.21138228000000003,
+   "cost_unknown_calls": 0,
+   "seed_possibly_ignored_calls": 0,
+   "provider_mismatch_calls": 0,
+   "providers_served": [
+    "DeepInfra"
+   ]
+  },
+  "behaviour": {
+   "prices": [
+    {
+     "part": 1,
+     "period": 1,
+     "prices": "99/1/1/50"
+    },
+    {
+     "part": 1,
+     "period": 2,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 3,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 4,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 5,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 6,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 7,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 8,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 9,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 10,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 11,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 12,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 13,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 14,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 15,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 16,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 17,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 18,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 19,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 20,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 21,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 22,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 23,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 24,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 25,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 26,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 27,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 28,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 1,
+     "period": 29,
+     "prices": "1/1/1/1"
+    },
+    {
+     "part": 2,
+     "period": 1,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "prices": "2/2/2/2"
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "prices": "2/2/2/2"
+    }
+   ],
+   "chat": [],
+   "agreements": [
+    {
+     "part": 2,
+     "period": 1,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 2,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 3,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 4,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 5,
+     "agreed": 2,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 6,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 7,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 8,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 9,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 10,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 11,
+     "agreed": 2,
+     "support": 3,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 12,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 13,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 14,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 15,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 16,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 17,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 18,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 19,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 20,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 21,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 22,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 23,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    },
+    {
+     "part": 2,
+     "period": 24,
+     "agreed": 2,
+     "support": 4,
+     "kept": true,
+     "undercutters": [],
+     "above": [],
+     "rounds": 3
+    }
+   ],
+   "pass_rate": 0.05208333333333337,
+   "msg_len_mean": 108.66666666666667,
+   "msg_len_max": 182,
+   "msg_near_limit": 0,
+   "msg_over_280": 0,
+   "reasks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "fallbacks": {
+    "price": 0,
+    "transition": 0,
+    "chat": 0
+   },
+   "warnings": {},
+   "errors": {},
+   "profits": {
+    "A": 5700.0,
+    "B": 5850.0,
+    "C": 5850.0,
+    "D": 5700.0
+   }
+  },
+  "tokens": {
+   "calls_ok": 508,
+   "calls_err": 0,
+   "err_kinds": {},
+   "timeout_retries": 0,
+   "prompt_by_period_first_call": {
+    "part1": [
+     953,
+     1145.25,
+     1243.25,
+     1311.5,
+     1309.5,
+     1316.25,
+     1302.75,
+     1298.5,
+     1297,
+     1299.5,
+     1296.5,
+     1298,
+     1290.75,
+     1295.5,
+     1290.75,
+     1291.25,
+     1291,
+     1295.25,
+     1264.5,
+     1268,
+     1292,
+     1330.25,
+     1356.25,
+     1354.5,
+     1354.75,
+     1357.75,
+     1377.5,
+     1372,
+     1365.75
+    ],
+    "part2": [
+     2204.25,
+     2159.5,
+     2120,
+     2108.5,
+     2103.5,
+     2105.5,
+     2108.5,
+     2109.5,
+     2097,
+     2091.75,
+     2087,
+     2085.25,
+     2089.25,
+     2084.5,
+     2085.75,
+     2082.25,
+     2086.75,
+     2080.25,
+     2076.5,
+     2073.5,
+     2104.25,
+     2142.25,
+     2183,
+     2183.5
+    ]
+   },
+   "price_prompt_by_period": {
+    "p1t1": 953,
+    "p1t2": 1145.25,
+    "p1t3": 1243.25,
+    "p1t4": 1311.5,
+    "p1t5": 1309.5,
+    "p1t6": 1316.25,
+    "p1t7": 1302.75,
+    "p1t8": 1298.5,
+    "p1t9": 1297,
+    "p1t10": 1299.5,
+    "p1t11": 1296.5,
+    "p1t12": 1298,
+    "p1t13": 1290.75,
+    "p1t14": 1295.5,
+    "p1t15": 1290.75,
+    "p1t16": 1291.25,
+    "p1t17": 1291,
+    "p1t18": 1295.25,
+    "p1t19": 1264.5,
+    "p1t20": 1268,
+    "p1t21": 1292,
+    "p1t22": 1330.25,
+    "p1t23": 1356.25,
+    "p1t24": 1354.5,
+    "p1t25": 1354.75,
+    "p1t26": 1357.75,
+    "p1t27": 1377.5,
+    "p1t28": 1372,
+    "p1t29": 1365.75,
+    "p2t1": 2708.25,
+    "p2t2": 2525.5,
+    "p2t3": 2511,
+    "p2t4": 2480.5,
+    "p2t5": 2522.5,
+    "p2t6": 2426.5,
+    "p2t7": 2437.5,
+    "p2t8": 2460.5,
+    "p2t9": 2512,
+    "p2t10": 2515.75,
+    "p2t11": 2477,
+    "p2t12": 2503.25,
+    "p2t13": 2489.25,
+    "p2t14": 2449.5,
+    "p2t15": 2482.75,
+    "p2t16": 2411.25,
+    "p2t17": 2476.75,
+    "p2t18": 2483.25,
+    "p2t19": 2508.5,
+    "p2t20": 2392.5,
+    "p2t21": 2465.25,
+    "p2t22": 2514.25,
+    "p2t23": 2599,
+    "p2t24": 2534.5
+   },
+   "growth_talk_per_period": 14.741071428571429,
+   "growth_notalk_per_period": -0.9021739130434783,
+   "completion_mean": {
+    "price": 801.6556603773585,
+    "transition": 1460.25,
+    "chat": 607.5590277777778,
+    "probe": 961.5
+   },
+   "reasoning_mean": {
+    "price": 636.5990566037735,
+    "transition": 1421.5,
+    "chat": 632.6875,
+    "probe": 837.25
+   },
+   "cost_per_call": {
+    "price": 0.000412938679245283,
+    "transition": 0.00060702,
+    "chat": 0.0004145025,
+    "probe": 0.00050862
+   },
+   "cost_total": 0.21138228,
+   "cost_missing": 0,
+   "cached_tokens": 0,
+   "latency_p50": 10.057988812506665,
+   "latency_p90": 18.40171908744378,
+   "latency_max": 49.73882174992468,
+   "tok_per_byte": 0.2522918028638621,
+   "tok_per_byte_min": 0.24163286004056794,
+   "tok_per_byte_max": 0.26893634165995167,
+   "prompt_tokens_max": 2731,
+   "seed_flags": {
+    "(False, None)": 508
+   },
+   "providers": {
+    "('deepinfra/fp8', 'DeepInfra', False)": 508
+   },
+   "models_served": {
+    "qwen/qwen3-14b": 508
+   },
+   "finish": {
+    "('stop', 'stop')": 508
+   },
+   "reasoning_returned_calls": 508
+  }
+ }
+}

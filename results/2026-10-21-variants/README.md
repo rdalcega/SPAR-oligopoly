@@ -4,10 +4,15 @@ One n = 4 NT-T market per prompt variant plus a fresh baseline (DECISIONS.md, "P
 code at commit 6089b6f. Variants are an extension: these markets are never compared with the human results.
 Single markets, so read them as cases, not cell means.
 
-- `analysis/<variant>/`: `scripts/analyze.py --run-id q14-v-<variant>-2026-10-21`, one run at a time (the
-  uniform-design check refuses to pool different prompt wordings).
-- `audits/<variant>.txt`: `scripts/audit_pilot.py`. No engine or call issues; every call was served by the pinned
-  `deepinfra/fp8` endpoint, finish reason `stop`, no seed flags.
+- `analysis/<variant>/`: `scripts/analyze.py`, one run at a time (the uniform-design check refuses to pool
+  different prompt wordings). Regenerate with
+  `uv run python scripts/analyze.py --runs-root ~/Documents/code/SPAR-oligopoly/data/runs
+  --run-id q14-v-<variant>-2026-10-21 --out results/2026-10-21-variants/analysis/<variant>`.
+- `audits/<variant>.txt` and `audits/q14-v-<variant>-2026-10-21_audit.json`: `scripts/audit_pilot.py` (printed summary
+  and full report; the JSON reports were copied from the `q14-prompt-variants` worktree before it was removed). No
+  engine or call issues; every call was served by the pinned `deepinfra/fp8` endpoint, finish reason `stop`, no seed
+  flags.
+- `pages/q14-prompt-variants.html`: source of the result page (link below).
 - Raw records: `data/runs/q14-v-<variant>-2026-10-21/` in the main checkout (untracked). The first
   `identical_copies` start was stopped after 20 calls to fix its wording
   (`q14-v-identical_copies-2026-10-21.aborted-v1-wording`, $0.01).
@@ -23,7 +28,7 @@ Mean selling price (Part 1 = NoTalk, 29 periods; Part 2 = Talk, 24 periods):
 | future_consequences | 58.9 | 55.9 | 44.1 | 44.0 | 21 (19) | $0.28 |
 | rivals_choices | 1.0 | 1.0 | 2.0 | 2.0 | 24 (24) | $0.21 |
 
-Total $1.42 of the $3 cap. Result page (source `page.html`): https://claude.ai/artifact/7USZvwycUwa8ZpXqCcjnRM
+Total $1.42 of the $3 cap. Result page (source `pages/q14-prompt-variants.html`): https://claude.ai/artifact/7USZvwycUwa8ZpXqCcjnRM
 
 Reading:
 

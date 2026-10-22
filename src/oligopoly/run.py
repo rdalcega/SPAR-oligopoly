@@ -55,6 +55,7 @@ def cell_specs(run_id: str, models: list[ModelConfig], cells: list[tuple[int, st
 
 def build_specs(run_id: str, models: list[ModelConfig], ns: list[int], orderings: list[str],
                 markets_per_cell: int, base_seed: int = 0) -> list[MarketSpec]:
+    """Specs for the full ns x orderings grid. Test helper: `main` builds its specs with `cell_specs`."""
     return cell_specs(run_id, models, select_cells(ns, orderings, grid=True), markets_per_cell, base_seed)
 
 
@@ -166,7 +167,8 @@ def _tokens(messages: list[dict[str, Any]], chars_per_token: float) -> int:
 
 async def simulate_tokens(n: int, ordering: str, exp: ExperimentConfig, chars_per_token: float) -> dict[str, float]:
     """Calls and input tokens (total, and cacheable: the messages a call shares as a prefix with the same firm's
-    previous call, which under the rolling window is mostly the instructions) of one mock market."""
+    previous call, which in the summaries layout is the system message, Part 1's instructions, plus the earlier
+    turns of a re-asked decision) of one mock market."""
     mock = ModelConfig("mock", "mock", "mock")
     client = MockClient(record=True, notes_words=exp.notes_words if exp.notes else 0)  # notes at the stated length
     with tempfile.TemporaryDirectory() as tmp:

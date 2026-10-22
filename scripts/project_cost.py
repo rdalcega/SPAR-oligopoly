@@ -22,8 +22,8 @@ Method:
   pilot's cached share of prompt tokens only if the pilot showed cache hits for the model.
 - Time per market: sequential steps (each chat round and each price decision of a period is one step in which all
   firms answer in parallel; a re-ask adds a step) x the pilot's p50 latency for that phase; x p90 as a rougher
-  upper figure. With the rolling window (DECISIONS.md §6 item 3, 2026-10-20) prompts stay bounded (peak ~11k
-  tokens for gpt-oss at n = 10, ~17k by the guard's bound), close to the pilots' sizes.
+  upper figure. With the summaries layout (DECISIONS.md §6 item 3) prompts stay bounded, close to the pilots'
+  sizes; scripts/project_context.py projects the current peaks (DECISIONS.md, 2026-10-20, quotes them).
 - Caveats: the pilots ran with append-only histories and before the chat-turn fix (DECISIONS.md §6 item 1,
   2026-10-20), so their invalid-answer (re-ask) rate on chat turns, which the replay reproduces, is inflated:
   in the n = 10 pilot ~19% of chat turns ended as forced passes after price answers. The projection is on the

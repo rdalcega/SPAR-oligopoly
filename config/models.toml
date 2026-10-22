@@ -12,19 +12,22 @@
 # max_tokens is required for live models: the budget reserves its cost before every call.
 #
 # extra (optional): other sampling parameters sent as-is (presence_penalty, repetition_penalty, ...).
-# structured_outputs (optional, default false): send a strict json_schema response_format on chat and price calls
-#   (needs require_parameters = true); part of the model's fingerprint. Checked live by scripts/probe_structured.py.
+# structured_outputs (optional, default false): send a strict json_schema response_format on chat, price and
+#   transition calls, not the post-game probe (needs require_parameters = true); part of the model's fingerprint.
+#   Checked live by scripts/probes/probe_structured.py.
 #
 # Context limits (DECISIONS.md, 2026-10-20; neither key affects play or fingerprints):
 # exclude_cells (optional): cells the model skips, e.g. [["NT-T", 10], ["T-NT", 10]] (ordering, n); written by
 #   scripts/project_context.py --write. bytes_per_token_min (optional, default 2.5): UTF-8 bytes per prompt token
 #   assumed by the runtime context guard; set lower for a model whose tokenizer is denser.
 #
-# Pins and sampling from the 2026-10-19 provider probe (data/probes/): DeepInfra serves 7 of the 8 models at
-# bf16/fp8 with seed support, so all 7 models are pinned to it, keeping provider out of model comparisons.
-# LFM-2.5-24B-A2B was dropped: its only provider caps output at 8192 tokens and ~18% of calls truncated. Sampling follows each model card's thinking-mode recommendation (gpt-oss's card
-# gives none: T=1, top_p=1). The reasoning parameter is always sent: without it Gemma does not think and
-# Qwen3.8 thinks ~6x longer. Only gpt-oss (and weakly Granite) respond to the effort level.
+# Pins and sampling from the 2026-10-19 provider probe (results/2026-10-20-probes/provider/): DeepInfra served 7 of
+# the 8 models of that lineup at bf16/fp8 with seed support, so all 7 were pinned to it, keeping provider out of
+# model comparisons. LFM-2.5-24B-A2B was dropped: its only provider caps output at 8192 tokens and ~18% of calls
+# truncated. Later changes: qwen3-14b was added on DeepInfra, qwen3.5-9b moved to Parasail, and the survey models
+# below use other providers (see each entry). Sampling follows each model card's thinking-mode recommendation
+# (gpt-oss's card gives none: T=1, top_p=1). The reasoning parameter is always sent: without it Gemma does not
+# think and Qwen3.8 thinks ~6x longer. Only gpt-oss (and weakly Granite) respond to the effort level.
 
 [mock]
 model = "mock"

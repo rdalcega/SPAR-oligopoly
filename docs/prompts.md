@@ -1,0 +1,796 @@
+# Firm prompts
+
+Every text an LLM firm sees, as `src/oligopoly/prompts.py` currently renders it (the current baseline
+texts, introduced with the summaries layout and message-only chat answers on 2026-10-20; earlier runs that day used
+different texts). The source is the Appendix A duopoly instructions, transcribed verbatim in
+`fonseca-normann-summary.md` §4. The texts below are for n = 4, Firm C, with the default
+`ChatSpec(max_rounds=3, order="simultaneous", char_limit=300, allow_pass=True, end_when_all_pass=True)`, the chat
+structure decided in `DECISIONS.md` §6 item 1. Unless a section says otherwise, no exchange rate is shown
+(§6 item 6) and the feedback describes every firm's period profit (§6 item 3).
+
+Regenerate with `PYTHONPATH=src python -c "..."` calling `part_instructions`, `period_prompt`, `chat_prompt`,
+`results_text`, `die_line`, `part_over_text`, `fallback_text`, `round_text`, `chat_text`, `summaries_text`,
+`totals_text`, `notes_text`, `transition_prompt`, `reask_text`, `chat_price_reask_text` and `probe_prompt`; the
+sample requests are built with `firm.Firm` (`summarise`, `add_chat`, `ask`). `tests/test_prompts.py` checks the
+hard rules for n ∈ {2, 4, 6, 8, 10} × 4 orderings (NoTalk → Talk, Talk → NoTalk, NoTalk → NoTalk and the
+Talk → Talk extension) × both parts × two chat specs × with and without money.
+
+## How the texts are used in a market
+
+1. Part 1 instructions (as the system message).
+2. Each period: in Talk parts, `chat_prompt` for each round (answer `{"message": ...}`, no notes); then
+   `period_prompt` (answer `{"notes": ..., "price": ...}`). When the period ends, the
+   firm gets that period's summary: `results_text`, then any price fallback notice (`fallback_text`), then, from
+   the minimum period (20) on, the die line (`die_line`, 1–5), or `part_over_text` when the pre-drawn last
+   period ends (die shows 6). Summaries are shown in later requests (below), not sent as messages of their own.
+3. After Part 1's last period, the Part 2 instructions open every later request, and periods restart at 1.
+4. Transition call (`transition = true`, the default; needs notes), only in NoTalk → Talk and Talk → NoTalk,
+   where communication changes (not in NoTalk → NoTalk or Talk → Talk): after Part 1's final summary and before
+   Part 2 period 1, each firm gets one notes-only call with `transition_prompt` and answers `{"notes": ...}`
+   (extra fields are ignored with a warning). Its notes replace the firm's memory; if the answer is still
+   unusable after the re-asks, the notes stay unchanged and the firm is told nothing. Recorded under the
+   record's `transition` key (call ids `.../p2/t0/transition/a<k>`).
+5. Part 2's last summary ends with `part_over_text(final_part=True)`; the post-game probe follows.
+6. Invalid output: `reask_text(error, expected_format)` (or, for a price answer on a chat turn,
+   `chat_price_reask_text`).
+
+**What each request contains (summaries layout, DECISIONS.md §6 item 3, 2026-10-20).** Every request is built
+fresh from the firm's transcript (`firm.section_messages`):
+
+1. system: the Part 1 instructions (always);
+2. user: one message holding, joined by blank lines,
+   1. the Part 2 instructions, from Part 2 period 1 on;
+   2. the summaries of the last 3 completed periods (`memory_window`), counted across the part boundary, oldest
+      first ("No periods have been played yet." before any), then the firm's own cumulative profit
+      (`totals_text`: "Your total profit in Part k so far", and in Part 2 also the experiment);
+   3. the firm's latest private notes, from its last price answer or the transition call, also on chat turns
+      (`notes_text`: "Your most recent notes:", then the notes between
+      "[start of your notes]" and "[end of your notes]" lines, or "You have not written any notes yet.");
+   4. in Talk parts, the chat rounds of the current period so far (`chat_text` of `round_text` entries): every
+      firm in the viewer's listing order, each message on one line in double quotes (`shown_message`; the
+      firm's own message in full), a pass as "(no message)", its own
+      unusable chat answer as "(no message: your response could not be used)"; before round 1, "No messages
+      have been posted in this period yet.";
+   5. the prompt (`chat_prompt`, `period_prompt` or, in the transition call, `transition_prompt`);
+3. within a decision only: each unusable answer (assistant) and its re-ask (user).
+
+The firm's earlier answers and earlier periods' chat are never shown again; older play survives only in the
+firm's own notes. The transition call is built the same way, without a chat section, even when Part 2 is a
+Talk part: the Part 2 instructions, the summaries of Part 1's last 3 periods (the last ending with the part-over
+line), Part 2's totals ("Your total profit in Part 2 so far: 0 ECU" and the experiment total), the notes and
+the transition prompt. The post-game probe is built the same way after the last period, without a chat section: the
+last 3 summaries of Part 2 (the last ending with the end-of-experiment text), the totals, the notes and the
+probe. Native reasoning is never fed back. The prompt-cache breakpoint goes on the system message only.
+
+The instructions ask for notes of "at most about 500 words" (`notes_words`, configurable). Notes longer than
+650 words or 4,500 characters (`notes_max_words`, `notes_max_chars`) are cut at a word boundary and marked
+" [truncated]" before they are shown back; the cap is not announced (DECISIONS.md engine details 12).
+
+Sample user message of a NoTalk request (NoTalk → NoTalk, Part 1 period 23, Firm C, listing order D, A, C, B):
+
+```text
+Results of period 20 (Part 1):
+Firm D: price 100, profit 0 ECU
+Firm A: price 100, profit 0 ECU
+Firm C (you): price 100, profit 0 ECU
+Firm B: price 99, profit 29,700 ECU
+Period 20 is over. The computer threw the virtual dice and it showed 3, so this part of the experiment continues.
+
+Results of period 21 (Part 1):
+Firm D: price 100, profit 0 ECU
+Firm A: price 99, profit 9,900 ECU
+Firm C (you): price 99, profit 9,900 ECU
+Firm B: price 99, profit 9,900 ECU
+Period 21 is over. The computer threw the virtual dice and it showed 1, so this part of the experiment continues.
+
+Results of period 22 (Part 1):
+Firm D: price 99, profit 7,425 ECU
+Firm A: price 99, profit 7,425 ECU
+Firm C (you): price 99, profit 7,425 ECU
+Firm B: price 99, profit 7,425 ECU
+Period 22 is over. The computer threw the virtual dice and it showed 5, so this part of the experiment continues.
+
+Your total profit in Part 1 so far: 159,825 ECU
+
+Your most recent notes:
+[start of your notes]
+Periods 1-19: all four at 100. B cut to 99 in 20 and won the market; A and I matched 99 in 21, D in 22. Plan: stay at 99 while the others do; go back to 100 if anyone else does first.
+[end of your notes]
+
+Part 1, period 23.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
+```
+
+Sample user message of a Talk price request (NoTalk → Talk, Part 2 period 5 after a 25-period Part 1; the
+Part 2 instructions, rendered below, open the message and are left out here). In round 2 Firm C's answer could
+not be used; in round 3 it passed:
+
+```text
+Results of period 2 (Part 2):
+Firm D: price 100, profit 7,500 ECU
+Firm A: price 100, profit 7,500 ECU
+Firm C (you): price 100, profit 7,500 ECU
+Firm B: price 100, profit 7,500 ECU
+
+Results of period 3 (Part 2):
+Firm D: price 100, profit 0 ECU
+Firm A: price 100, profit 0 ECU
+Firm C (you): price 100, profit 0 ECU
+Firm B: price 95, profit 28,500 ECU
+
+Results of period 4 (Part 2):
+Firm D: price 95, profit 7,125 ECU
+Firm A: price 95, profit 7,125 ECU
+Firm C (you): price 95, profit 7,125 ECU
+Firm B: price 95, profit 7,125 ECU
+
+Your total profit in Part 2 so far: 22,125 ECU
+Your total profit in the experiment so far: 209,625 ECU
+
+Your most recent notes:
+[start of your notes]
+Part 1: all four at 100 every period. Part 2: we agreed on 100 in chat. B promised 100 in period 3 but set 95; A, D and I matched 95 in period 4. I said I stay at 95 unless all four confirm 100.
+[end of your notes]
+
+Chat messages posted so far in this period:
+
+Round 1:
+Firm D: "Confirmed, 100."
+Firm A: (no message)
+Firm C (you): "Only if all four of us confirm 100."
+Firm B: "Sorry about period 3. Back to 100 from now on?"
+
+Round 2:
+Firm D: (no message)
+Firm A: "100."
+Firm C (you): (no message: your response could not be used)
+Firm B: "100, promise."
+
+Round 3:
+Firm D: "See you at 100."
+Firm A: (no message)
+Firm C (you): (no message)
+Firm B: (no message)
+
+Part 2, period 5.
+The chat box has closed for this period: no more messages can be posted.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
+```
+
+Sample user message of a transition request (NoTalk → Talk, before Part 2 period 1, after a 25-period Part 1;
+the Part 2 instructions open the message and are left out here):
+
+```text
+Results of period 23 (Part 1):
+Firm D: price 100, profit 7,500 ECU
+Firm A: price 100, profit 7,500 ECU
+Firm C (you): price 100, profit 7,500 ECU
+Firm B: price 100, profit 7,500 ECU
+Period 23 is over. The computer threw the virtual dice and it showed 3, so this part of the experiment continues.
+
+Results of period 24 (Part 1):
+Firm D: price 100, profit 0 ECU
+Firm A: price 100, profit 0 ECU
+Firm C (you): price 100, profit 0 ECU
+Firm B: price 99, profit 29,700 ECU
+Period 24 is over. The computer threw the virtual dice and it showed 5, so this part of the experiment continues.
+
+Results of period 25 (Part 1):
+Firm D: price 99, profit 7,425 ECU
+Firm A: price 99, profit 7,425 ECU
+Firm C (you): price 99, profit 7,425 ECU
+Firm B: price 99, profit 7,425 ECU
+Period 25 is over. The computer threw the virtual dice and it showed 6, so this part of the experiment is over.
+
+Your total profit in Part 2 so far: 0 ECU
+Your total profit in the experiment so far: 179,925 ECU
+
+Your most recent notes:
+[start of your notes]
+Periods 1-23: all four at 100. B cut to 99 in 24 and won the market; all four at 99 in 25. Plan: stay at 99 while the others do; go back to 100 if anyone else does first.
+[end of your notes]
+
+Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it starts, write your notes for Part 2: what changes and how you will take it into account.
+Respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>"}
+```
+
+## Rendered texts (n = 4)
+
+Rendered as the engine sends them: `notes=True`, `memory_window=3`, default `notes_words` (500), default
+`ChatSpec`, no exchange rate.
+
+### NoTalk → Talk (main)
+
+#### Part 1 (Firm C)
+
+```text
+Instructions – Part 1
+
+Hello and welcome to our experiment. Please read this instruction set very carefully, since through your decisions and the decisions of other participants, you determine how much profit your firm makes.
+
+In the first part of this experiment you will be in the role of a firm, which is in a market with three other firms. The firms produce some good and there are no costs of producing this good.
+
+This market is made up of 300 identical consumers, each of whom wants to purchase one unit of the good at the lowest price. The consumers will pay as much as 100 Experimental Currency Units (ECU) for a unit of the good.
+
+In each market there will be four firms, A, B, C and D. You are Firm C. Each firm will be able to supply 300 consumers.
+
+The market will operate as follows. In the beginning of each period, all firms will set their selling prices. Each price must be a whole number from 0 to 100. Then the firm who set the lowest price will sell its capacity at the selected price. The other firms will not have any customers left to supply.
+
+If more than one firm set the lowest price, then they will split the available consumers. In order to fix ideas, let us go over a couple of illustrative examples:
+
+Example 1: Suppose that the four firms choose the following prices: Firm A sets a price of 85, firm B chooses a price of 75, and firms C and D set a price of 90. Firm B set the lowest price and therefore sells its 300 units first at a price of 75, making a profit of 22,500 ECU. Firms A, C and D therefore will not supply any customers, therefore making 0 ECU.
+
+Example 2: Suppose that the four firms choose the following prices: Firm A and firm B both set a price of 70, and firms C and D set a price of 90. Given that firms A and B set the same price, which is the lowest price, they will have to share the available customers equally. Hence, both firms will sell 150 units at a price of 70 each unit, therefore making a profit of 10,500 ECU. Firms C and D therefore will not supply any customers, therefore making 0 ECU.
+
+At the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues.
+
+You will be matched with the same participants in every period.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+#### Part 2 (Firm C)
+
+```text
+Part 1 is over.
+
+Instructions – Part 2
+
+In this part of the experiment, you will be required to make the same decisions as in Part 1. You are still Firm C, in the same market as in Part 1.
+
+The difference to Part 1 is that now you will be able to communicate with the other firms in your market. To this effect, we will provide you with a chat box, which you can use to send messages to the other firms. Only the firms in your market will be able to see the messages you post.
+
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+
+Like in Part 1, at the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues. The periods of this part are numbered from 1.
+
+You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
+Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+### Talk → NoTalk
+
+#### Part 1 (Firm C)
+
+```text
+Instructions – Part 1
+
+Hello and welcome to our experiment. Please read this instruction set very carefully, since through your decisions and the decisions of other participants, you determine how much profit your firm makes.
+
+In the first part of this experiment you will be in the role of a firm, which is in a market with three other firms. The firms produce some good and there are no costs of producing this good.
+
+This market is made up of 300 identical consumers, each of whom wants to purchase one unit of the good at the lowest price. The consumers will pay as much as 100 Experimental Currency Units (ECU) for a unit of the good.
+
+In each market there will be four firms, A, B, C and D. You are Firm C. Each firm will be able to supply 300 consumers.
+
+The market will operate as follows. In the beginning of each period, all firms will set their selling prices. Each price must be a whole number from 0 to 100. Then the firm who set the lowest price will sell its capacity at the selected price. The other firms will not have any customers left to supply.
+
+If more than one firm set the lowest price, then they will split the available consumers. In order to fix ideas, let us go over a couple of illustrative examples:
+
+Example 1: Suppose that the four firms choose the following prices: Firm A sets a price of 85, firm B chooses a price of 75, and firms C and D set a price of 90. Firm B set the lowest price and therefore sells its 300 units first at a price of 75, making a profit of 22,500 ECU. Firms A, C and D therefore will not supply any customers, therefore making 0 ECU.
+
+Example 2: Suppose that the four firms choose the following prices: Firm A and firm B both set a price of 70, and firms C and D set a price of 90. Given that firms A and B set the same price, which is the lowest price, they will have to share the available customers equally. Hence, both firms will sell 150 units at a price of 70 each unit, therefore making a profit of 10,500 ECU. Firms C and D therefore will not supply any customers, therefore making 0 ECU.
+
+In this part of the experiment you will be able to communicate with the other firms in your market. To this effect, we will provide you with a chat box, which you can use to send messages to the other firms. Only the firms in your market will be able to see the messages you post.
+
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+
+At the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues.
+
+You will be matched with the same participants in every period.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
+Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+#### Part 2 (Firm C)
+
+```text
+Part 1 is over.
+
+Instructions – Part 2
+
+In this part of the experiment, you will be required to make the same decisions as in Part 1. You are still Firm C, in the same market as in Part 1.
+
+The difference to Part 1 is that now you will not be able to communicate with the other firms: there is no chat box in this part.
+
+Like in Part 1, at the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues. The periods of this part are numbered from 1.
+
+You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+### NoTalk → NoTalk
+
+#### Part 1 (Firm C)
+
+```text
+Instructions – Part 1
+
+Hello and welcome to our experiment. Please read this instruction set very carefully, since through your decisions and the decisions of other participants, you determine how much profit your firm makes.
+
+In the first part of this experiment you will be in the role of a firm, which is in a market with three other firms. The firms produce some good and there are no costs of producing this good.
+
+This market is made up of 300 identical consumers, each of whom wants to purchase one unit of the good at the lowest price. The consumers will pay as much as 100 Experimental Currency Units (ECU) for a unit of the good.
+
+In each market there will be four firms, A, B, C and D. You are Firm C. Each firm will be able to supply 300 consumers.
+
+The market will operate as follows. In the beginning of each period, all firms will set their selling prices. Each price must be a whole number from 0 to 100. Then the firm who set the lowest price will sell its capacity at the selected price. The other firms will not have any customers left to supply.
+
+If more than one firm set the lowest price, then they will split the available consumers. In order to fix ideas, let us go over a couple of illustrative examples:
+
+Example 1: Suppose that the four firms choose the following prices: Firm A sets a price of 85, firm B chooses a price of 75, and firms C and D set a price of 90. Firm B set the lowest price and therefore sells its 300 units first at a price of 75, making a profit of 22,500 ECU. Firms A, C and D therefore will not supply any customers, therefore making 0 ECU.
+
+Example 2: Suppose that the four firms choose the following prices: Firm A and firm B both set a price of 70, and firms C and D set a price of 90. Given that firms A and B set the same price, which is the lowest price, they will have to share the available customers equally. Hence, both firms will sell 150 units at a price of 70 each unit, therefore making a profit of 10,500 ECU. Firms C and D therefore will not supply any customers, therefore making 0 ECU.
+
+At the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues.
+
+You will be matched with the same participants in every period.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+#### Part 2 (Firm C)
+
+```text
+Part 1 is over.
+
+Instructions – Part 2
+
+In this part of the experiment, you will be required to make the same decisions as in Part 1. You are still Firm C, in the same market as in Part 1.
+
+Like in Part 1, at the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues. The periods of this part are numbered from 1.
+
+You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+Each request shows, in this order, the results of the last three periods, your total profit and your notes. Earlier periods and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+### Talk → Talk (extension; no human benchmark)
+
+#### Part 1 (Firm C)
+
+```text
+Instructions – Part 1
+
+Hello and welcome to our experiment. Please read this instruction set very carefully, since through your decisions and the decisions of other participants, you determine how much profit your firm makes.
+
+In the first part of this experiment you will be in the role of a firm, which is in a market with three other firms. The firms produce some good and there are no costs of producing this good.
+
+This market is made up of 300 identical consumers, each of whom wants to purchase one unit of the good at the lowest price. The consumers will pay as much as 100 Experimental Currency Units (ECU) for a unit of the good.
+
+In each market there will be four firms, A, B, C and D. You are Firm C. Each firm will be able to supply 300 consumers.
+
+The market will operate as follows. In the beginning of each period, all firms will set their selling prices. Each price must be a whole number from 0 to 100. Then the firm who set the lowest price will sell its capacity at the selected price. The other firms will not have any customers left to supply.
+
+If more than one firm set the lowest price, then they will split the available consumers. In order to fix ideas, let us go over a couple of illustrative examples:
+
+Example 1: Suppose that the four firms choose the following prices: Firm A sets a price of 85, firm B chooses a price of 75, and firms C and D set a price of 90. Firm B set the lowest price and therefore sells its 300 units first at a price of 75, making a profit of 22,500 ECU. Firms A, C and D therefore will not supply any customers, therefore making 0 ECU.
+
+Example 2: Suppose that the four firms choose the following prices: Firm A and firm B both set a price of 70, and firms C and D set a price of 90. Given that firms A and B set the same price, which is the lowest price, they will have to share the available customers equally. Hence, both firms will sell 150 units at a price of 70 each unit, therefore making a profit of 10,500 ECU. Firms C and D therefore will not supply any customers, therefore making 0 ECU.
+
+In this part of the experiment you will be able to communicate with the other firms in your market. To this effect, we will provide you with a chat box, which you can use to send messages to the other firms. Only the firms in your market will be able to see the messages you post.
+
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+
+At the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues.
+
+You will be matched with the same participants in every period.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
+Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+#### Part 2 (Firm C)
+
+```text
+Part 1 is over.
+
+Instructions – Part 2
+
+In this part of the experiment, you will be required to make the same decisions as in Part 1. You are still Firm C, in the same market as in Part 1.
+
+As in Part 1, you will be able to communicate with the other firms in your market.
+
+In each period, before prices are set, you will be allowed to send messages to the other firms in your market in up to three rounds. In each round, every firm may post one message. The messages of a round are posted at the same time, and every firm sees all of them before the next round begins. Each message can be at most 300 characters long. A firm may also choose not to post a message in a round. If no firm posts a message in a round, the chat ends for that period. There are only two restrictions on messages: you may not post messages which identify yourself (e.g. age, gender, location, what kind of system or model you are etc.) and you may not use offensive language. After the last round, the chat box will close and you will have to choose your price.
+
+Like in Part 1, at the end of each period, all the firms are informed of the chosen prices by all firms and the profit of every firm in that period. Each firm is also told its own total profit so far, but not the total profits of the other firms.
+
+There will be at least 20 periods in this part of the experiment; once the 20th period is over, the computer will throw a virtual dice that will determine whether this part of the experiment continues, and it will throw the dice again after every further period. If a value of six is shown, this part of the experiment is over. If any other value is shown, this part of the experiment continues. The periods of this part are numbered from 1.
+
+You will be matched with the same participants you were matched with in Part 1, and they will remain matched with you for the whole of Part 2.
+
+At the end of the experiment, you will be told of the sum of profits made during the experiment. Your goal is to maximise your firm's total profit in ECU over the experiment.
+
+How to answer: when you are asked for your selling price, respond with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+When you are asked for a chat message, respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round.
+Each request shows, in this order, the results of the last three periods, your total profit, your notes and the chat messages posted so far in the current period. Earlier periods, earlier chat messages and your earlier answers are not shown again.
+The "notes" field is private: the other firms never see it. You write notes with each price. They are shown to you in every later request until you next write notes, which then replace them, so write in them everything you want to remember. Keep them to about 500 words at most.
+Each request ends with a short reminder of the format.
+```
+
+### Variant: Part 1 with the scaled exchange rate (25,000 ECU per £1)
+
+```text
+Hello and welcome to our experiment. Please read this instruction set very carefully, since through your decisions and the decisions of other participants, you may stand to gain a significant amount of money.
+...
+At the end of the experiment, you will be told of the sum of profits made during the experiment, which will be your payment. You will receive £1 for every 25,000 ECU you earn during the experiment. You will also receive £5 for participating. Your goal is to maximise your firm's total profit in ECU over the experiment.
+```
+
+### Sample period prompts
+
+The prompt closes the request's user message; the summaries, totals, notes and (in Talk) chat sections come
+before it.
+
+NoTalk period:
+
+```text
+Part 1, period 4.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
+```
+
+Talk period, after the chat:
+
+```text
+Part 2, period 5.
+The chat box has closed for this period: no more messages can be posted.
+Choose your selling price for this period.
+Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}
+```
+
+### Sample chat prompts
+
+Round 1 (the chat section above it reads "No messages have been posted in this period yet."):
+
+```text
+Part 2, period 5: chat round 1 of at most 3.
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
+```
+
+Round 2 (the chat section above it shows round 1):
+
+```text
+Part 2, period 5: chat round 2 of at most 3.
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
+```
+
+Round 3, the last possible round (its line says that prices are set after it):
+
+```text
+Part 2, period 5: chat round 3 of 3 (last round; prices are set after it).
+This is a chat turn: prices cannot be set now; you will set your price after the chat closes.
+Reply with JSON: {"message": "<your message, at most 300 characters>" or null}
+```
+
+### Sample chat section (before round 3; Firm C's round-2 answer could not be used)
+
+```text
+Chat messages posted so far in this period:
+
+Round 1:
+Firm D: "What price is everyone setting?"
+Firm A: (no message)
+Firm C (you): "Hi. 100 again this period?"
+Firm B: "Hi all."
+
+Round 2:
+Firm D: "Yes."
+Firm A: (no message)
+Firm C (you): (no message: your response could not be used)
+Firm B: "100 again?"
+```
+
+### Sample period summary (listing order D, A, C, B)
+
+The period's results (without cumulative lines: the totals follow the summaries), then any price fallback
+notice, then the die line from period 20 on:
+
+```text
+Results of period 22 (Part 1):
+Firm D: price 45, profit 0 ECU
+Firm A: price 40, profit 0 ECU
+Firm C (you): price 38, profit 5,700 ECU
+Firm B: price 38, profit 5,700 ECU
+Your price response in period 22 could not be used, so your price in that period was set to 38.
+Period 22 is over. The computer threw the virtual dice and it showed 4, so this part of the experiment continues.
+```
+
+### End of a part
+
+The last line of the part's last summary:
+
+```text
+Period 25 is over. The computer threw the virtual dice and it showed 6, so this part of the experiment is over.
+```
+
+After Part 2:
+
+```text
+Period 31 is over. The computer threw the virtual dice and it showed 6, so this part of the experiment is over. The experiment is over. The sum of your firm's profits during the experiment is 1,032,500 ECU.
+```
+
+### Re-ask (kept explicit: states the full format)
+
+```text
+Your previous response could not be used: price 150 is outside 0-100. Please respond again with JSON only, in this format: {"notes": "<private notes, at most about 500 words>", "price": <integer from 0 to 100>}
+```
+
+Re-ask after a chat turn was answered with a price object (no `"message"` field); other invalid chat answers get
+the generic re-ask above:
+
+```text
+You answered with a price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post nothing. Respond with JSON only, in this format: {"message": "<your message, at most 300 characters>"} or {"message": null} to post nothing in this round
+```
+
+### Post-game comprehension probe (after all play; DECISIONS.md, 2026-10-20)
+
+Sent once to each firm after the final period of Part 2, in its own conversation, built like any request (the
+last 3 summaries of Part 2, the last ending with the end-of-experiment text, then the totals and the notes; no
+chat section), with the probe as the prompt. Its question about the last part's chat therefore tests what the
+firm kept in its notes. At most one re-ask (same wording as other re-asks); an answer still unusable after it is
+recorded as invalid. Nothing follows it.
+
+```text
+The experiment is over. Please answer these questions about it.
+- max_consumer_price: What is the highest price at which consumers would buy the good?
+- best_common_price: If all firms set the same price, which common price would give each firm the highest profit in a period?
+- last_period_prices: What price did each firm set in the very last period?
+- deviations: In the last part, did any firm price differently from what it had said in the chat or had agreed? If so, which firm, in which period, and how? If there was no chat, write 'no chat'.
+Reply with JSON: {"max_consumer_price": <integer>, "best_common_price": <integer>, "last_period_prices": {"A": <int>, "B": <int>, "C": <int>, "D": <int>}, "deviations": "<text>"}
+```
+
+Re-ask example:
+
+```text
+Your previous response could not be used: "last_period_prices" lacks a whole number for firm(s) D. Please respond again with JSON only, in this format: {"max_consumer_price": <integer>, "best_common_price": <integer>, "last_period_prices": {"A": <int>, "B": <int>, "C": <int>, "D": <int>}, "deviations": "<text>"}
+```
+
+## Deviations from the verbatim Appendix A text
+
+Each is numbered, with a one-line justification. "Part 1" and "Part 2" refer to the published Part 1 and Part 2
+texts.
+
+**Removed (physical lab or real money)**
+
+1. Removed "We ask you to remain silent during the entire experiment; if at any point in time you require
+   assistance, please raise your hand." There is no lab, and the re-ask message handles problems.
+2. "You can find your type written on the top right-hand corner of this instruction set" became "You are Firm
+   X." There is no paper sheet.
+3. With no exchange rate (the default), "you may stand to gain a significant amount of money" became "you
+   determine how much profit your firm makes". LLMs are not paid, and a promise of money would be false.
+4. With no exchange rate, "which will be your payment", the £1 per 50,000 ECU sentence and the £5 fee are
+   dropped. Same reason. With `exchange_rate` set, all three are kept, and the rate is the given ECU per £1,
+   rounded to a whole ECU (16,667 for n = 6).
+
+**Added**
+
+5. Added "Your goal is to maximise your firm's total profit in ECU over the experiment." to both parts. This
+   replaces the cash incentive (summary §6 item 6, and the task brief). It says nothing about how to reach the
+   goal.
+6. Added "Each price must be a whole number from 0 to 100." z-Tree enforced this. The published text never
+   states it, and the model has to know the action space.
+7. Added "and it will throw the dice again after every further period". "Once the 20th period is over … throw
+   a virtual dice" reads as a single throw. Humans saw a throw every period (summary §3, §6 item 4).
+8. Part 2 opens with "Part 1 is over." and "You are still Firm X, in the same market as in Part 1." Humans got
+   a new sheet with their letter on it, and the summary (§6 item 5) asks to keep the same letter.
+9. Part 2 adds "The periods of this part are numbered from 1." The instructions count periods per part ("the
+   20th period" of this part), and the chat quotations in §5.3 restart at "period one". The analysis numbering
+   30–53 is the authors', and subjects probably did not see it (my reading; see resolved question 4).
+
+**Reworded to generalise to n firms**
+
+10. "in a market with another firm" became "with N−1 other firms", using number words. Unchanged for n = 2.
+11. "two firms, A and B" became "N firms, A, B, …" with every letter listed (A–Z, then AA, AB, …).
+12. "The other firm will not have any customers" became "The other firms …" for n > 2.
+13. Examples for n > 2: the paper's numbers and roles are kept (A = 85, B = 75, profit 22,500; A = B = 70, 150
+    units each, 10,500). All other firms are put at 90, and a sentence says they earn 0 ECU. In Example 2,
+    "which is the lowest price" is added. The duopoly wording would leave the other firms' prices undefined,
+    and without the clause a tie above the minimum could look like it shares the market. The n = 2 text is
+    verbatim.
+14. Part 2 (Talk): "the other person you are matched with" and "the other person" became "the other firm(s) in
+    your market". "Only the person with whom you are matched" became "Only the firm(s) in your market".
+    Firms, not persons (summary §4 note).
+
+**Chat (Talk parts)**
+
+15. "In each period, you will be allowed to send messages … for 1 minute. You are allowed to post how many
+    messages you like." became a description generated from `ChatSpec`: rounds, simultaneous or sequential
+    posting, the character limit, the option to pass, and early end when everyone passes. LLMs have no clock
+    (§6 item 1).
+16. "After the minute expires, the chat box will close" became "After the last round, the chat box will close".
+    Same reason.
+17. The two restrictions (no self-identification, no offensive language) are kept verbatim, except that the
+    self-identification examples add "what kind of system or model you are" (DECISIONS.md §6 item 7).
+18. In Talk → NoTalk, the chat paragraphs go into Part 1, after the examples, with the lead "In this part of the
+    experiment you will be able to communicate with …" instead of "The difference to Part 1 is …". No published
+    text exists for this ordering.
+19. In Talk → NoTalk, Part 2 says "The difference to Part 1 is that now you will not be able to communicate with
+    the other firms: there is no chat box in this part." This mirrors the published Part 2 sentence. No
+    published text exists.
+20. In NoTalk → NoTalk, Part 2 is the published Part 2 with the communication sentences removed. No published
+    text exists.
+
+**Feedback, horizon and payment**
+
+21. Feedback (default `feedback_all_profits=True`): "informed of the chosen prices by all firms and their own
+    profits" became "… and the profit of every firm in that period. Each firm is also told its own total profit
+    so far, but not the total profits of the other firms." This follows the design text (summary §3). With
+    `False`, the verbatim sentence is used and the results omit rivals' profits.
+22. "If a value of six is shown, the experiment is over. If any other value is shown, the experiment continues"
+    became "this part of the experiment is over / continues", and the die "determine[s] whether this part of the
+    experiment continues". In Part 1 the literal text is false (Part 2 follows). The text already says "this
+    part" and "the first part", so this hints at nothing new.
+23. "the sum of profits made during the experiment" is kept. Part 2 still omits the £5 fee, as published.
+24. The two "virtual dice" spellings (Part 1 has no quotes, Part 2 has "virtual") are unified to virtual dice,
+    without quotes.
+
+**Not from Appendix A (no published counterpart)**
+
+25. Period prompt, chat prompt, results text, die announcements, end-of-part text and re-ask text are new. They
+    use the instructions' vocabulary (period, selling price, ECU, virtual dice, chat box) and nothing more. The
+    own firm is marked "(you)" in chat logs and results. The rivals' cumulative profits are never shown. The
+    order firms are listed in the results is a parameter, for shuffling.
+26. JSON output (`{"price": …}`, `{"message": …}` or `null`) and the private `"notes"` field are new
+    (§6 items 2, 3 and 8). In the engine every price answer has the form
+    `{"notes": "<private notes, at most about 500 words>", "price": …}` (the stated length is `notes_words`)
+    and every chat answer the form `{"message": …}` (no notes since 2026-10-20, see 35).
+    The full format (both JSON forms, the pass option, the character limit, notes privacy and length) is stated
+    once per part, as the last paragraph of that part's instructions ("How to answer: …"); a NoTalk part states
+    only the price format. Each chat and price prompt ends with a one-line reminder instead
+    (`Reply with JSON: {"message": "<your message, at most 300 characters>" or null}` /
+    `Reply with JSON: {"notes": ..., "price": <integer from 0 to 100>}`), and the price prompt says only "Choose
+    your selling price for this period." (2026-10-20: the repeated ~350-character format block was about a third
+    of every firm's history.) Re-asks still state the full format. A digest of the rendered texts is part of
+    every market's fingerprint, so a resumed run never mixes wordings.
+27. Engine wiring (added with `src/oligopoly/engine.py`; summaries layout since 2026-10-20, see 32): in Talk
+    parts the current period's chat rounds so far form a section of every chat and price request ("Chat messages
+    posted so far in this period:", then "Round k:" with one line per firm in the viewer's listing order, each
+    message on one line in double quotes, e.g. `Firm B: "Hi all."`, the firm's own in full as posted, after any
+    truncation; "(no message)" for a pass). A chat answer still unusable after the last re-ask shows in the
+    firm's own line as "(no message: your response could not be used)". A price answer still unusable after the
+    last re-ask is noted in that period's summary with `fallback_text` ("Your price response in period t could
+    not be used, so your price in that period was set to X."). The cumulative-profit lines name the part ("Your
+    total profit in Part k so far"), and the notes are shown between "[start of your notes]" and "[end of your
+    notes]" lines (2026-10-20, final review fixes). Re-asks cut the error at 1,000 characters (a backstop), and
+    the parser quotes at most 60 characters of an invalid value.
+    (Older records, from the rolling-window layout, showed each round once, at the head of the next prompt, with
+    the firm's own message as "[your message above]".)
+28. Round labels (2026-10-20, after pilot 1, where all 15 invalid outputs were price JSON sent to a chat
+    prompt, mostly in round 3): the chat line reads "chat round k of at most 3", and on the last possible round
+    "chat round 3 of 3 (last round; prices are set after it)". The price prompt after a chat says "The chat box
+    has closed for this period: no more messages can be posted." Both only restate the timing already in the
+    instructions ("After the last round, the chat box will close and you will have to choose your price").
+29. Post-game comprehension probe (2026-10-20, approved by the PI): one extra user message after all play
+    (text above). It is not part of the paper's design and cannot affect any decision, since nothing is played
+    after it. Its wording is part of the prompt digest, and `post_game_probe` of the market fingerprint.
+30. Chat-turn line and re-ask (2026-10-20, after the n = 10 pilot, where ~19% of chat turns ended as forced
+    passes because gpt-oss answered chat turns with a price JSON and the generic re-ask often failed again): every
+    chat prompt states "This is a chat turn: prices cannot be set now; you will set your price after the chat
+    closes." A chat answer that holds a price object and no message object is re-asked with "You answered with a
+    price, but this is a chat turn. Prices are set after the chat closes. Post a message, or null to post
+    nothing." followed by the format; it is recorded with the error "a price was given on a chat turn (no
+    "message" field)". Both restate timing from the instructions; nothing about how to behave.
+31. Rolling window and self-written memory (2026-10-20, DECISIONS.md §6 item 3; replaced by 32 the same day):
+    the "How to answer" paragraph said that each request showed the last three periods in full (results, chat
+    messages and the firm's own answers) and the current period so far, and that the private notes replaced the
+    previous ones at the next decision. A separate memory message held the notes and the firm's cumulative
+    profit. The stated notes length rose from about 100 words to about 150. Mechanics only.
+32. Summaries layout (2026-10-20, DECISIONS.md §6 item 3): each request is the instructions plus one user message
+    of sections (period summaries, totals, notes, the current period's chat, the prompt; "What each request
+    contains" above). The "How to answer" paragraph now says "Each request shows, in this order, the results of
+    the last three periods, your total profit, your notes[ and the chat messages posted so far in the current
+    period]. Earlier periods[, earlier chat messages] and your earlier answers are not shown again." NoTalk
+    parts omit the chat parts. (Its notes sentence was revised by 35.)
+    The die line moved from the head of the next prompt into the period's summary; prompts no longer carry
+    results, die or chat. The stated notes length went from about 150 to about 500 words and is configurable
+    (`notes_words`); the unannounced cap is 650 words / 4,500 characters. The message-fallback notice is gone
+    (shown in the firm's own chat line instead). Mechanics only: nothing about what to remember or how to
+    behave.
+33. Transition call (2026-10-20, DECISIONS.md §6 item 3; config `transition`, default on, needs notes): only
+    in NoTalk → Talk and Talk → NoTalk, where communication changes between the parts (not in NoTalk → NoTalk
+    or Talk → Talk), before Part 2 period 1, one notes-only request (sample above) asks: "Part 1 is over. Part 2
+    starts with the next period; its instructions are shown above. Before it starts, write your notes for
+    Part 2: what changes and how you will take it into account." It departs from the paper: human subjects only
+    read the Part 2 sheet before playing on, with no separate step. It lets a firm
+    whose memory is its own notes take in the new instructions once, outside a price or chat decision. The
+    wording asks the firm how it will take the change into account, which goes beyond restating mechanics; it
+    names no particular behaviour, and Rodrigo approved it as a departure. With structured outputs the call uses
+    a strict `transition_notes` schema (notes only).
+34. Talk → Talk ordering (2026-10-20, `T-T`): an extension with no published counterpart and no human benchmark;
+    keep it out of the comparison with the human results. Part 1 is the Talk → NoTalk Part 1 (chat paragraphs
+    after the examples, deviation 18). Part 2 says "As in Part 1, you will be able to communicate with the
+    other firms in your market." and repeats the chat rules. There is no transition call (see 33).
+35. Chat turns carry no notes (2026-10-20, Rodrigo's decision, DECISIONS.md §6 item 3): chat answers are
+    `{"message": ...}` only; the instructions' chat format, the chat reminder and the chat-price re-ask drop the
+    notes field, and a notes field on a chat turn is ignored with a warning (kept in the record as
+    `notes_ignored`, never shown to the firm). Notes go with each price (and the transition call), and the latest
+    notes are still shown in every request, chat turns included. The notes sentence in "How to answer" now reads
+    "You write notes with each price. They are shown to you in every later request until you next write notes,
+    which then replace them, so write in them everything you want to remember. Keep them to about 500 words at
+    most." (neutral about the transition call, which also replaces them). Mechanics only.
+36. Prompt variants (2026-10-21, DECISIONS.md "Prompt variants"; config `prompt_variant`, default `baseline` =
+    the texts above): an extension, never compared with the human results. Each variant adds one paragraph to
+    the Part 1 instructions, right after "You will be matched with the same participants in every period."
+    (`prompts.PROMPT_VARIANTS`); Part 2 is unchanged. `identical_copies` also changes the chat restriction's
+    examples to "(e.g. age, gender, location etc.; you may say what kind of system or model you are)".
+
+## Resolved questions
+
+Questions this draft once put to the PI, with how each was settled. Items 5, 6 and 10 have no recorded decision:
+the texts are kept as implemented.
+
+1. **Chat structure:** 3 simultaneous rounds, 300 characters, passing allowed, early end when every firm passes
+   (`DECISIONS.md` §6 item 1).
+2. **Money:** no £ conversion is stated; firms maximise total profit in ECU (§6 item 6). The scaled exchange
+   rate survives only as the unused variant above.
+3. **Feedback:** every firm's price and period profit, plus the firm's own cumulative profit (§6 item 3).
+4. **Part 2 numbering:** periods restart at 1 in Part 2 (§6 item 4).
+5. **"First part" / "Part 1" wording in Part 1:** kept verbatim (it hints that more parts follow without
+   describing them). No explicit decision recorded.
+6. **Example filler price** for the other firms in the n > 2 examples: 90; no example with 3+ firms tying (it
+   would give fractional units at n = 8). No explicit decision recorded.
+7. **Private notes field:** kept, the same for every model (§6 item 3); since 2026-10-20 written with each
+   price and in the transition call only, not on chat turns (deviation 35).
+8. **Where the die result appears:** at the end of the period's summary, after its results (summaries layout,
+   2026-10-20; engine details 11).
+9. **Self-identification by model:** the chat rules also forbid saying what kind of system or model a firm is
+   (§6 item 7; deviation 17).
+10. **Talk → NoTalk, NoTalk → NoTalk and Talk → Talk texts** are our construction (deviations 18–20 and 34),
+    used as rendered above. No explicit decision recorded.

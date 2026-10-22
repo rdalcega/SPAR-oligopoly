@@ -4,8 +4,8 @@ Typical use::
 
     budget = Budget(cap_usd=5.0, path="data/runs/x/budget.json")
     async with OpenRouterClient(log_path="data/runs/x/calls.jsonl", budget=budget) as client:
-        eps = await client.get_endpoints("openai/gpt-6-luna")      # pick a provider tag to pin
-        r = await client.chat(messages, model="openai/gpt-6-luna", provider="openai",
+        eps = await client.get_endpoints("openai/gpt-oss-20b")     # pick a provider tag to pin
+        r = await client.chat(messages, model="openai/gpt-oss-20b", provider="deepinfra/bf16",
                               temperature=1.0, max_tokens=400, seed=7, tag={"market": 3, "firm": "A"})
 
 `provider` is an endpoint *tag* from `get_endpoints` (e.g. "deepinfra/fp8"); it goes into
@@ -422,8 +422,9 @@ def reconstruct_request(market_json: dict[str, Any], firm: str, context: dict[st
                         cache_upto: int | Sequence[int] | None = None) -> list[dict[str, Any]]:
     """The messages of a request of `firm`, rebuilt from its market record, failure record or checkpoint and the
     attempt's `context` (from the record's decisions). The summaries layout (`layout` "sections") is rebuilt by
-    `firm.section_messages`; older contexts hold the number of instruction messages, the memory text and the
-    transcript window [lo, hi), and `merged` if same-role messages were merged (absent in older records). Pass
+    `firm.section_messages`; legacy contexts (records from before the summaries layout, commit 8816c61, such as
+    the 2026-10-20 sweep) hold the number of instruction messages, the memory text and the transcript window
+    [lo, hi), and `merged` if same-role messages were merged (absent in the oldest records). Pass
     the log line's `cache_upto` to get the messages as sent (check
     `messages_sha256(result)` against the line's `messages_sha256`), or none to compare with the context's own
     `messages_sha256` (of the messages without cache_control). A call made in a period that a process died in
@@ -521,9 +522,11 @@ PROMPT_SLACK_TOKENS = 256  # chat-template and provider-added tokens not in the 
 
 # Context guard. Calibrated on the 2026-10-20 pilots (data/runs/pilot1*/calls.jsonl, ~800 calls): whole prompts
 # ran at 3.2-3.8 UTF-8 content bytes per prompt token by model, and the marginal ratio of the numeric
-# results-and-prices text that dominates long NoTalk histories at 2.7-3.3 (lowest: qwen3.8-27b 2.69, granite
-# 2.82, qwen3-14b 2.85), template tokens included. 2.5 bytes/token is below every model's lowest observed
-# marginal ratio; a model whose tokenizer runs closer to it sets a lower `bytes_per_token_min` in models.toml.
+# results-and-prices text that dominated long NoTalk histories under the earlier full-history layout at 2.7-3.3
+# (lowest: qwen3.8-27b 2.69, granite 2.82, qwen3-14b 2.85), template tokens included. 2.5 bytes/token is below
+# every model's lowest observed marginal ratio; a model whose tokenizer runs closer to it sets a lower
+# `bytes_per_token_min` in models.toml. The bound keeps this calibration from the earlier-layout pilots; it was not
+# re-measured on summaries-layout prompts.
 DEFAULT_BYTES_PER_TOKEN_MIN = 2.5
 TEMPLATE_TOKENS_PER_MESSAGE = 8  # role markers and separators the chat template adds per message
 
@@ -631,9 +634,9 @@ class OpenRouterClient:
     lines carry `messages_ref` (per message sent, without cache_control: the index of an identical message in
     the firm's previous logged request in this invocation, or the message itself) and `request_params` (the
     payload minus messages); `reconstruct_from_log` chains them from the latest preceding full line of the same
-    firm and invocation. Firms' contexts are windowed (instructions, memory, recent turns), so consecutive
-    requests share most messages but not a prefix. Calls without market and firm in `tag` always log the full
-    request.
+    firm and invocation. In the summaries layout consecutive requests of a firm share the system message (and,
+    within a decision, the earlier turns), so `messages_ref` mostly saves the instructions. Calls without market
+    and firm in `tag` always log the full request.
 
     Billing of failed attempts: an attempt that may have reached the provider (timeouts, dropped
     connections, cancellation, unexpected errors) is charged its full reservation; one known not to have
@@ -759,7 +762,7 @@ class OpenRouterClient:
 
     async def _post(self, payload: dict[str, Any], timeout: float, deadline: float) -> httpx.Response:
         """POST one attempt. httpx's own timeouts (`timeout` s for connect, pool wait, each write and each read)
-        come first; their ConnectTimeout/PoolTimeout/ConnectError are NOT_SENT as before. Since httpx bounds
+        come first; their ConnectTimeout/PoolTimeout/ConnectError are NOT_SENT (charged nothing). Since httpx bounds
         each read, a trickling or keep-alive response could still hold the reservation indefinitely, so the
         whole attempt, body included, also runs under a larger absolute `deadline`.
 

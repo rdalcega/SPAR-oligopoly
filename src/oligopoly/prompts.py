@@ -3,10 +3,13 @@
 Adapted from the subject instructions in Appendix A of the working paper (transcribed verbatim in
 `fonseca-normann-summary.md` §4), generalised to any number of firms and to the four part orderings
 (NoTalk->Talk, Talk->NoTalk, NoTalk->NoTalk, and the extension Talk->Talk). Every edit to the published wording is listed in
-`docs/prompts-draft.md`.
+`docs/prompts.md`.
 
-All functions are pure: they take plain values and return strings. Design choices that DECISIONS.md has
-not fixed yet (chat turn structure, feedback content, exchange rate, private notes) are parameters.
+All functions are pure: the text builders take plain values and return strings (a few helpers return lists or
+numbers, or validate inputs). The design choices DECISIONS.md fixes (chat
+turn structure, feedback content, no exchange rate, private notes) are parameters; the engine passes the fixed
+values, and the alternatives (sequential chat, an exchange rate, own-profit-only feedback, cumulative profits in
+the results) are not used by any run.
 
 Hard rules (CLAUDE.md), enforced by tests/test_prompts.py:
 - never reveal the pre-drawn part lengths (state the 20-period minimum and the die rule instead);
@@ -22,8 +25,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-CONSUMERS = 300
-MAX_PRICE = 100
 MIN_PERIODS = 20
 NOTES_WORDS = 500  # default stated length of the notes (`notes_words` in config/experiment.toml)
 
@@ -70,7 +71,8 @@ class ChatSpec:
     max_rounds: maximum number of chat rounds per period.
     order: "simultaneous" = in each round every firm writes at the same time and sees the round's
         messages before the next round; "sequential" = firms write one at a time in an order that
-        changes every period, each seeing everything posted so far.
+        changes every period, each seeing everything posted so far. Only "simultaneous" is played:
+        the engine has no sequential chat, so "sequential" renders instructions only (tests).
     char_limit: maximum characters per message, or None for no limit.
     allow_pass: whether a firm may send no message in a round/turn.
     end_when_all_pass: chat ends early once every firm passes in the same round (needs allow_pass).
@@ -91,13 +93,6 @@ class ChatSpec:
             raise ValueError("end_when_all_pass requires allow_pass")
         if self.order not in ("simultaneous", "sequential"):
             raise ValueError(f"unknown chat order {self.order!r}")
-
-
-@dataclass(frozen=True)
-class ChatMessage:
-    firm: str
-    text: str
-    round: int = 1
 
 
 # --------------------------------------------------------------------------------------------------
@@ -142,7 +137,8 @@ def format_ecu(x: float) -> str:
 def scaled_exchange_rate(n: int) -> float:
     """ECU per £1 if maximum earnings are equalised across n (summary §6, item 6; an assumption).
 
-    50,000 ECU per £ for duopolies, scaled with the per-firm collusive profit: 100,000 / n.
+    50,000 ECU per £ for duopolies, scaled with the per-firm collusive profit: 100,000 / n. No run uses it:
+    DECISIONS.md §6 item 6 states no money, and the engine records `exchange_rate` None.
     """
     return 100_000 / n
 
@@ -293,12 +289,14 @@ def part_instructions(
 
     talk: whether this part has chat. previous_talk: for part 2, whether part 1 had chat (required).
     chat_spec: required when talk is True. exchange_rate: ECU per £1 to state (None = no money
-    sentences; see scaled_exchange_rate). feedback_all_profits: describe feedback as all prices plus
-    every firm's period profit (design text) instead of all prices plus own profit (instructions).
+    sentences, as in every run; see scaled_exchange_rate). feedback_all_profits: describe feedback as all
+    prices plus every firm's period profit (design text, used by every run) instead of all prices plus own
+    profit (instructions).
     notes: whether answers carry the private "notes" field. Each part's instructions end with the full answer
     format (see response_format_text); the per-turn prompts only repeat a one-line reminder.
-    memory_window: the number of completed periods each request shows in full (DECISIONS.md §6 item 3,
-    2026-10-20), stated with the answer format; None = the whole history (nothing is said).
+    memory_window: the number of completed periods whose summaries each request shows (DECISIONS.md §6 item 3,
+    summaries layout), stated with the answer format (window_text); None omits that sentence (used by the tests and
+    the archived scripts/probes/probe_models.py; the engine always passes the run's memory_window).
     notes_words: the stated maximum length of the notes.
     variant: a key of PROMPT_VARIANTS (extension; "baseline" is the design text).
     """
@@ -397,8 +395,6 @@ def part_instructions(
 # --------------------------------------------------------------------------------------------------
 # Per-period prompts
 # --------------------------------------------------------------------------------------------------
-
-
 
 
 def die_line(previous_period: int, roll: int, min_periods: int = MIN_PERIODS) -> str:
@@ -521,7 +517,8 @@ def chat_text(rounds: Sequence[str]) -> str:
 
 NO_MESSAGE = "(no message)"
 OWN_FAILED = "(no message: your response could not be used)"
-OWN_MESSAGE = "[your message above]"  # older records only: the firm's own message was its answer just above
+OWN_MESSAGE = "[your message above]"  # legacy: records from before the summaries layout (commit 8816c61), where the
+# firm's own message was its answer just above
 
 
 def shown_message(text: str) -> str:
@@ -595,9 +592,9 @@ def results_text(
     cumulative_total: float | None = None,
     feedback_all_profits: bool = True,
 ) -> str:
-    """End-of-period feedback. `order` is the listing order of firms (shuffle it per call or per market
-    to avoid position effects). Only the receiving firm's own cumulative profits are shown (the engine leaves
-    them out: the summaries are followed by totals_text instead)."""
+    """End-of-period feedback. `order` is the listing order of firms (the engine fixes a seeded
+    permutation per receiving firm for the whole market, DECISIONS.md §6 item 13). The cumulative lines show only the receiving firm's own profits; the engine
+    never passes them (the summaries are followed by totals_text instead), nor feedback_all_profits=False."""
     if sorted(order) != sorted(prices) or sorted(order) != sorted(profits):
         raise ValueError("order, prices and profits must cover the same firms")
     if firm_letter not in prices:
@@ -643,7 +640,8 @@ def chat_price_reask_text(chat_spec: ChatSpec) -> str:
 
 
 # The transition call (DECISIONS.md §6 item 3, 2026-10-20): once Part 1 is over and Part 2's instructions have been
-# shown, before Part 2's first period, each firm is asked for its notes only. Mechanics only: no behavioural hint.
+# shown, before Part 2's first period, each firm is asked for its notes only. It asks the firm to reflect on what
+# changes, but gives no hint about how to behave.
 TRANSITION_LINE = ("Part 1 is over. Part 2 starts with the next period; its instructions are shown above. Before it "
                    "starts, write your notes for Part 2: what changes and how you will take it into account.")
 
@@ -663,7 +661,7 @@ REASK_ERROR_CHARS = 1000
 
 
 def reask_text(error: str, expected_format: str) -> str:
-    """Re-ask after an unusable answer (unparseable JSON, out-of-range price, over-long message...). The error is
+    """Re-ask after an unusable answer (unparseable JSON, out-of-range price, missing field...). The error is
     cut to REASK_ERROR_CHARS characters, a backstop that keeps the request bounded."""
     if len(error) > REASK_ERROR_CHARS:
         error = error[:REASK_ERROR_CHARS - 1] + "…"

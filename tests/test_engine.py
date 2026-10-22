@@ -445,7 +445,7 @@ async def test_market_with_openrouter_client(tmp_path):
         assert all(isinstance(m["content"], str) for m in x["messages"][1:])
         assert [m["role"] for m in x["messages"]][:2] == ["system", "user"]
         assert all(a["role"] != c["role"] for a, c in zip(x["messages"], x["messages"][1:]))  # roles alternate
-    # Part 2: its instructions, the memory block and the opening turn are one user message
+    # Part 2: its instructions, the period summaries, the notes section and the prompt are one user message
     p2 = next(x for x in bodies if x["messages"][1]["content"].startswith("Part 1 is over."))
     assert "\n\nYour most recent notes:" in p2["messages"][1]["content"] or "\n\nYou have not written" in p2["messages"][1][
         "content"]
@@ -956,7 +956,7 @@ async def test_checkpoint_resume_matches_uninterrupted(tmp_path, at):
     assert not set(first) & set(second)  # no completed call is made again, not even within period k
     assert all((c["tag"]["part"], c["tag"]["period"]) >= at[1:3] for c in c2.calls if c["tag"]["phase"] != "probe")
     assert len(first) + len(second) == len(ref_client.calls)
-    # the resumed run rebuilt exactly the windows (instructions, memory, turns) of the uninterrupted one
+    # the resumed run rebuilt exactly the requests (instructions, summaries, notes, chat) of the uninterrupted one
     ref_msgs = {c["tag"]["call_id"]: c["messages"] for c in ref_client.calls}
     assert all(c["messages"] == ref_msgs[c["tag"]["call_id"]] for c in c1.calls + c2.calls)
     check_contexts(rec, ref_client, SHORT)
@@ -1388,7 +1388,8 @@ async def test_answer_without_notes_keeps_memory(tmp_path):
     mem = {c["tag"]["call_id"]: c["messages"][1]["content"] for c in client.calls if c["tag"]["part"] == 1}
     assert "odd-B-1-1" in mem["mock__n2__NT-T__m0/B/p1/t3/price/a0"]  # period 2's answer had no notes
     assert "\n\nYou have not written any notes yet.\n\n" in mem["mock__n2__NT-T__m0/A/p1/t1/price/a0"]
-    # Part 2 period 1, after the chat: A's empty notes replaced its memory; B's chat answer had none
+    # Part 2 period 1: A's transition answer had empty notes, which replaced its memory; B's had no notes field, so
+    # its transition call fell back and B keeps its period-3 notes (chat answers never carry notes)
     p2 = {c["tag"]["firm"]: c for c in client.calls if (c["tag"]["part"], c["tag"]["period"], c["tag"]["phase"])
           == (2, 1, "price")}
     assert "\n\nYour most recent notes:\n[start of your notes]\n(empty)\n[end" in p2["A"]["messages"][1]["content"]

@@ -24,8 +24,14 @@ LIMITATIONS = [
     "earlier agreement only counts when a firm replies with a bare agreement marker.",
     "Punishment is a price cut at t+1 by a firm that did not undercut at t; it does not separate punishment "
     "from a firm simply following the market down.",
-    "Deception signals rely on notes stating a lower own price or deviation words; notes are short summaries, "
-    "not full reasoning, so absence of a signal is weak evidence.",
+    "Deception signals rely on the notes written with the price stating a lower own price or a deviation plan; "
+    "notes are the firm's self-written memory, not full reasoning, so absence of a signal is weak evidence.",
+    "Agreements outlive their period only through a firm's notes (summaries layout), so a firm that breaks an "
+    "agreement its latest notes don't mention may have forgotten it; the coding does not separate this from "
+    "deliberate cheating.",
+    "When the `transition` setting is on, the notes-only transition call between the parts runs only in NT-T and "
+    "T-NT, not NT-NT or T-T, and the humans had no such step: Part 2 comparisons across orderings and with humans "
+    "include its effect (rows say when).",
     "Mistake heuristics (notes contradicting price, low price without context, misread rules) are screening "
     "flags for manual reading, not final classifications.",
     "fn. 18 defections are counted from prices only; the paper removed deliberate turn switches by reading chats.",
