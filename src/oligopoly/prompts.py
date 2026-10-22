@@ -295,8 +295,8 @@ def part_instructions(
     notes: whether answers carry the private "notes" field. Each part's instructions end with the full answer
     format (see response_format_text); the per-turn prompts only repeat a one-line reminder.
     memory_window: the number of completed periods whose summaries each request shows (DECISIONS.md §6 item 3,
-    summaries layout), stated with the answer format (window_text); None omits that sentence (tests only: the
-    engine always passes the run's memory_window).
+    summaries layout), stated with the answer format (window_text); None omits that sentence (used by the tests and
+    the archived scripts/probes/probe_models.py; the engine always passes the run's memory_window).
     notes_words: the stated maximum length of the notes.
     variant: a key of PROMPT_VARIANTS (extension; "baseline" is the design text).
     """

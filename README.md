@@ -40,8 +40,9 @@ is part of the SPAR project *Learning dynamics in competitive multiagent environ
 | `tests/` | Offline tests: a mock client and mocked HTTP, so no paid calls |
 | `data/` | Untracked scratch: raw run records and call logs (`data/runs/`), regenerated analyses and audits |
 
-Raw records of every run (~2 GB) are in the main checkout's `data/runs/`. From a worktree, pass
-`--runs-root ~/Documents/code/SPAR-oligopoly/data/runs` to the analysis scripts.
+Raw records of every run (~2 GB) are in the main checkout's `data/runs/`. From a worktree, point the scripts there:
+`--runs-root` for `analyze.py`, `--runs-dir` for `audit_pilot.py`, `--pilots` for the projections (`show_market.py`
+takes a market file path).
 
 ## Usage
 

@@ -217,9 +217,9 @@ reasoning are private.
   Human-comparison rows carry the transition caveat only for Part 2 windows of orderings whose markets had it.
 - **2026-10-20: projections from the pilot records** (`data/runs/` of the `experiments` worktree;
   `--pilots .claude/worktrees/experiments/data/runs`; that worktree was later removed, and the pilot records are now
-  in the main checkout's `data/runs/`, the scripts' default
-  from the main checkout; from another worktree pass `--pilots ~/Documents/code/SPAR-oligopoly/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10
-  x four orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
+  in the main checkout's `data/runs/`, the scripts' default there; from another worktree pass
+  `--pilots ~/Documents/code/SPAR-oligopoly/data/runs`): `project_context.py --notes-at-cap`, grid n = 2-10 x four
+  orderings: no exclusions (qwen3-14b peaks at ~15.5k tokens of its 32.8k limit incl. max_tokens).
   `project_cost.py` (6 markets per paper cell, 36 markets): gpt-oss-20b ~$4.97 ($6.29 with the guard's token
   bound), qwen3-14b ~$11.70 ($15.42); price and transition calls carry the stated 500-word notes (+~760 output
   tokens each), chat calls none.

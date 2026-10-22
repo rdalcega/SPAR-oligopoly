@@ -43,7 +43,7 @@ def all_instructions():
         letters = firm_letters(n)
         for letter in (letters[0], letters[-1]):
             er = scaled_exchange_rate(n) if rate else None
-            w = 3 if letter == letters[0] else None  # the engine's window; None only in scripts/probes/probe_models.py
+            w = 3 if letter == letters[0] else None  # the engine's window; None as in scripts/probes/probe_models.py
             p1 = part_instructions(n, letter, 1, t1, chat_spec=spec, exchange_rate=er, notes=rate is None,
                                    memory_window=w)
             p2 = part_instructions(n, letter, 2, t2, previous_talk=t1, chat_spec=spec, exchange_rate=er,

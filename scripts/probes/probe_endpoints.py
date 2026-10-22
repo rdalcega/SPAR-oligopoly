@@ -1,7 +1,10 @@
-"""Snapshot OpenRouter endpoints of the 2026-10-19 probed models to results/2026-10-20-probes/provider/endpoints.json
+"""Snapshot OpenRouter endpoints of the 2026-10-19 probed models to data/probes/provider/endpoints.json
 (no cost). Archived with the provider probe; a rerun overwrites the snapshot.
 
     uv run python scripts/probes/probe_endpoints.py
+
+Outputs go to untracked scratch (data/probes/provider/); the 2026-10-20 outputs are archived in
+results/2026-10-20-probes/provider/.
 """
 import asyncio
 import json
@@ -37,7 +40,7 @@ async def main():
                       f"maxc={e.get('max_completion_tokens')} st={e.get('status')} "
                       + " ".join(k for k in KEYS if k in sp)
                       + f" | up30m={e.get('uptime_last_30m')}")
-    path = ROOT / "results/2026-10-20-probes/provider/endpoints.json"
+    path = ROOT / "data/probes/provider/endpoints.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=2))
 

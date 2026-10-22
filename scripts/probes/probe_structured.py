@@ -10,8 +10,11 @@ call sends the model's own settings from models.toml plus the strict `chat_turn`
 (`engine.response_schema`) and require_parameters, so a provider that cannot honour the schema must refuse the
 call. Reports per call whether the provider accepted it and whether the content is valid
 JSON matching the schema (exactly a `message` string-or-null; chat turns carry no notes). Budget cap $0.05
-(--budget-usd); calls are logged to results/2026-10-20-probes/structured-outputs/calls.jsonl and the summary to
+(--budget-usd); calls are logged to data/probes/structured-outputs/calls.jsonl and the summary to
 results.json in the same folder (a rerun appends to the log and overwrites the summary).
+
+Outputs go to untracked scratch (data/probes/structured-outputs/); the 2026-10-20 outputs are archived in
+results/2026-10-20-probes/structured-outputs/.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from oligopoly.llm import Budget, OpenRouterClient, OpenRouterError
 from oligopoly.mock import MockClient
 from oligopoly.parse import parse_message
 
-OUT = ROOT / "results" / "2026-10-20-probes" / "structured-outputs"
+OUT = ROOT / "data" / "probes" / "structured-outputs"
 
 
 async def chat_turn_request() -> list[dict[str, Any]]:

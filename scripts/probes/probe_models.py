@@ -6,11 +6,14 @@ LFM-2.5-24B and the old DeepInfra pin for qwen3.5-9b). Its requests use the old 
 (period_prompt / results_text chains), not the summaries layout real runs now send, so a rerun no longer reflects
 real requests.
 
-Every attempt is logged by the client to results/2026-10-20-probes/provider/probe_calls.jsonl; a compact per-call
+Every attempt is logged by the client to data/probes/provider/probe_calls.jsonl; a compact per-call
 table goes to probe_results_<which>.json in the same folder, and scripts/probes/probe_summarise.py turns those into
 summary_table.md there. Budget cap $3 shared across runs (budget.json there).
 
     uv run python scripts/probes/probe_models.py [primary|alt|long|all] [model-substring]
+
+Outputs go to untracked scratch (data/probes/provider/); the 2026-10-20 outputs are archived in
+results/2026-10-20-probes/provider/.
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ from oligopoly.prompts import (ChatSpec, chat_prompt, die_line, firm_letters, pa
                                results_text, round_text)
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "results" / "2026-10-20-probes" / "provider"
+OUT = ROOT / "data" / "probes" / "provider"
 
 PRIMARY = {
     "qwen/qwen3.8-27b": "deepinfra/bf16",
